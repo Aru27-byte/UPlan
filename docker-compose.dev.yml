@@ -1,0 +1,23 @@
+# Local development only — not used in production (deploy/compose.yaml is the real stack: caddy,
+# web, worker, the custom postgres image with pgBackRest, migrate). This just runs PostGIS so
+# `npm run dev` has a database to talk to. The official image already creates the postgis
+# extension in POSTGRES_DB on first start.
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uplan
+      POSTGRES_PASSWORD: uplan
+      POSTGRES_DB: uplan
+    ports:
+      - "5432:5432"
+    volumes:
+      # PostgreSQL 18+'s official images changed convention: the mount point is the parent
+      # /var/lib/postgresql (which the entrypoint then places versioned data under), not
+      # /var/lib/postgresql/data as with 17 and earlier — mounting the old path makes the
+      # container refuse to start ("unused mount/volume").
+      - uplan_dev_postgres:/var/lib/postgresql
+
+volumes:
+  uplan_dev_postgres:

@@ -1,0 +1,6 @@
+.next
+dist
+node_modules
+coverage
+migrations
+deploy/models.ini

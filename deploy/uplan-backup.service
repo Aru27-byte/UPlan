@@ -1,0 +1,10 @@
+[Unit]
+Description=UPlan pgBackRest backup (TechDesign/system-architecture.md, V8)
+After=docker.service
+
+[Service]
+Type=oneshot
+# Full on Sundays, differential the rest of the week, per "Backups and recovery" in the architecture.
+ExecStart=/bin/sh -c '\
+  if [ "$(date +%%u)" = "7" ]; then KIND=full; else KIND=diff; fi; \
+  docker compose -f /opt/uplan/deploy/compose.yaml exec -T postgres pgbackrest --stanza=uplan --type=$KIND backup'

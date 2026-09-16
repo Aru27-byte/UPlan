@@ -1,0 +1,14 @@
+# TechDesign/system-architecture.md — V2 (caddy): HTTPS with automatic Let's Encrypt certificates,
+# HTTP/3, reverse proxy to `web`, and the basemap file served with byte ranges.
+# {$UPLAN_HOSTNAME} is set by the city's DNS record, e.g. uplan.sammamish.us.
+
+{$UPLAN_HOSTNAME} {
+	encode gzip
+
+	handle_path /basemap/* {
+		root * /srv/basemap
+		file_server
+	}
+
+	reverse_proxy web:3000
+}

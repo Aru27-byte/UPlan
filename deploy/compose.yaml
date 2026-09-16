@@ -1,0 +1,76 @@
+# TechDesign/system-architecture.md — one Compose file runs every process on the one Arm VM.
+# Memory limits match the container table exactly; only `caddy` publishes ports.
+services:
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./basemap:/srv/basemap:ro
+      - caddy_data:/data
+    mem_limit: 256m
+    depends_on:
+      - web
+
+  web:
+    image: uplan-web:${TAG:-latest}
+    build:
+      context: ..
+      target: web
+    restart: unless-stopped
+    env_file: /etc/uplan/app.env
+    mem_limit: 1g
+    depends_on:
+      - postgres
+      - migrate
+
+  worker:
+    image: uplan-worker:${TAG:-latest}
+    build:
+      context: ..
+      target: worker
+    restart: unless-stopped
+    command: ["node", "dist/worker/main.js", "--crontab", "/app/crontab"]
+    volumes:
+      - ./crontab:/app/crontab:ro
+    env_file: /etc/uplan/app.env
+    mem_limit: 2g
+    cpu_shares: 512
+    depends_on:
+      - postgres
+      - migrate
+
+  postgres:
+    image: uplan-postgres:${TAG:-latest}
+    build:
+      context: ..
+      target: postgres
+    restart: unless-stopped
+    env_file: /etc/uplan/postgres.env
+    volumes:
+      # PostgreSQL 18+ mounts at the parent /var/lib/postgresql, not .../data (see
+      # docker-compose.dev.yml for the full explanation) — the old path makes the container
+      # refuse to start.
+      - postgres_data:/var/lib/postgresql
+    mem_limit: 3g
+
+  migrate:
+    image: uplan-worker:${TAG:-latest}
+    build:
+      context: ..
+      target: worker
+    command: ["npx", "drizzle-kit", "migrate"]
+    env_file: /etc/uplan/app.env
+    depends_on:
+      - postgres
+    restart: "no"
+
+  # models (llama.cpp, 4.5g) ships with F2, later in v1 — not part of release 1's compose file.
+
+volumes:
+  caddy_data:
+  postgres_data:

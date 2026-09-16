@@ -1,0 +1,4 @@
+# graphile-worker crontab — TechDesign/system-architecture.md, J10 and J3/J6.
+# Format: <cron pattern> <task identifier> [?option=value]
+*/5 * * * * record_heartbeat
+0 11 * * * daily_jurisdiction_maintenance

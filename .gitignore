@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output — never committed (do-not.md)
+.next/
+dist/
+out/
+
+# env — secrets never in the repository (do-not.md)
+.env
+.env.local
+.env.*.local
+
+# test / build artifacts — never committed (do-not.md)
+coverage/
+test-results/
+playwright-report/
+blob-report/
+*.tsbuildinfo
+
+# local model files (later, with F2) — pinned by SHA-256 in deploy/setup.sh, not committed
+deploy/models/*.gguf
+
+# editor / OS
+.DS_Store
+*.log

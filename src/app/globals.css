@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* UIDesign/*.png — the visual design system. Values are read off the mockups: a dark olive
+   sidebar/hero over a warm cream content background, "sticker" cards (thick ink border, flat
+   offset shadow, no blur) in four fill colors, a gold primary action and a green secondary/active
+   one. No new font dependency: font-serif/font-mono/font-sans are Tailwind's generic stacks, kept
+   zero-cost per tech-stack.md (no Google Fonts fetch). The report keeps its own print styling
+   (src/modules/reports/document.tsx); this file styles the interactive app only (D20). */
+@theme {
+  --color-ink: #211c14;
+  --color-cream: #f2ecd8;
+  --color-cream-soft: #ece4cc;
+  --color-sidebar: #332c1a;
+  --color-sidebar-foreground: #f2ecd8;
+
+  --color-accent-gold: #eab676;
+  --color-accent-gold-deep: #dda158;
+  --color-accent-green: #8bc34a;
+  --color-accent-green-deep: #6fa439;
+
+  --color-card-yellow: #ecdf9a;
+  --color-card-green: #a9cf78;
+  --color-card-green-deep: #7fae53;
+  --color-card-blue: #b6dde3;
+  --color-card-tan: #eab676;
+
+  /* Matches src/ui/map-styles.ts exactly, so a "regulatory"/"approximate" badge always means the
+     same color everywhere a boundary's map status appears (map, evidence, impact). */
+  --color-status-regulatory: #1d4ed8;
+  --color-status-approximate: #b45309;
+
+  --shadow-sticker: 4px 4px 0 0 var(--color-ink);
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+}
+
+@layer components {
+  /* The recurring "sticker" treatment: thick ink border, flat offset shadow, no blur. */
+  .card-sticker {
+    border-radius: 0.75rem;
+    border-width: 2px;
+    border-color: var(--color-ink);
+    box-shadow: var(--shadow-sticker);
+  }
+
+  /* A confidence/status pill (e.g. "High", "Approximate", "Flagged — study likely needed") — always
+     ink background with cream text, exact case preserved (never forced uppercase). */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background-color: var(--color-ink);
+    color: var(--color-cream);
+    padding-inline: 0.75rem;
+    padding-block: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* A small uppercase tracked-out caption/eyebrow label (e.g. "GROUNDED IN EVIDENCE", "CLEARED"). */
+  .eyebrow {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+}
