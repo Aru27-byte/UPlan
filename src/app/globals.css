@@ -70,3 +70,30 @@ body {
     font-weight: 600;
   }
 }
+
+/* MapLibre popups (map-workspace.client.tsx) render into their own shadow-free DOM, outside
+   Tailwind's reach via className — styled globally here instead. The top border color is set
+   per-popup, inline, to the clicked layer's own color (map-styles.ts). */
+.maplibregl-popup-content {
+  border-radius: 0.5rem;
+  border: 2px solid var(--color-ink);
+  box-shadow: var(--shadow-sticker);
+  padding: 0;
+}
+.uplan-popup {
+  border-top: 4px solid var(--color-ink);
+  border-radius: 0.375rem 0.375rem 0 0;
+  padding: 0.75rem 1rem;
+  font-family: var(--font-sans);
+}
+.uplan-popup strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.9375rem;
+}
+.uplan-popup p {
+  margin: 0.125rem 0;
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  opacity: 0.8;
+}

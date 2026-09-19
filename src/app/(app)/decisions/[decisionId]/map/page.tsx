@@ -1,10 +1,9 @@
 import { getDecision, getLatestGeometry, saveGeometry } from "@/modules/decisions";
 import { getJurisdictionDatasetMappings, getDatasetVersionProvenance } from "@/modules/evidence";
-import { getJurisdictionBoundary } from "@/modules/profiles";
+import { getCurrentProfile, getJurisdictionBoundary, ProfileDocumentSchema } from "@/modules/profiles";
 import { formatEvidenceProvenance } from "@/modules/provenance";
 
 import { requireActor } from "@/app/_lib/actor";
-import { EvidenceTextView } from "@/ui/evidence-text-view";
 import { GeometryEditor } from "@/ui/footprint-editor.client";
 import { boundsFromFirst } from "@/ui/geo-bounds";
 import { MapWorkspace, type EvidenceLayer } from "@/ui/map-workspace.client";
@@ -20,11 +19,12 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
   const { actor } = await requireActor();
 
   const decision = await getDecision(actor, decisionId);
-  const [studyArea, footprint, mappings, jurisdictionBoundary] = await Promise.all([
+  const [studyArea, footprint, mappings, jurisdictionBoundary, profileVersion] = await Promise.all([
     getLatestGeometry(actor, decisionId, "study_area"),
     getLatestGeometry(actor, decisionId, "footprint"),
     getJurisdictionDatasetMappings(decision.jurisdictionId),
     getJurisdictionBoundary(actor, decision.jurisdictionId),
+    getCurrentProfile(actor, decision.jurisdictionId),
   ]);
   const studyAreaGeom = studyArea?.geom.type === "MultiPolygon" ? studyArea.geom : null;
   // Point the camera at whatever's actually drawn — falling back to the jurisdiction's own
@@ -37,14 +37,19 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
   ]);
   if (!initialBounds) throw new Error("jurisdiction boundary unexpectedly produced no bounds");
 
+  // Built in the profile's own resourceTypes order (not mappings' arbitrary DB order) — the same
+  // order the Evidence tab's cards use, and stable across reloads, so the color assigned to a
+  // layer here (map-styles.ts's fixed categorical order) always means the same layer every time.
+  const profile = profileVersion ? ProfileDocumentSchema.parse(profileVersion.document) : null;
   const layers: EvidenceLayer[] = [];
-  for (const m of mappings) {
-    if (!m.dataset.currentVersionId) continue;
-    const provenance = await getDatasetVersionProvenance(m.dataset.currentVersionId);
+  for (const resourceType of profile?.resourceTypes ?? []) {
+    const mapping = mappings.find((m) => m.resourceTypeKey === resourceType.key);
+    if (!mapping?.dataset.currentVersionId) continue; // a gap (evidence/page.tsx) — nothing to show on the map either
+    const provenance = await getDatasetVersionProvenance(mapping.dataset.currentVersionId);
     layers.push({
-      datasetVersionId: m.dataset.currentVersionId,
-      label: m.dataset.title,
-      mapStatus: "approximate", // resolved from the current profile's resourceTypes[].mapStatus in the full implementation
+      datasetVersionId: mapping.dataset.currentVersionId,
+      label: mapping.dataset.title,
+      mapStatus: resourceType.mapStatus,
       provenance: formatEvidenceProvenance(provenance),
     });
   }
@@ -69,9 +74,6 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
           footprintGeoJson={footprint?.geom ?? null}
           initialBounds={initialBounds}
         />
-        <div className="mt-4">
-          <EvidenceTextView layers={layers} />
-        </div>
       </div>
 
       <details className="card-sticker bg-white p-4">
