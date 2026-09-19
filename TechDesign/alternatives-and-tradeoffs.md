@@ -144,6 +144,8 @@ One record per decision. A change to the stack starts here: update the record, t
 - Evidence layers are vector tiles made by PostGIS `ST_AsMVT`. Each tile URL includes the dataset version, so a tile never changes and can be cached as immutable.
 - The basemap is a Protomaps extract of the city's area, built from OpenStreetMap data with the `pmtiles` command-line tool, and served by Caddy from the VM's disk.
 - Terra Draw is adapter-based — it has no rendering code of its own — so wiring it to MapLibre needs `terra-draw-maplibre-gl-adapter`, the same project's official adapter package (peer deps `terra-draw@^1.0.0`, `maplibre-gl>=4`, both already pinned here). Writing an equivalent adapter by hand against `terra-draw`'s exported `TerraDrawExtend` base classes would be more code, not less, to maintain a capability the ecosystem already publishes (`.claude/rules/best-practices.md`: "A new dependency must remove more code than it adds").
+- The basemap is served, and read, as a single `.pmtiles` file — a **vector** tile archive read entirely over HTTP range requests, which is what Caddy's `file_server` + `handle_path` were already built to serve ("the basemap file served with byte ranges") and what Protomaps' own free daily builds actually publish (their product is vector, not pre-rendered raster tiles). MapLibre has no built-in reader for the format, so `basemap-style.client.ts` uses the `pmtiles` npm package (Protomaps' own client library) to register a `pmtiles://` protocol handler, and `@protomaps/basemaps` (the actively maintained successor to the now-deprecated `protomaps-themes-base`) to generate the ~100 fill/line paint rules a basemap needs, instead of hand-authoring them.
+- Text labels (`symbol` layers) are filtered out of that generated style: rendering them needs font glyphs and sprite icons, and Protomaps only publishes those from a live `protomaps.github.io` URL — an always-on third-party call this app has no other reason to make. Everything else (roads, water, parks, buildings) still renders from the same downloaded-on-purpose `.pmtiles` extract, no external call at runtime. Bundling the glyph/sprite files locally, the same way the extract itself is downloaded once and served from disk, is the addressable follow-up if labels are wanted (see `basemap-style.client.ts`'s comment).
 
 **Considered.**
 
@@ -154,8 +156,9 @@ One record per decision. A change to the stack starts here: update the record, t
 - _A Martin tile server_ — one more service to run.
 - _Prebuilt PMTiles per dataset version_ — fast, but adds tippecanoe to ingestion.
 - _Hosted basemap APIs_ — third-party availability and terms.
+- _Raster PNG basemap tiles_ (a `{z}/{x}/{y}.png` URL template) — an earlier implementation pass assumed this, but nothing in the free Protomaps ecosystem publishes pre-rendered raster tiles, and Caddy's own config already only ever served one range-requested file, not a tile-file tree — corrected to match what was already the documented and deployed intent.
 
-**Trade-offs accepted.** Someone must refresh the basemap file on purpose. No aerial imagery source is chosen yet; the map-workspace design picks a public-domain one.
+**Trade-offs accepted.** Someone must refresh the basemap file on purpose. No aerial imagery source is chosen yet; the map-workspace design picks a public-domain one. Local development regenerates its own small extract with the `pmtiles` CLI (see `LOCAL_HOSTING.md`) rather than sharing production's file.
 
 **Revisit when.** Tile load from PostGIS becomes noticeable.
 

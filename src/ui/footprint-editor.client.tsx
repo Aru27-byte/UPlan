@@ -18,8 +18,10 @@ import type { MultiPolygon, Polygon, Position } from "geojson";
 // imports @/modules runtime code (file-structure-and-imports.md).
 import type { GeometryKind } from "@/modules/decisions";
 
+import { basemapStyle } from "./basemap-style.client";
 import { buttonClassName } from "./button-styles";
 import { closeRing, toMultiPolygon } from "./footprint-geometry";
+import type { LngLatBounds } from "./geo-bounds";
 import { ReferenceOverlay } from "./reference-overlay.client";
 
 // TechDesign/proposal-footprint.md — the tracing UI for both geometry kinds F5's saveGeometry
@@ -37,6 +39,11 @@ export type GeometryEditorProps = {
   initialGeoJson: MultiPolygon | null;
   currentRevision: number; // 0 when nothing has been saved yet
   onSave: (geojson: MultiPolygon, sourceNote: string, expectedRevision: number) => Promise<void>;
+  /**
+   * Where to point the camera on first load. Without this, MapLibre defaults to `[0, 0]` at zoom
+   * 0 — nowhere near any real jurisdiction — and tracing a shape there would be invisible.
+   */
+  initialBounds: LngLatBounds;
 };
 
 const POLYGON_MODE = "polygon";
@@ -58,6 +65,7 @@ export function GeometryEditor({
   initialGeoJson,
   currentRevision,
   onSave,
+  initialBounds,
 }: GeometryEditorProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -92,13 +100,10 @@ export function GeometryEditor({
     if (!containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: {
-        version: 8,
-        sources: { basemap: { type: "raster", tiles: [basemapUrl], tileSize: 256 } },
-        layers: [{ id: "basemap", type: "raster", source: "basemap" }],
-      },
+      style: basemapStyle(basemapUrl),
     });
     mapRef.current = map;
+    map.fitBounds(initialBounds, { padding: 40, animate: false });
 
     map.on("load", () => {
       if (referenceGeoJson) {

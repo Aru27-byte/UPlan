@@ -20,8 +20,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // api/auth must stay reachable while signed out — it's how signing in happens at all. This
-  // still isn't a security boundary (see the comment above): every module function checks access
-  // itself regardless of what this matcher does or doesn't cover.
-  matcher: ["/((?!api/health|api/tiles|api/auth|_next/static|_next/image|favicon.ico).*)"],
+  // api/auth must stay reachable while signed out — it's how signing in happens at all. `basemap`
+  // is exempted to match production, where Caddy serves it directly (deploy/Caddyfile's
+  // `handle_path /basemap/*`) before any request reaches this app at all — it's public map tile
+  // imagery, not decision data, so local dev (which has no Caddy in front of it) shouldn't gate it
+  // behind a session either. This still isn't a security boundary (see the comment above): every
+  // module function checks access itself regardless of what this matcher does or doesn't cover.
+  matcher: ["/((?!api/health|api/tiles|api/auth|basemap|_next/static|_next/image|favicon.ico).*)"],
 };

@@ -42,6 +42,8 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | terra-draw-maplibre-gl-adapter                        | 1            | The official adapter wiring Terra Draw's drawing modes to MapLibre GL JS  | D10      |
 | PostGIS vector tiles (`ST_AsMVT`)                     | —            | Evidence layers, served per dataset version                               | D10      |
 | Protomaps basemap (OpenStreetMap data) with `pmtiles` | 4            | A basemap extract for the city's area, served by Caddy from the VM's disk | D10      |
+| pmtiles (npm)                                         | 4            | Reads the `.pmtiles` basemap archive client-side via a MapLibre protocol  | D10      |
+| @protomaps/basemaps                                   | 5            | Generates the basemap's fill/line paint rules from the same archive       | D10      |
 
 ## Data
 

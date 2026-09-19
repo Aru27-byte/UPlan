@@ -6,6 +6,8 @@ import * as maplibregl from "maplibre-gl";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { basemapStyle } from "./basemap-style.client";
+import type { LngLatBounds } from "./geo-bounds";
 import { paintFor, type MapStatus } from "./map-styles";
 
 // TechDesign/map-workspace.md — R1/R5/R6: evidence tiles, study area/footprint, and the basemap,
@@ -25,13 +27,26 @@ export type EvidenceLayer = {
 };
 
 export type MapWorkspaceProps = {
-  basemapUrl: string; // the pmtiles extract Caddy serves from the VM's disk (D10)
+  basemapUrl: string; // one static URL to the .pmtiles extract Caddy serves from the VM's disk (D10)
   layers: EvidenceLayer[];
   studyAreaGeoJson: GeoJSON.Geometry | null;
   footprintGeoJson: GeoJSON.Geometry | null;
+  /**
+   * Where to point the camera on first load — the study area, footprint, or (when a decision has
+   * neither drawn yet) the jurisdiction boundary. Without this, MapLibre defaults to `[0, 0]` at
+   * zoom 0, off the coast of Africa: every layer above still renders, just nowhere near the
+   * visible viewport, which looks exactly like a blank map.
+   */
+  initialBounds: LngLatBounds;
 };
 
-export function MapWorkspace({ basemapUrl, layers, studyAreaGeoJson, footprintGeoJson }: MapWorkspaceProps) {
+export function MapWorkspace({
+  basemapUrl,
+  layers,
+  studyAreaGeoJson,
+  footprintGeoJson,
+  initialBounds,
+}: MapWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
 
@@ -39,13 +54,10 @@ export function MapWorkspace({ basemapUrl, layers, studyAreaGeoJson, footprintGe
     if (!containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: {
-        version: 8,
-        sources: { basemap: { type: "raster", tiles: [basemapUrl], tileSize: 256 } },
-        layers: [{ id: "basemap", type: "raster", source: "basemap" }],
-      },
+      style: basemapStyle(basemapUrl),
     });
     mapRef.current = map;
+    map.fitBounds(initialBounds, { padding: 40, animate: false });
 
     map.on("load", () => {
       for (const layer of layers) {
@@ -97,6 +109,8 @@ export function MapWorkspace({ basemapUrl, layers, studyAreaGeoJson, footprintGe
     });
 
     return () => map.remove();
+    // Intentionally excludes initialBounds: it's the map's one-time initial camera position, not
+    // something a later render should re-fit to (a planner may have panned/zoomed since).
   }, [basemapUrl, layers, studyAreaGeoJson, footprintGeoJson]);
 
   return (

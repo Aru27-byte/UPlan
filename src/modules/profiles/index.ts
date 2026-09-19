@@ -20,6 +20,7 @@ export type { InForceRules } from "./rules-in-force";
 export {
   createJurisdiction,
   getJurisdiction,
+  getJurisdictionBoundary,
   getJurisdictionForAnalysis,
   listJurisdictionIds,
 } from "./jurisdiction";

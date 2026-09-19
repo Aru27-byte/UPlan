@@ -21,6 +21,10 @@ blob-report/
 # local model files (later, with F2) — pinned by SHA-256 in deploy/setup.sh, not committed
 deploy/models/*.gguf
 
+# local dev basemap extract — regenerate with the pmtiles CLI (see LOCAL_HOSTING.md); production
+# serves its own extract from the VM's disk (deploy/Caddyfile), never this file
+public/basemap/*.pmtiles
+
 # editor / OS
 .DS_Store
 *.log

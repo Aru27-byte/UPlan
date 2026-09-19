@@ -1,13 +1,15 @@
 import { getDecision, getLatestGeometry, saveGeometry } from "@/modules/decisions";
 import { getJurisdictionDatasetMappings, getDatasetVersionProvenance } from "@/modules/evidence";
+import { getJurisdictionBoundary } from "@/modules/profiles";
 import { formatEvidenceProvenance } from "@/modules/provenance";
 
 import { requireActor } from "@/app/_lib/actor";
 import { EvidenceTextView } from "@/ui/evidence-text-view";
 import { GeometryEditor } from "@/ui/footprint-editor.client";
+import { boundsFromFirst } from "@/ui/geo-bounds";
 import { MapWorkspace, type EvidenceLayer } from "@/ui/map-workspace.client";
 
-const BASEMAP_URL = "/basemap/{z}/{x}/{y}.png";
+const BASEMAP_URL = "/basemap/basemap.pmtiles";
 
 // TechDesign/map-workspace.md — W4: the map and its text equivalent, built on decisions/evidence/
 // provenance. Every layer's provenance is resolved here, server-side, and passed to the client
@@ -18,12 +20,22 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
   const { actor } = await requireActor();
 
   const decision = await getDecision(actor, decisionId);
-  const [studyArea, footprint, mappings] = await Promise.all([
+  const [studyArea, footprint, mappings, jurisdictionBoundary] = await Promise.all([
     getLatestGeometry(actor, decisionId, "study_area"),
     getLatestGeometry(actor, decisionId, "footprint"),
     getJurisdictionDatasetMappings(decision.jurisdictionId),
+    getJurisdictionBoundary(actor, decision.jurisdictionId),
   ]);
   const studyAreaGeom = studyArea?.geom.type === "MultiPolygon" ? studyArea.geom : null;
+  // Point the camera at whatever's actually drawn — falling back to the jurisdiction's own
+  // boundary when a decision has neither yet — instead of MapLibre's [0, 0] default (see
+  // geo-bounds.ts: every layer below would still render, just nowhere near the viewport).
+  const initialBounds = boundsFromFirst([
+    studyArea?.geom ?? null,
+    footprint?.geom ?? null,
+    jurisdictionBoundary,
+  ]);
+  if (!initialBounds) throw new Error("jurisdiction boundary unexpectedly produced no bounds");
 
   const layers: EvidenceLayer[] = [];
   for (const m of mappings) {
@@ -55,6 +67,7 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
           layers={layers}
           studyAreaGeoJson={studyArea?.geom ?? null}
           footprintGeoJson={footprint?.geom ?? null}
+          initialBounds={initialBounds}
         />
         <div className="mt-4">
           <EvidenceTextView layers={layers} />
@@ -76,6 +89,7 @@ export default async function MapWorkspacePage({ params }: { params: Promise<{ d
             initialGeoJson={studyAreaGeom}
             currentRevision={studyArea?.revision ?? 0}
             onSave={saveStudyAreaAction}
+            initialBounds={initialBounds}
           />
         </div>
       </details>

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Geometry } from "geojson";
 
 import { requireMembership, requireStaff, type Actor } from "@/modules/accounts";
@@ -41,6 +41,22 @@ export async function getJurisdiction(actor: Actor, jurisdictionId: string) {
   const row = await getJurisdictionForAnalysis(jurisdictionId);
   requireMembership(actor, jurisdictionId); // any role
   return row;
+}
+
+/**
+ * For the map workspace and geometry editors, so the camera has somewhere sensible to point when
+ * a decision has no study area or footprint drawn yet — the one read this file's own comment on
+ * `jurisdictionColumnsWithoutBoundary` said would need `ST_AsGeoJSON`, same as decisions/geometry.ts.
+ */
+export async function getJurisdictionBoundary(actor: Actor, jurisdictionId: string): Promise<Geometry> {
+  requireMembership(actor, jurisdictionId); // any role
+  const [row] = await db
+    .execute<{ boundary_geojson: string }>(
+      sql`select ST_AsGeoJSON(boundary) as boundary_geojson from jurisdiction where id = ${jurisdictionId}`,
+    )
+    .then((r) => r.rows);
+  if (!row) throw new NotFoundError("jurisdiction");
+  return JSON.parse(row.boundary_geojson) as Geometry;
 }
 
 /** Internal (system-authority) read for the daily maintenance sweep (apply_effective_dates, flag_retention). */

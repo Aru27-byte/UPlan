@@ -1,11 +1,46 @@
 import Link from "next/link";
+import type { MultiPolygon } from "geojson";
 
 import { getDecision, getGeometryAreaAcres, getLatestGeometry, saveGeometry } from "@/modules/decisions";
 import { getJurisdiction } from "@/modules/profiles";
 
 import { requireActor } from "@/app/_lib/actor";
 import { GeometryEditor } from "@/ui/footprint-editor.client";
+import { boundsFromFirst } from "@/ui/geo-bounds";
 import { StatTile } from "@/ui/stat-tile";
+
+// Split out only so `studyAreaGeom` can be typed as a definite MultiPolygon (never null) here —
+// the caller only reaches this branch once it's confirmed one exists — instead of a non-null
+// assertion at the boundsFromFirst call below (conventions.md: no non-null assertions).
+function FootprintEditorSection({
+  studyAreaGeom,
+  footprintGeom,
+  footprintRevision,
+  onSave,
+}: {
+  studyAreaGeom: MultiPolygon;
+  footprintGeom: MultiPolygon | null;
+  footprintRevision: number;
+  onSave: (geojson: MultiPolygon, sourceNote: string, expectedRevision: number) => Promise<void>;
+}) {
+  const initialBounds = boundsFromFirst([footprintGeom, studyAreaGeom]);
+  if (!initialBounds) throw new Error("a real study area unexpectedly produced no bounds");
+
+  return (
+    <div className="card-sticker bg-white p-4">
+      <GeometryEditor
+        kind="footprint"
+        basemapUrl="/basemap/basemap.pmtiles"
+        referenceGeoJson={studyAreaGeom}
+        referenceLabel="study area"
+        initialGeoJson={footprintGeom}
+        currentRevision={footprintRevision}
+        onSave={onSave}
+        initialBounds={initialBounds}
+      />
+    </div>
+  );
+}
 
 // UIDesign/Footprint.png + TechDesign/proposal-footprint.md (F8) — the real tracing workflow: an
 // editable Terra Draw footprint over the (read-only) study area, saved through F5's saveGeometry.
@@ -63,17 +98,12 @@ export default async function FootprintPage({ params }: { params: Promise<{ deci
           tab — the footprint is traced relative to it.
         </p>
       ) : (
-        <div className="card-sticker bg-white p-4">
-          <GeometryEditor
-            kind="footprint"
-            basemapUrl="/basemap/{z}/{x}/{y}.png"
-            referenceGeoJson={studyAreaGeom}
-            referenceLabel="study area"
-            initialGeoJson={footprintGeom}
-            currentRevision={footprint?.revision ?? 0}
-            onSave={saveFootprintAction}
-          />
-        </div>
+        <FootprintEditorSection
+          studyAreaGeom={studyAreaGeom}
+          footprintGeom={footprintGeom}
+          footprintRevision={footprint?.revision ?? 0}
+          onSave={saveFootprintAction}
+        />
       )}
     </div>
   );
