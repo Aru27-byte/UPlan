@@ -16,7 +16,7 @@
 //   npx tsx --env-file=.env scripts/seed-local.ts you@example.com
 import { randomUUID, createHash } from "node:crypto";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { runMigrations } from "graphile-worker";
 
 import { appUser } from "../src/platform/auth-tables";
@@ -266,17 +266,26 @@ async function ensureSammamishProfile(
 
 type EvidenceSeed = {
   key: (typeof SAMMAMISH_RESOURCE_TYPE_KEYS)[number];
+  /** Defaults to `sammamish-${key}-illustrative` — set only when a resource type has more than one dataset. */
+  datasetKey?: string;
   title: string;
   sourceUrl: string;
   knownLimitation: string | null;
   feature: GeoJSON.Geometry;
 };
 
-// Small, hand-placed shapes inside DEMO_STUDY_AREA below. Wetlands sits inside DEMO_FOOTPRINT (a
-// real, nonzero direct impact) and streams sits ~25ft outside the footprint's west edge (within
-// its 75ft buffer, computed in impact.ts's own ST_DWithin/ST_Buffer, never in JS) — every other
-// resource type just needs to exist inside the study area so the Evidence tab shows real
-// provenance instead of a gap.
+// Small, hand-placed shapes inside DEMO_STUDY_AREA below, chosen to exercise every part of the
+// Evidence/Impact tabs, not just show a dot on the map:
+//  - wetlands sits inside DEMO_FOOTPRINT (a direct impact) and has a SECOND, disagreeing dataset
+//    (wetlands-alt) whose extent only partly overlaps the first — a real R3 disagreement
+//    (evidence-base.ts), not a fabricated one.
+//  - streams, geologically-hazardous-areas, habitat-conservation-areas, and migration-corridors
+//    each sit inside or within their profile buffer width of the footprint, so the Impact tab
+//    shows real direct AND buffer impacts across most resource types, computed by PostGIS.
+//  - frequently-flooded-areas and forest-canopy sit inside the study area but away from the
+//    footprint, so they show real evidence with zero impact — an honest "no impact here" fact.
+//  - critical-aquifer-recharge-areas has no entry at all: a genuine, uncontrived "no dataset
+//    mapped" gap (evidence-base.ts R4), not a fake empty state.
 const EVIDENCE_SEEDS: EvidenceSeed[] = [
   {
     key: "wetlands",
@@ -292,6 +301,27 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
           [-122.005, 47.604],
           [-122.015, 47.604],
           [-122.015, 47.598],
+        ],
+      ],
+    },
+  },
+  {
+    key: "wetlands",
+    datasetKey: "sammamish-wetlands-alt-illustrative",
+    title: "Wetlands, alternate source (illustrative)",
+    sourceUrl: CAO_URL,
+    knownLimitation: null,
+    // Shifted 0.005° west of the primary wetlands feature, same lat range: a partial overlap
+    // (agreement in the middle, disagreement on the two outer slivers) rather than a full match.
+    feature: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-122.02, 47.598],
+          [-122.01, 47.598],
+          [-122.01, 47.604],
+          [-122.02, 47.604],
+          [-122.02, 47.598],
         ],
       ],
     },
@@ -332,15 +362,16 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Geologically hazardous areas (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
+    // Straddles the footprint's north edge (lat 47.61): a real direct impact, not just a buffer.
     feature: {
       type: "Polygon",
       coordinates: [
         [
-          [-122.02, 47.615],
-          [-122.01, 47.615],
-          [-122.01, 47.619],
-          [-122.02, 47.619],
-          [-122.02, 47.615],
+          [-122.015, 47.605],
+          [-122.005, 47.605],
+          [-122.005, 47.615],
+          [-122.015, 47.615],
+          [-122.015, 47.605],
         ],
       ],
     },
@@ -350,15 +381,16 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Habitat conservation areas (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
+    // ~25ft east of the footprint's east edge (lon -122.00) — within its 100ft buffer.
     feature: {
       type: "Polygon",
       coordinates: [
         [
-          [-122.028, 47.592],
-          [-122.024, 47.592],
-          [-122.024, 47.596],
-          [-122.028, 47.596],
-          [-122.028, 47.592],
+          [-121.9999, 47.6],
+          [-121.996, 47.6],
+          [-121.996, 47.605],
+          [-121.9999, 47.605],
+          [-121.9999, 47.6],
         ],
       ],
     },
@@ -368,29 +400,12 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Migration corridors (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
+    // ~35ft south of the footprint's south edge (lat 47.595) — within its 50ft buffer.
     feature: {
       type: "LineString",
       coordinates: [
-        [-122.03, 47.618],
-        [-121.99, 47.618],
-      ],
-    },
-  },
-  {
-    key: "critical-aquifer-recharge-areas",
-    title: "Critical aquifer recharge areas (illustrative)",
-    sourceUrl: CAO_URL,
-    knownLimitation: null,
-    feature: {
-      type: "Polygon",
-      coordinates: [
-        [
-          [-121.996, 47.612],
-          [-121.992, 47.612],
-          [-121.992, 47.616],
-          [-121.996, 47.616],
-          [-121.996, 47.612],
-        ],
+        [-122.03, 47.5949],
+        [-121.99, 47.5949],
       ],
     },
   },
@@ -415,12 +430,45 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
   },
 ];
 
+// This script is local-dev fixture data, never a real deployment (see the file header) — unlike
+// do-not.md's ban on updating or deleting real evidence/analysis history, wiping and recreating
+// this script's OWN illustrative rows on every run (rather than the previous per-dataset
+// skip-if-exists idempotency) is what actually lets the seeded scenario evolve as this script
+// does, instead of permanently freezing whatever an earlier version of it happened to insert
+// first. Scoped strictly by this script's own "sammamish-*-illustrative" key convention, so it
+// can never touch a real dataset.
+async function resetIllustrativeEvidence(): Promise<void> {
+  const datasetIdRows = await db
+    .execute<{ id: string }>(sql`select id from dataset where key like 'sammamish-%-illustrative'`)
+    .then((r) => r.rows);
+  const datasetIds = datasetIdRows.map((r) => r.id);
+  if (datasetIds.length === 0) return;
+
+  // analysis_run itself is left alone — a real historical record even for a demo decision, and
+  // runAnalysis's own R8 input-pinning naturally computes a fresh run once the dataset versions
+  // below change, which getLatestRun then picks up as the new latest. Only the FK from
+  // analysis_run_dataset to the dataset_version rows being deleted needs clearing first.
+  await db.execute(sql`
+    delete from analysis_run_dataset
+    where dataset_version_id in (select id from dataset_version where dataset_id in ${datasetIds})
+  `);
+  await db.execute(sql`
+    delete from evidence_feature
+    where dataset_version_id in (select id from dataset_version where dataset_id in ${datasetIds})
+  `);
+  await db.execute(sql`delete from jurisdiction_dataset where dataset_id in ${datasetIds}`);
+  await db.execute(sql`update dataset set current_version_id = null where id in ${datasetIds}`);
+  await db.execute(sql`delete from dataset_version where dataset_id in ${datasetIds}`);
+  await db.execute(sql`delete from dataset where id in ${datasetIds}`);
+  console.log(`cleared ${datasetIds.length} previously seeded illustrative dataset(s) for a clean reseed`);
+}
+
 async function ensureEvidenceDataset(
   jurisdictionId: string,
   staffActor: Actor,
   seed: EvidenceSeed,
 ): Promise<void> {
-  const datasetKey = `sammamish-${seed.key}-illustrative`;
+  const datasetKey = seed.datasetKey ?? `sammamish-${seed.key}-illustrative`;
   const [existing] = await db.select({ id: dataset.id }).from(dataset).where(eq(dataset.key, datasetKey));
   if (existing) {
     console.log(`dataset "${datasetKey}" already exists — skipping`);
@@ -590,6 +638,7 @@ async function main(): Promise<void> {
     console.log("Sammamish already has an approved profile — skipping");
   }
 
+  await resetIllustrativeEvidence();
   for (const seed of EVIDENCE_SEEDS) {
     await ensureEvidenceDataset(jur.id, plannerActor, seed);
   }
