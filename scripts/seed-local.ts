@@ -286,19 +286,32 @@ type EvidenceSeed = {
 //    footprint, so they show real evidence with zero impact — an honest "no impact here" fact.
 //  - critical-aquifer-recharge-areas has no entry at all: a genuine, uncontrived "no dataset
 //    mapped" gap (evidence-base.ts R4), not a fake empty state.
+//
+// Every polygon below is a right-angle (rectilinear) shape with a step or notch, not a plain
+// rectangle — closer to how a real wetland delineation or parcel-derived critical-area boundary
+// actually looks — while still landing in the same footprint-relative position (overlapping,
+// buffer-adjacent, or clear of it) the impact/gap/disagreement design above depends on. Every
+// vertex list traces a simple (non-self-intersecting) ring; PostGIS confirms this at seed time —
+// evidenceFeature has no ST_IsValid gate of its own (unlike decision_geometry's saveGeometry, R7),
+// since ingested evidence is repaired rather than rejected (do-not.md's evidence-vs-drawing
+// distinction), so this script checks validity itself before inserting.
 const EVIDENCE_SEEDS: EvidenceSeed[] = [
   {
     key: "wetlands",
     title: "Wetlands (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
+    // An L-shape (wide at the bottom, narrower at the top) inside the footprint — a real direct
+    // impact, still.
     feature: {
       type: "Polygon",
       coordinates: [
         [
           [-122.015, 47.598],
           [-122.005, 47.598],
-          [-122.005, 47.604],
+          [-122.005, 47.601],
+          [-122.01, 47.601],
+          [-122.01, 47.604],
           [-122.015, 47.604],
           [-122.015, 47.598],
         ],
@@ -311,14 +324,18 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Wetlands, alternate source (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
-    // Shifted 0.005° west of the primary wetlands feature, same lat range: a partial overlap
-    // (agreement in the middle, disagreement on the two outer slivers) rather than a full match.
+    // A different step shape (wide at the top, narrower at the bottom), shifted west of the
+    // primary wetlands feature: a partial overlap (agreement in the middle, disagreement on the
+    // two outer slivers) rather than a full match — and, since the shapes differ, not just an
+    // offset copy of the same rectangle.
     feature: {
       type: "Polygon",
       coordinates: [
         [
           [-122.02, 47.598],
-          [-122.01, 47.598],
+          [-122.012, 47.598],
+          [-122.012, 47.602],
+          [-122.01, 47.602],
           [-122.01, 47.604],
           [-122.02, 47.604],
           [-122.02, 47.598],
@@ -331,10 +348,16 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Streams (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
+    // A real stream never runs perfectly straight — a small right-angle jog partway up, still
+    // within its 75ft buffer of the footprint's west edge for its full length.
     feature: {
       type: "LineString",
       coordinates: [
         [-122.0201, 47.6],
+        [-122.0201, 47.602],
+        [-122.0204, 47.602],
+        [-122.0204, 47.605],
+        [-122.0201, 47.605],
         [-122.0201, 47.61],
       ],
     },
@@ -349,7 +372,9 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
       coordinates: [
         [
           [-121.998, 47.6],
-          [-121.994, 47.6],
+          [-121.995, 47.6],
+          [-121.995, 47.602],
+          [-121.994, 47.602],
           [-121.994, 47.604],
           [-121.998, 47.604],
           [-121.998, 47.6],
@@ -362,13 +387,16 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Geologically hazardous areas (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
-    // Straddles the footprint's north edge (lat 47.61): a real direct impact, not just a buffer.
+    // Still straddles the footprint's north edge (lat 47.61): a real direct impact, not just a
+    // buffer, now as a step shape rather than a plain rectangle.
     feature: {
       type: "Polygon",
       coordinates: [
         [
           [-122.015, 47.605],
-          [-122.005, 47.605],
+          [-122.008, 47.605],
+          [-122.008, 47.61],
+          [-122.005, 47.61],
           [-122.005, 47.615],
           [-122.015, 47.615],
           [-122.015, 47.605],
@@ -381,13 +409,15 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Habitat conservation areas (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
-    // ~25ft east of the footprint's east edge (lon -122.00) — within its 100ft buffer.
+    // Still ~25ft east of the footprint's east edge (lon -122.00), within its 100ft buffer.
     feature: {
       type: "Polygon",
       coordinates: [
         [
           [-121.9999, 47.6],
-          [-121.996, 47.6],
+          [-121.997, 47.6],
+          [-121.997, 47.602],
+          [-121.996, 47.602],
           [-121.996, 47.605],
           [-121.9999, 47.605],
           [-121.9999, 47.6],
@@ -400,11 +430,16 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
     title: "Migration corridors (illustrative)",
     sourceUrl: CAO_URL,
     knownLimitation: null,
-    // ~35ft south of the footprint's south edge (lat 47.595) — within its 50ft buffer.
+    // A small right-angle jog, most of it still ~35ft south of the footprint's south edge (lat
+    // 47.595), within its 50ft buffer.
     feature: {
       type: "LineString",
       coordinates: [
         [-122.03, 47.5949],
+        [-122.02, 47.5949],
+        [-122.02, 47.5946],
+        [-122.015, 47.5946],
+        [-122.015, 47.5949],
         [-121.99, 47.5949],
       ],
     },
@@ -420,7 +455,9 @@ const EVIDENCE_SEEDS: EvidenceSeed[] = [
       coordinates: [
         [
           [-122.028, 47.606],
-          [-122.022, 47.606],
+          [-122.024, 47.606],
+          [-122.024, 47.609],
+          [-122.022, 47.609],
           [-122.022, 47.612],
           [-122.028, 47.612],
           [-122.028, 47.606],
@@ -508,6 +545,23 @@ async function ensureEvidenceDataset(
     })
     .returning({ id: datasetVersion.id });
   if (!version) throw new Error("insert into dataset_version unexpectedly returned no row");
+
+  // evidenceFeature has no ST_IsValid gate of its own — a real ingest repairs invalid source
+  // geometry instead of rejecting it (do-not.md: only a planner's own drawing is ever rejected,
+  // never repaired), so this script checks its own hand-written coordinates itself before they
+  // ever reach the table, the same way saveGeometry checks a planner's drawing (decisions/geometry.ts, R7).
+  const [validity] = await db
+    .execute<{ valid: boolean; reason: string }>(
+      sql`
+        select
+          ST_IsValid(ST_GeomFromGeoJSON(${JSON.stringify(seed.feature)})) as valid,
+          ST_IsValidReason(ST_GeomFromGeoJSON(${JSON.stringify(seed.feature)})) as reason
+      `,
+    )
+    .then((r) => r.rows);
+  if (!validity?.valid) {
+    throw new Error(`seed feature for "${datasetKey}" is not a valid geometry: ${validity?.reason}`);
+  }
 
   await db.insert(evidenceFeature).values({
     datasetVersionId: version.id,
