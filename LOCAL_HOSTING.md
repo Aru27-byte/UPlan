@@ -71,6 +71,8 @@ Note: street/place labels are deliberately not rendered (see `src/ui/basemap-sty
 npm run dev
 ```
 
+(`npm run dev`/`npm run build` automatically copy MapLibre's worker files into `public/maplibre/` first — required for the vector basemap to actually render; see `src/ui/basemap-style.client.ts`'s comment.)
+
 Open http://localhost:3000, and sign in once with GitHub at http://localhost:3000/sign-in — this
 creates your `app_user` row, which the next step needs.
 

@@ -7,7 +7,9 @@ import importX from "eslint-plugin-import-x";
 // see .claude/rules/file-structure-and-imports.md and .claude/rules/conventions.md.
 export default tseslint.config(
   {
-    ignores: [".next/**", "dist/**", "node_modules/**", "deploy/**", "coverage/**"],
+    // public/maplibre: vendor files copied from node_modules by scripts/copy-maplibre-worker.ts,
+    // never hand-edited (see that script's comment).
+    ignores: [".next/**", "dist/**", "node_modules/**", "deploy/**", "coverage/**", "public/maplibre/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

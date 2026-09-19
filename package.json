@@ -8,6 +8,8 @@
     "npm": ">=11"
   },
   "scripts": {
+    "predev": "tsx scripts/copy-maplibre-worker.ts",
+    "prebuild": "tsx scripts/copy-maplibre-worker.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

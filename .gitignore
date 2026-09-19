@@ -25,6 +25,10 @@ deploy/models/*.gguf
 # serves its own extract from the VM's disk (deploy/Caddyfile), never this file
 public/basemap/*.pmtiles
 
+# copied from node_modules/maplibre-gl/dist by scripts/copy-maplibre-worker.mjs (npm postinstall) —
+# always regenerated to match the installed maplibre-gl version, never hand-edited or committed
+public/maplibre/
+
 # editor / OS
 .DS_Store
 *.log

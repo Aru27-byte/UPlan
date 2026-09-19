@@ -12,8 +12,17 @@ import type { StyleSpecification } from "maplibre-gl";
 // layers (`@protomaps/basemaps`) rather than hand-authoring the ~100 paint rules a basemap needs.
 let registered = false;
 
+// MapLibre 6 parses vector tiles in a real ES module Worker and needs an explicit URL to it —
+// without this, the worker silently never loads in any bundled build (Next.js/Turbopack included,
+// not just this app): the vector source's metadata request succeeds, but MapLibre never issues a
+// single {z}/{x}/{y} tile request afterward, no error fires, and the map just shows its flat
+// background color forever. Confirmed against a real build (see the module comment on why) and
+// reported upstream: https://github.com/maplibre/maplibre-gl-js/issues/8186. The two files this
+// points at are copied out of node_modules by scripts/copy-maplibre-worker.mjs (npm postinstall) —
+// see that script's comment for why they're copied rather than imported.
 function ensurePmtilesProtocolRegistered(): void {
   if (registered) return;
+  maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
   const protocol = new Protocol();
   maplibregl.addProtocol("pmtiles", protocol.tile);
   registered = true;
