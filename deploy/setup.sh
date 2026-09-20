@@ -8,7 +8,7 @@ REPO_URL="${REPO_URL:?set REPO_URL to this repository's clone URL}"
 REPO_DIR="/opt/uplan"
 
 apt-get update
-apt-get install -y --no-install-recommends docker.io docker-compose-plugin git
+apt-get install -y --no-install-recommends docker.io docker-compose-v2 git
 
 mkdir -p /etc/uplan
 for f in app.env postgres.env; do

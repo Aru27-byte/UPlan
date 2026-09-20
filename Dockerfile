@@ -13,16 +13,34 @@ RUN npm ci
 FROM deps AS build
 WORKDIR /app
 COPY . .
-RUN npm run build \
+# `next build` imports every route module to collect page data, and src/platform/env.ts validates
+# the environment at import — so the build needs values that pass validation. These are inline to
+# this one command (not ENV, not in any shipped image): nothing reads them at build time except the
+# validator, and the running containers get their real values from /etc/uplan/app.env, where a
+# missing one is still a startup failure (best-practices.md: "Configuration fails fast").
+RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
+  BETTER_AUTH_SECRET=build-only-placeholder-not-a-real-secret \
+  BETTER_AUTH_URL=http://localhost:3000 \
+  CITY_OIDC_ISSUER=https://build.invalid CITY_OIDC_DOMAIN=build.invalid \
+  CITY_OIDC_CLIENT_ID=build CITY_OIDC_CLIENT_SECRET=build \
+  GITHUB_CLIENT_ID=build GITHUB_CLIENT_SECRET=build \
+  OCI_S3_ENDPOINT=https://build.invalid OCI_S3_REGION=build \
+  OCI_S3_ACCESS_KEY_ID=build OCI_S3_SECRET_ACCESS_KEY=build \
+  OCI_BUCKET_OBJECTS=build OCI_BUCKET_REPORTS=build \
+  npm run build \
   && npm run worker:build
 
 # ---- web: Next.js standalone server -------------------------------------------------------------
 FROM node:24-slim AS web
 WORKDIR /app
 ENV NODE_ENV=production
+# Docker sets HOSTNAME to the container id, which Next's standalone server would bind to; caddy
+# reaches `web` over the Compose network, so listen on every interface instead.
+ENV HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
 
@@ -52,3 +70,7 @@ RUN apt-get update \
     postgresql-18-pgvector \
     pgbackrest \
   && rm -rf /var/lib/apt/lists/*
+# The migrations declare geometry columns but never create the extension; the postgis/postgis image
+# used for local development does it on first start, this image doesn't. Runs once, when the data
+# directory is first created, as the superuser, in POSTGRES_DB.
+RUN echo "CREATE EXTENSION postgis;" > /docker-entrypoint-initdb.d/10-postgis.sql

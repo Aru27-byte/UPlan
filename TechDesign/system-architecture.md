@@ -414,6 +414,8 @@ Race conditions are prevented by design, not by timing:
 
 Recreating `web` takes a few seconds, so deploys happen outside the city's working hours. Because images are built on the VM, no container registry is needed.
 
+`deployment-guide.md` holds the step-by-step instructions: a demo site first, then what the pilot still needs built.
+
 ### Environments
 
 - **Production** is the VM.
@@ -430,6 +432,8 @@ Recreating `web` takes a few seconds, so deploys happen outside the city's worki
 | GitHub                      | An OAuth app for UPlan staff sign-in, and repository secrets for the development buckets                                                                                                                                                                                                                                                                                                                                                                  |
 | `deploy/` in the repository | `compose.yaml`, `Caddyfile`, `models.ini`, the backup timer and service units, `setup.sh`, and `deploy.sh`                                                                                                                                                                                                                                                                                                                                                |
 | The VM                      | Two root-only secrets files: `/etc/uplan/app.env` for `web`, `worker`, and `migrate`, and `/etc/uplan/postgres.env` for `postgres` and pgBackRest                                                                                                                                                                                                                                                                                                         |
+
+One more setting is not a secret: `UPLAN_HOSTNAME`, the name `caddy` serves and gets its certificate for, lives in the gitignored `deploy/.env` on the VM.
 
 ## Operations
 

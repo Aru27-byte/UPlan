@@ -51,7 +51,7 @@ npm run db:migrate
 
 ## 5. Get a local basemap extract
 
-The map needs a small `.pmtiles` vector basemap extract at `public/basemap/basemap.pmtiles` (gitignored — production serves its own copy from the VM's disk; local dev regenerates its own).
+The map needs a small `.pmtiles` vector basemap extract at `public/basemap/basemap.pmtiles` (committed, because Vercel serves it as a static file; the VM deployment serves its own copy from `deploy/basemap/` instead).
 
 1. Download the `pmtiles` CLI for your platform from https://github.com/protomaps/go-pmtiles/releases (a single binary — no install needed).
 2. Extract a small area around your jurisdiction from Protomaps' free daily build (replace the date with a recent one, and the bbox with your area's `min_lon,min_lat,max_lon,max_lat`):

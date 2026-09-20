@@ -21,9 +21,9 @@ blob-report/
 # local model files (later, with F2) — pinned by SHA-256 in deploy/setup.sh, not committed
 deploy/models/*.gguf
 
-# local dev basemap extract — regenerate with the pmtiles CLI (see LOCAL_HOSTING.md); production
-# serves its own extract from the VM's disk (deploy/Caddyfile), never this file
-public/basemap/*.pmtiles
+# The VM's basemap extract, served by deploy/Caddyfile — never committed. public/basemap/*.pmtiles
+# is committed on purpose: Vercel serves it as a static file, and a Git deploy ships only what Git holds.
+deploy/basemap/*.pmtiles
 
 # copied from node_modules/maplibre-gl/dist by scripts/copy-maplibre-worker.mjs (npm postinstall) —
 # always regenerated to match the installed maplibre-gl version, never hand-edited or committed

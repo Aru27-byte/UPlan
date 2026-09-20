@@ -4,6 +4,10 @@ services:
   caddy:
     image: caddy:2.11
     restart: unless-stopped
+    environment:
+      # The Caddyfile's site address. Set it in deploy/.env (gitignored); compose refuses to start
+      # without it rather than serving an empty hostname.
+      UPLAN_HOSTNAME: ${UPLAN_HOSTNAME:?set UPLAN_HOSTNAME in deploy/.env}
     ports:
       - "80:80"
       - "443:443"

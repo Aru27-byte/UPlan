@@ -10,6 +10,9 @@ import { env } from "./env";
 const client = new S3Client({
   endpoint: env.OCI_S3_ENDPOINT,
   region: env.OCI_S3_REGION,
+  // OCI's `<namespace>.compat.objectstorage...` endpoint takes the bucket in the path; the SDK's
+  // default puts it in the hostname, which resolves to nothing there.
+  forcePathStyle: true,
   credentials: { accessKeyId: env.OCI_S3_ACCESS_KEY_ID, secretAccessKey: env.OCI_S3_SECRET_ACCESS_KEY },
   requestChecksumCalculation: "WHEN_REQUIRED", // matches OCI's current-AWS-SDK tutorial (data-model.md)
 });
