@@ -27,7 +27,10 @@ export const config = {
   // `basemap` is exempted to match production, where Caddy serves it directly (deploy/Caddyfile's
   // `handle_path /basemap/*`) before any request reaches this app at all — it's public map tile
   // imagery, not decision data, so local dev (which has no Caddy in front of it) shouldn't gate it
-  // behind a session either. This still isn't a security boundary (see the comment above): every
-  // module function checks access itself regardless of what this matcher does or doesn't cover.
-  matcher: ["/((?!api/health|api/tiles|basemap|_next/static|_next/image|favicon.ico).*)"],
+  // behind a session either. `maplibre` is the map's vector-tile worker (public/maplibre/, copied out
+  // of node_modules): the signed-out landing page's map loads it, and a redirect to sign-in in its
+  // place leaves the map blank. Also public static code, not decision data. This still isn't a
+  // security boundary (see the comment above): every module function checks access itself
+  // regardless of what this matcher does or doesn't cover.
+  matcher: ["/((?!api/health|api/tiles|basemap|maplibre|_next/static|_next/image|favicon.ico).*)"],
 };

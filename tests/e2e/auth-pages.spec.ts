@@ -24,6 +24,15 @@ test("R10: a signed-out visit to a protected page lands on sign-in and remembers
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fdecisions$/);
 });
 
+test("R10: the map's worker files stay reachable signed out, or the landing page's map stays blank", async ({
+  request,
+}) => {
+  for (const file of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) {
+    const response = await request.get(`/maplibre/${file}`, { maxRedirects: 0 });
+    expect(response.status(), file).toBe(200);
+  }
+});
+
 test("R11: the register page asks for name, email, and a confirmed password, and links back to sign-in", async ({
   page,
 }) => {

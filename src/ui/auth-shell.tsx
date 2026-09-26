@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 // TechDesign/accounts-roles.md — R12. The one layout the sign-in and register pages share: the whole
-// viewport, a card centered in it, and a slowly moving background in the app's palette. The motion is
+// viewport, a form card centered in it, and a slowly moving background in the app's palette. The motion is
 // CSS only (globals.css, `.auth-*`) and stops under prefers-reduced-motion.
 
 const RING_COUNT = 13;
@@ -43,8 +43,6 @@ function Contours({ centerX, centerY, className, seed }: { centerX: number; cent
   );
 }
 
-const POINTS = ["Every figure shows its source, date, and confidence.", "Evidence for a decision, not an opinion on it.", "UPlan lays out the tradeoff. It never makes the call."];
-
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <main className="bg-ink text-cream relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10 sm:px-8">
@@ -65,45 +63,14 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </svg>
       </div>
 
-      <div className="grid w-full max-w-6xl overflow-hidden rounded-xl border-2 border-cream/70 bg-white text-ink shadow-[10px_10px_0_0_rgb(139_195_74/0.4)] lg:min-h-[42rem] lg:grid-cols-[5fr_6fr]">
-        <aside className="bg-sidebar text-cream hidden flex-col justify-between gap-12 p-10 lg:flex">
-          <div>
-            <Link href="/" className="flex items-center gap-2 outline-2 outline-transparent focus-visible:underline">
-              <span aria-hidden className="text-2xl">
-                🌰
-              </span>
-              <span className="font-serif text-2xl font-bold">UPlan</span>
-            </Link>
-            <p className="eyebrow mt-8 inline-block rounded-full border border-white/30 px-4 py-1">Pilot · Sammamish, WA</p>
-            <p className="mt-6 text-4xl leading-tight font-bold">
-              Develop <span className="text-accent-green">or</span>
-              <br />
-              preserve.
-            </p>
-            <p className="text-cream/85 mt-4 max-w-sm">
-              The evidence behind decisions to develop forests and other habitat, laid out clearly enough to
-              withstand scrutiny.
-            </p>
-          </div>
-          <ul className="flex flex-col gap-3">
-            {POINTS.map((point) => (
-              <li key={point} className="text-cream/90 flex items-start gap-3 text-sm">
-                <span aria-hidden className="bg-accent-green mt-1.5 size-2 shrink-0 rounded-full" />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        <div className="flex flex-col justify-center p-6 sm:p-12 lg:px-20 lg:py-14">
-          <Link href="/" className="mb-8 flex items-center gap-2 lg:hidden">
-            <span aria-hidden className="text-2xl">
-              🌰
-            </span>
-            <span className="font-serif text-xl font-bold">UPlan</span>
-          </Link>
-          {children}
-        </div>
+      <div className="w-full max-w-xl rounded-xl border-2 border-cream/70 bg-white p-8 text-ink shadow-[10px_10px_0_0_rgb(139_195_74/0.4)] sm:p-12">
+        <Link href="/" className="mb-8 flex items-center gap-2">
+          <span aria-hidden className="text-2xl">
+            🌰
+          </span>
+          <span className="font-serif text-xl font-bold">UPlan</span>
+        </Link>
+        {children}
       </div>
 
       <footer className="eyebrow text-cream/70 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-center">
