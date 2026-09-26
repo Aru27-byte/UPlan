@@ -33,6 +33,8 @@ erDiagram
   dataset_version ||--o{ evidence_feature : "contains"
   jurisdiction ||--o{ decision : "contains"
   decision ||--o{ decision_geometry : "revisions"
+  decision ||--o{ evidence_resolution : "records"
+  dataset_version ||--o{ evidence_resolution : "compared in"
   decision ||--o{ analysis_run : "runs"
   profile_version |o--o{ analysis_run : "analyzed under"
   profile_change |o--o{ analysis_run : "previewed by"
@@ -145,6 +147,8 @@ create table dataset (
   publisher          text not null,
   license            text not null,                     -- a free public license, or it isn't ingested
   source_url         text not null,
+  authority          text not null check (authority in ('federal', 'state', 'regional', 'county', 'local')),
+  spatial_precision  text not null check (spatial_precision in ('site', 'parcel', 'regional', 'coarse')),
   coverage           geometry(MultiPolygon, 4326) not null,
   current_version_id uuid,                              -- null until the first ready version; FK below
   last_checked_at    timestamptz,
@@ -209,6 +213,10 @@ create table decision (
   permit_number        text,                    -- null until the city assigns one
   application_type     text not null check (application_type in ('subdivision', 'short_subdivision', 'clearing_grading')),
   application_filed_on date,                    -- required before a run when a rule set vests
+  parcel_or_address    text,                    -- null until recorded; shown as "Not yet recorded"
+  applicant            text,                    -- null until recorded
+  project_manager_id   text references app_user (id),   -- null until recorded; a planner of this city, checked in decisions
+  target_decision_on   date,                    -- null until recorded
   status               text not null check (status in ('in_progress', 'report_released')),
   row_version          integer not null default 1,   -- compare-and-set for edits to this row
   created_by           text not null references app_user (id),
@@ -234,7 +242,8 @@ create table analysis_run (
   profile_change_id   uuid references profile_change (id),
   rules_resolved_for  jsonb not null,           -- {"critical-areas": "2026-09-12", "trees": "2024-05-01"}
   study_area_revision integer not null,
-  footprint_revision  integer,                  -- null: evidence base only, no impact
+  footprint_revision  integer,                  -- null: evidence base and screening only, no impact
+  results_version     integer not null check (results_version > 0),   -- the shape of `results`; part of input_sha256
   input_sha256        text not null,
   status              text not null check (status in ('running', 'succeeded', 'failed')),
   results             jsonb,                    -- AnalysisResults
@@ -254,9 +263,27 @@ create table analysis_run_dataset (
   dataset_version_id uuid not null references dataset_version (id),
   primary key (analysis_run_id, dataset_version_id)
 );
+
+-- A planner's recorded reasoning about one disagreement between two dataset versions (F19).
+-- A note only: nothing computes from it, so it can't change a result.
+create table evidence_resolution (
+  decision_id       uuid not null references decision (id),
+  resource_type_key text not null,
+  mapped_by         uuid not null references dataset_version (id),
+  not_mapped_by     uuid not null references dataset_version (id),
+  revision          integer not null check (revision > 0),
+  relied_on         text not null check (relied_on in ('mapped_by', 'not_mapped_by', 'neither')),
+  rationale         text not null check (length(rationale) > 0),
+  created_by        text not null references app_user (id),
+  created_at        timestamptz not null default now(),
+  primary key (decision_id, resource_type_key, mapped_by, not_mapped_by, revision),
+  check (mapped_by <> not_mapped_by)
+);
 ```
 
 - Geometry revisions are never updated or deleted, so a run's revision numbers can't dangle.
+- `results_version` is added to a table that already holds finished runs. The migration adds it with `default 1` and then drops the default, so PostgreSQL fills the existing rows without an `UPDATE` (the `analysis_run_final` trigger never fires) and no default remains to stand in for missing information. Readers parse by version: a run at another version than the code's `RESULTS_VERSION` is reported as out of date, never parsed as best it can (see `study-scoping.md`).
+- The four project-detail columns on `decision` are nullable because they are facts that may not exist yet, like `permit_number`. Only `application_filed_on` feeds an analysis, and changing it enqueues a run in the same transaction (`decisions.md` R12).
 - An _open decision_ has status `in_progress`, and only open decisions re-run when rules or data change. Releasing a report sets `report_released`; reopening the decision to prepare a revised report sets `in_progress` again.
 - A drawn geometry that fails `ST_IsValid` is rejected with a `ValidationError`, never repaired. Only source data is repaired, during ingestion.
 
@@ -354,7 +381,8 @@ The migrate task runs as the schema owner. Web and worker connect as `uplan_app`
 ```sql
 -- Append-only tables: rows are inserted, never changed.
 grant select, insert on
-  profile_upload, profile_version, evidence_feature, decision_geometry, analysis_run_dataset
+  profile_upload, profile_version, evidence_feature, decision_geometry, analysis_run_dataset,
+  evidence_resolution
   to uplan_app;
 
 -- Tables with state or pointers that move.
@@ -491,9 +519,13 @@ Critical area types are the resource types in the `critical-areas` rule set. For
 `analysis_run.results` holds this shape, defined in `src/modules/analysis/results.ts`.
 
 ```ts
+export const RESULTS_VERSION = 2; // 1: impacts, evidenceBase, limits · 2: adds screening, studyFlags (F14)
+
 export type AnalysisResults = {
   impacts: Impact[];
   evidenceBase: { disagreements: Disagreement[]; gaps: Gap[] };
+  screening: ScreeningRow[];
+  studyFlags: StudyFlag[];
   limits: Limit[];
 };
 
@@ -527,7 +559,32 @@ export type Limit = {
   key: "significant-trees-not-countable" | "boundary-set-by-site-study";
   resourceType: string | null;
 };
+
+// One row per resource type and mapped dataset whose coverage includes the study area.
+export type ScreeningRow = {
+  resourceType: string;
+  datasetVersionId: string;
+  intersectingFeatureCount: number;
+  overlapAreaSqFt: number;
+  overlapLengthFt: number;
+  searchedWithinFt: number; // the widest buffer or study trigger distance for this resource type
+  nearestDistanceFt: number | null; // null: nothing mapped within searchedWithinFt
+  bufferReaches: { ruleKey: string; applicability: "yes" | "unknown"; featureCount: number }[];
+  approximate: boolean;
+};
+
+export type StudyFlag = {
+  triggerKey: string;
+  study: "critical-area-study" | "geotechnical-report" | "arborist-report";
+  resourceType: string;
+  nearestDistanceFt: number; // 0 when a mapped feature intersects the study area
+  approximate: boolean;
+  ruleKeys: string[];
+  evidence: { datasetVersionId: string; sourceFeatureId: string }[];
+};
 ```
+
+`ScreeningRow` and `StudyFlag`, like `Impact`, have no free-text, severity, or score field. `TechDesign/study-scoping.md` owns how they are computed.
 
 Rounding happens only when a value is displayed, in one formatter in `src/modules/provenance/`. Stored values are unrounded.
 
@@ -644,4 +701,4 @@ create trigger code_change_draft_final before update on code_change_draft
 
 - **Review and sign-off (F12):** a `report_review` table, and `report.status` gains `awaiting_signoff` before `releasing`.
 - **Conditions tracing (F13):** a revisioned `condition` table, plus `condition_impact` linking conditions to `impactKey` values. A link whose impact key is missing from the current run shows as needing review. It is never remapped automatically.
-- **Study scoping (F14):** `analysis_run.purpose` gains `scoping`, a run with no footprint.
+- **Study scoping (F14)** is no longer a later addition. It is part of every run's results (`screening`, `studyFlags`), and it needs no new `purpose`: a run with no footprint is already a run with `footprint_revision = null`.

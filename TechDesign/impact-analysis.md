@@ -2,7 +2,7 @@
 
 **Feature:** F9 · `analysis` · _the pilot's edge_
 **Status:** Draft
-**Requirements:** [Requirements/impact-analysis.md](../Requirements/impact-analysis.md) (R1–R9)
+**Requirements:** [Requirements/impact-analysis.md](../Requirements/impact-analysis.md) (R1–R12)
 **Builds on:** [evidence-base.md](evidence-base.md) (F7 — `runAnalysis`, pinning, `results.ts`), [system-architecture.md](system-architecture.md) (_Impact engine_, D9)
 **Release:** 1
 
@@ -121,6 +121,15 @@ async function computeBufferImpacts(
 
 `Impact`'s type (`data-model.md`) has no field for a judgment — only `measure`, `unit`, `min`/`max`, `dependsOn`, `approximate`, `ruleKeys`, `evidence`. There is no severity, threshold-comparison, or pass/fail anywhere in `impact.ts`, and no free-text field a future change could quietly repurpose for one (R6; enforced by the type shape itself, the same technique `code-tracking`'s JSON-Schema-grammar design later uses for the same reason).
 
+## Showing an impact (R10, R11, R12)
+
+`impact/page.tsx` stays a Server Component and calls `getLatestRun` and `getAnalysisStatus` (see `decision-overview.md`). Each impact card is built from data the run already stores:
+
+- **R10:** `ruleKeys` resolve against the profile version the run pinned, so the card lists each rule's code section and effective date through the provenance formatter, even if the profile has changed since. `evidence` resolves through `formatDerivedProvenance` (F4) to the datasets and the feature ids behind the number. Both lists sit under the quantity on the card, collapsed by default, and are also present as text for a screen reader. Nothing new is stored.
+- **R11:** `describeImpact(impact, footprintRevision)` in `analysis` is a fixed template with numbers passed through the display formatter: "Footprint revision {n} overlaps {quantity} of {resource}." A range reads "between {min} and {max}, depending on {attribute}". The function's input type has no free text, and a denylist test covers its output like the report's (R6).
+- **R12:** the page header states the run's study area and footprint revisions, its profile version, and each `rules_resolved_for` date, then the `AnalysisStatus`. For `out-of-date` or `failed` it says so above the cards and lists what changed. The cards remain visible because they describe the older run, and they are labelled with it. This is the "stale data shown beside its failure" case the rules allow, never a silent swap.
+- The one sentence about indirect and cumulative effects is a fixed string, not generated text.
+
 ## Determinism (R7)
 
 `results.ts` (shared with F7) sorts `impacts` by `impactKey` before storing — a stable, content-derived key, not insertion order — so two runs against identical pinned inputs produce byte-identical arrays regardless of how PostGIS orders rows internally.
@@ -129,5 +138,6 @@ async function computeBufferImpacts(
 
 - Golden fixture tests (Testcontainers, hand-checked geometries per the testing rules): a footprint fully containing a mapped polygon feature yields its exact known area; a footprint clipping a mapped line feature yields the exact known length; a buffer-only case (feature outside the footprint, buffer reaching in) yields the exact known buffered-and-clipped area; a buffer with `appliesWhen` against a feature missing that attribute yields `min = 0` and `max` equal to the fixture's hand-computed buffer area, with `dependsOn` set (R3); a buffer with the attribute present and non-matching yields no impact row at all.
 - A determinism test runs the same fixture inputs twice and asserts byte-identical `impacts` arrays (R7).
+- Unit tests for `describeImpact`: a single value, a range with `dependsOn`, and a zero, each asserting the exact sentence, and a denylist check for verdict words (R6, R11). Playwright: the Impact page shows each card's rule citations and evidence provenance, states the run it shows, and shows the out-of-date note after a study area edit (R10, R12), with an axe check.
 - A unit test enumerates every field of `Impact` and asserts none of them is free text a caller could put a verdict into (R6, a static shape-level guard alongside code review).
 - An integration test asserts `treeRules` never appear in any SQL executed by `impact.ts` (grep-based, as a canary) and that `collectLimits` always includes `significant-trees-not-countable` when the profile has any `treeRules` (R5).

@@ -34,6 +34,8 @@ Evidence assembly (I2) and screening (I1) both depend on having the public datas
 
 **R11. A dataset's spatial coverage is explicit, so screening and evidence assembly can tell "no data here" from "nothing found."** A study area outside a dataset's recorded coverage is a gap (F7's `Gap`), never silently treated the same as an empty result inside coverage.
 
+**R12. Every dataset records its source authority (federal, state, regional, county, or local) and its spatial precision (site, parcel, regional, or coarse) when it is set up, and a dataset without both is never registered.** Like confidence (R3), they describe the data's fitness as desk-analysis evidence, are decided by a person, and are never inferred from the features. F19 (`evidence-review.md`) shows them beside each evidence item.
+
 ## Out of scope for this feature
 
 - Reconciling disagreements between datasets and stating gaps for one decision's study area — that comparison is F7's job, built on the versions this feature produces.

@@ -27,6 +27,10 @@ The map is the instrument, not the product (P3) — planners explore a decision 
 
 **R7. The workspace is browser-only in release 1.** Phone look-up (F15) is explicitly later; this feature does not need to support building or editing on a phone.
 
+**R8. A link can open the map with a named evidence layer already turned on.** The Screening and Studies pages use it so a planner goes from a row to what the row describes (F14 R14). A layer name that isn't in the profile is ignored with a visible note, never mapped to another layer.
+
+**R9. A resource type in the profile with no mapped dataset appears in the layer list as a gap,** stating "No dataset is mapped for this resource type", not omitted. The map never shows fewer resource types than the profile has (F7 R4).
+
 ## Out of scope for this feature
 
 - Ingesting or versioning the evidence itself (F3).

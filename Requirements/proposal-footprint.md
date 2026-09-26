@@ -36,3 +36,5 @@ I3 is the pilot's edge: what the proposal would clear, grade, or build, set agai
 ## Open items
 
 None from round 10. R1 above closes the "open for UI design" item `features.md` listed for F8.
+
+**Not decided:** whether planners can tag parts of the footprint as permanent or temporary (building, road, or grading versus staging or temporary access). The ecological workflow distinguishes them, and the Impact page would then report them separately. It needs more than one footprint layer per decision, so it is not in release 1. It should return only if planners ask for it.

@@ -2,7 +2,7 @@
 
 **Feature:** F10 · `reports`
 **Status:** Draft
-**Requirements:** [Requirements/locked-report.md](../Requirements/locked-report.md) (R1–R12)
+**Requirements:** [Requirements/locked-report.md](../Requirements/locked-report.md) (R1–R15)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Report release_, D12), [data-model.md](data-model.md) (`report`)
 **Release:** 1
 
@@ -22,7 +22,9 @@ src/modules/reports/
 
 `document.tsx` is a plain React tree (Server Components only — the report is never interactive) that takes one `analysis_run`'s pinned `AnalysisResults` (F7, F9), the profile version it resolved against, and the decision, and renders:
 
-- Cover: decision title, permit number, jurisdiction, filing date, and — per R5 — each critical area type's `mapStatus` and whether its rule set vested to the filing date or uses today's rules.
+- Cover: decision title, permit number, jurisdiction, filing date, and — per R5 — each critical area type's `mapStatus` and whether its rule set vested to the filing date or uses today's rules. Per R15 it also carries parcel or address, applicant, and project manager where recorded, and an unrecorded one prints as "Not yet recorded".
+- Screening and studies (R15): one table from the run's `screening` rows and one list from `studyFlags`, rendered with `describeScreeningRow` (F14), each row carrying its provenance. The section opens with F14's fixed statements, and every study named in the profile without a flag prints "not flagged by mapped data" with the P2 sentence.
+- Source register and resolutions (R14): the distinct dataset versions from the run's `analysis_run_dataset` rows and the distinct rules from every `ruleKeys` list, each through the provenance formatter, then `listResolutions` for the run's disagreements, each with rationale, author, and date. The register is derived from the pinned run and the pinned profile version, never re-read from "current".
 - Evidence base: every resource type, its measured presence or an explicit "none found in the study area" (R7 — the literal fact, never "clear" or "safe"), disagreements and gaps (F7) stated as facts, and every `Limit` from the run (R3).
 - Impact: one table per resource type, each `Impact` row rendered through `formatDerivedProvenance` (F4) — including ranges (`min`/`max`, `dependsOn`) exactly as computed, never collapsed to a single number (R4).
 - No section anywhere accepts free text describing a judgment: `document.tsx`'s props type has no `recommendation`, `finding`, or `summary` field, and no template string concatenates rule names into a sentence that implies approval or denial (R6) — the same discipline `impact-analysis.md` R6 applies to the data now applies to its rendering.
@@ -142,6 +144,24 @@ async function finalizeReleased(reportId: string, objectKey: string, pdfSha256: 
 - **R2, R9:** the `reports` bucket's application credentials can create and read objects but never overwrite or delete them, and in production a retention rule blocks everyone else too (`data-model.md`, `system-architecture.md`); the database's `report_final` trigger also blocks any update once `status <> 'releasing'`. Together these make R2 true at three independent layers (storage permissions, storage retention rule, database trigger), not just application code discipline.
 - **R11:** a crashed job after the object write but before `finalizeReleased` retries into the `already` branch above and finalizes from the object already in storage — it never renders twice or produces a second object for the same report id.
 
+## Before release (R13)
+
+```ts
+// index.ts — read-only, advisory: releaseReport's own transaction is still what decides
+export type ReleaseReadiness = {
+  blocking: { key: "no-successful-run" | "analysis-out-of-date" | "analysis-failed" | "filing-date-missing" }[];
+  stated: { key: "evidence-gaps" | "source-disagreements" | "approximate-boundaries" | "desk-analysis-limits"; count: number }[];
+};
+
+export async function getReleaseReadiness(actor: Actor, decisionId: string): Promise<ReleaseReadiness>;
+```
+
+`getReleaseReadiness` calls `getAnalysisStatus` (see `decision-overview.md`) once and maps it: `out-of-date` and `failed` are blocking, and `pinInputs`'s `ValidationError` for a missing filing date becomes `filing-date-missing` and is not swallowed. The `stated` counts come from the same run's `evidenceBase`, its `screening` rows, and `limits`. `reports` already imports `analysis`, so this adds no import. `reports` must not import `workflow`, which imports `reports`.
+
+Its keys are a literal union with fixed labels in the route, so there is no free text and no score. The Report page renders the list above the Release button. The button stays enabled when only `stated` items exist, and it is disabled with the reason shown when a `blocking` item exists. The claim in `releaseReport` remains the only authority, so a page that shows a stale list can't cause a bad release: the transaction rechecks (R10).
+
+`CURRENT_TEMPLATE_VERSION` increments with this change, because the document gains sections. Released reports keep the template version they were rendered with.
+
 ## Sign-off readiness (R12)
 
 `report.status` today is `'releasing' | 'released' | 'failed'`. F12 adds `'awaiting_signoff'` before `'releasing'` and a precondition in `releaseReport` (a signed-off `report_review` row must exist) — a one-line CHECK and one new status value, not a redesign of the transaction, object key scheme, or immutability guarantees above.
@@ -149,5 +169,7 @@ async function finalizeReleased(reportId: string, objectKey: string, pdfSha256: 
 ## Verification
 
 - Golden fixture test: a fixture `AnalysisResults` renders to HTML whose text content contains the exact expected provenance strings, the exact impact ranges, and _no_ match against a small denylist of verdict-shaped words ("recommend", "should be approved", "clear to develop", "safe") — a direct, automatable check for R6 and R7.
+- The same golden fixture also asserts the screening table, the study-flag list, the source register, and a recorded resolution's rationale appear in the rendered HTML, that an unflagged study prints the P2 sentence, and that an unrecorded project detail prints "Not yet recorded" (R14, R15). The verdict denylist runs over these sections too.
+- Testcontainers integration tests for `getReleaseReadiness`: each `blocking` key appears for its condition and none for a current run (R13); after a state change, `releaseReport` still rejects with `ConflictError` even though an earlier `getReleaseReadiness` said nothing blocked, proving the list is advisory (R10, R13).
 - Vitest integration test (per the testing rules' _Released PDFs_ row): print a fixture report and assert the PDF is tagged, has an outline, contains the expected provenance text, and its stored hash matches `pdf_sha256` (R8, R9).
 - Testcontainers integration tests: `releaseReport` rejects when no successful `current` run exists (R1); a **race test** — a profile approval and a `releaseReport` call fired at once on separate connections — asserts one commits first and the other observes it via `FOR SHARE`/`stillCurrent` and fails with `ConflictError`, never an inconsistent report (R10); calling `releaseReport` twice concurrently hits `report_one_releasing` and only one succeeds; a simulated crash between object-store write and `finalizeReleased` (test calls the two steps separately) confirms a retry finalizes without a second render or a second object (R11); an attempted `UPDATE` against a `released` row is rejected by the database trigger directly, independent of application code (R2, R9).

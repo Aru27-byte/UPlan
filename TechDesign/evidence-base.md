@@ -13,10 +13,14 @@
 src/modules/analysis/
   index.ts          public API: getRun, getLatestRun
   tables.ts           analysis_run, analysis_run_dataset
+  pin-inputs.ts         pinInputs: the one read of a run's inputs, shared with status.ts (F18)
+  status.ts             getAnalysisStatus — see decision-overview.md
   run.ts               the run_analysis job body: pin inputs, orchestrate, store results
   evidence-base.ts      buildEvidenceBase — this feature
+  screening.ts          computeScreening, computeStudyFlags — see study-scoping.md
+  resolutions.ts        saveResolution, listResolutions — see evidence-review.md
   impact.ts             the impact engine — see impact-analysis.md
-  results.ts            AnalysisResults, Impact, Disagreement, Gap, Limit (as in data-model.md)
+  results.ts            AnalysisResults, Impact, Disagreement, Gap, Limit, ScreeningRow, StudyFlag, RESULTS_VERSION (as in data-model.md)
   *.test.ts
 ```
 
@@ -33,36 +37,11 @@ export async function runAnalysis(
   purpose: "current" | "preview",
   profileChangeId?: string,
 ) {
-  const [decision, studyArea] = await Promise.all([
-    getDecisionForAnalysis(decisionId), // internal read, no actor — jobs run with system authority
-    getLatestGeometry(decisionId, "study_area"),
-  ]);
-  if (!studyArea) return; // nothing to analyze yet; the job simply has nothing to do
-
-  const footprint = await getLatestGeometry(decisionId, "footprint"); // null: evidence base only (data-model.md)
-  const profileDoc =
-    purpose === "preview"
-      ? (await getChange(profileChangeId!)).proposedDocument
-      : (await getCurrentProfile(decision.jurisdictionId)).document;
-
-  const { resolvedFor, rules } = resolveRulesInForce(
-    profileDoc,
-    todayInZone(decision.jurisdictionId),
-    decision.applicationFiledOn,
-  );
-  const mappings = await getJurisdictionDatasetMappings(decision.jurisdictionId); // evidence module
-  const pinnedVersions = mappings.map((m) => m.dataset.currentVersionId).filter(nonNull); // R5: current at pin time, once
-
-  const inputSha256 = sha256(
-    canonicalJson({
-      studyAreaRevision: studyArea.revision,
-      footprintRevision: footprint?.revision ?? null,
-      profileVersionId: purpose === "current" ? (await getCurrentProfile(decision.jurisdictionId)).id : null,
-      profileChangeId: purpose === "preview" ? profileChangeId : null,
-      resolvedFor,
-      datasetVersionIds: [...pinnedVersions].sort(),
-    }),
-  );
+  // One read of every input, shared with getAnalysisStatus (see decision-overview.md). It returns
+  // null when the decision has no study area yet, so the job has nothing to do.
+  const pinned = await pinInputs(decisionId, purpose, profileChangeId);
+  if (!pinned) return;
+  const { studyArea, footprint, rules, resolvedFor, mappings, datasetVersionIds, inputSha256, srid } = pinned; // srid: the jurisdiction's analysis_srid
 
   const existing = await findRunByInputHash(decisionId, purpose, inputSha256);
   if (existing) return; // R8's determinism means an identical run is redundant, never recomputed
@@ -72,23 +51,32 @@ export async function runAnalysis(
     .values({
       decisionId,
       purpose,
-      profileVersionId: purpose === "current" ? currentProfileVersionId : null,
+      profileVersionId: purpose === "current" ? pinned.profileVersionId : null,
       profileChangeId: purpose === "preview" ? profileChangeId : null,
       rulesResolvedFor: resolvedFor,
       studyAreaRevision: studyArea.revision,
       footprintRevision: footprint?.revision ?? null,
+      resultsVersion: RESULTS_VERSION, // study-scoping.md: also part of inputSha256
       inputSha256,
       status: "running",
     })
     .returning();
   await db
     .insert(analysisRunDataset)
-    .values(pinnedVersions.map((id) => ({ analysisRunId: run.id, datasetVersionId: id })));
+    .values(datasetVersionIds.map((id) => ({ analysisRunId: run.id, datasetVersionId: id })));
 
   try {
     const evidenceBase = await buildEvidenceBase(rules, mappings, studyArea.geom); // this feature
-    const impacts = footprint ? await computeImpacts(rules, mappings, footprint.geom) : []; // F9
-    const results: AnalysisResults = { impacts, evidenceBase, limits: collectLimits(mappings, rules) };
+    const impacts = footprint ? await computeImpacts(rules, mappings, footprint.geom, srid) : []; // F9
+    const screening = await computeScreening(rules, mappings, studyArea.geom, srid); // F14
+    const studyFlags = await computeStudyFlags(rules, mappings, studyArea.geom, srid); // F14
+    const results: AnalysisResults = {
+      impacts,
+      evidenceBase,
+      screening,
+      studyFlags,
+      limits: collectLimits(mappings, rules),
+    };
     await db
       .update(analysisRun)
       .set({ status: "succeeded", results, finishedAt: sql`now()` })
@@ -103,7 +91,7 @@ export async function runAnalysis(
 }
 ```
 
-- **R5:** `pinnedVersions` is read once, before `input_sha256` is computed and before the transaction that inserts the run and its `analysis_run_dataset` rows — nothing later in this function re-queries "the current version" of anything (`conventions.md`: "Never read 'current' twice within one computation").
+- **R5:** `pinInputs` reads the study area, footprint, profile, rule dates, and dataset versions once, then hashes them into `inputSha256` before the run is inserted with its `analysis_run_dataset` rows — nothing later in this function re-queries "the current version" of anything (`conventions.md`: "Never read 'current' twice within one computation"). The read lives in `pin-inputs.ts` and `getAnalysisStatus` (F18) calls the same function, so a page and a run can't disagree about what "current" was. It returns `null` only when there is no study area. For a vesting rule set with no filing date it throws `ValidationError` before any run row exists, so the job ends with that error, is not retried (a validation error can't succeed on a second attempt), and writes no run. `getAnalysisStatus` calls the same function and shows the planner the same message. Nothing defaults a date.
 - **R8:** `findRunByInputHash` (backed by `unique (decision_id, purpose, input_sha256)`) makes a rerun of identical inputs a no-op read, and `results` is built by pure functions over the pinned geometry and rule sets, with deterministic ordering (see `results.ts` below) — the same inputs produce the same JSON every time, which the golden-fixture tests assert byte-for-byte.
 
 ## Building the evidence base (R1, R2, R3, R4, R6, R7)
