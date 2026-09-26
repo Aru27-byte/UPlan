@@ -3,6 +3,16 @@ import Link from "next/link";
 import { Badge } from "@/ui/badge";
 import { Card } from "@/ui/card";
 import { buttonClassName } from "@/ui/button-styles";
+import type { LngLatBounds } from "@/ui/geo-bounds";
+import { LandingMap } from "@/ui/landing-map.client";
+
+const BASEMAP_URL = "/basemap/basemap.pmtiles";
+// The Sammamish jurisdiction boundary scripts/seed-local.ts seeds — inside the committed extract's
+// bounds (-122.10,47.50,-121.90,47.70), so every tile this view needs is present.
+const SAMMAMISH_BOUNDS: LngLatBounds = [
+  [-122.06, 47.55],
+  [-121.96, 47.65],
+];
 
 // UIDesign/Landing.png — the public, signed-out home page. No requireActor() call: this page is
 // exempt from src/proxy.ts's sign-in redirect and must render for anyone. Copy here is static
@@ -11,36 +21,51 @@ export default function LandingPage() {
   return (
     <main className="bg-ink text-cream min-h-screen px-6 py-10 sm:px-12">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span aria-hidden className="text-2xl">
-              🌰
-            </span>
-            <span className="font-serif text-2xl font-bold">UPlan</span>
-          </div>
-          <span className="badge mt-2 inline-block bg-card-blue text-ink">Grounded in evidence</span>
+        <div className="flex items-center gap-2">
+          <span aria-hidden className="text-2xl">
+            🌰
+          </span>
+          <span className="font-serif text-2xl font-bold">UPlan</span>
         </div>
+        <h1 className="min-w-0 flex-1 text-center text-[clamp(2rem,5.5vw,5rem)] font-bold leading-none">
+          Develop <span className="text-accent-green">or</span> preserve.
+        </h1>
         <span className="eyebrow rounded-full border border-white/30 px-4 py-1">Pilot · Sammamish, WA</span>
       </header>
 
-      <div className="mt-12 grid gap-10 lg:grid-cols-2 lg:items-center">
+      <div className="mt-12 grid gap-10 lg:grid-cols-2 lg:items-start">
         <div>
-          <h1 className="text-5xl font-bold leading-tight">
-            Develop <span className="text-accent-green">or</span>
-            <br />
-            preserve.
-          </h1>
-          <p className="mt-6 max-w-prose text-lg text-cream/85">
-            UPlan helps municipal planners assemble the evidence behind decisions to develop forests and other
-            habitat, and lay out the tradeoff clearly enough to withstand scrutiny.
-          </p>
-          <Link href="/sign-in" className={buttonClassName("primary", "mt-8 inline-block text-ink")}>
+          {/* Background-style video: decorative, silent, no controls, and unreachable by pointer or
+              keyboard. No video asset exists in the repo yet: add `src` (or a <source>) when one is
+              supplied. */}
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            disablePictureInPicture
+            disableRemotePlayback
+            aria-hidden="true"
+            tabIndex={-1}
+            className="pointer-events-none aspect-video w-full rounded-2xl bg-black object-cover"
+          />
+          <Link
+            href="/sign-in"
+            className={buttonClassName("primary", "mt-6 block w-full py-4 text-center text-xl text-ink")}
+          >
             Launch UPlan &rarr;
           </Link>
         </div>
 
-        <div className="card-sticker bg-card-green/20 flex aspect-[4/3] items-end justify-start border-white/40 p-4">
-          <span className="badge">Study area &middot; Sammamish, WA</span>
+        <div className="card-sticker relative flex aspect-[4/3] items-end justify-start overflow-hidden border-white/40 p-4">
+          <LandingMap basemapUrl={BASEMAP_URL} bounds={SAMMAMISH_BOUNDS} />
+          <input
+            type="search"
+            aria-label="Search study area"
+            placeholder="sammamish, wa"
+            className="card-sticker absolute inset-x-4 top-4 z-10 bg-white px-4 py-2.5 text-ink"
+          />
+          <span className="badge relative z-10">Study area &middot; Sammamish, WA</span>
         </div>
       </div>
 
