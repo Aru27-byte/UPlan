@@ -153,6 +153,11 @@ body {
 /* MapLibre popups (map-workspace.client.tsx) render into their own shadow-free DOM, outside
    Tailwind's reach via className — styled globally here instead. The top border color is set
    per-popup, inline, to the clicked layer's own color (map-styles.ts). */
+/* MapLibre's attribution link sits inside a line of text, so color alone can't be what marks it as a
+   link (WCAG 1.4.1). */
+.maplibregl-ctrl-attrib a[href] {
+  text-decoration: underline;
+}
 .maplibregl-popup-content {
   border-radius: 0.5rem;
   border: 2px solid var(--color-ink);
@@ -175,4 +180,96 @@ body {
   font-size: 0.8125rem;
   color: var(--color-ink);
   opacity: 0.8;
+}
+
+/* The landing page's feature showcase (src/app/_landing/): a panel fades up when its tab is picked,
+   the footprint draws itself and its corners pop in, and impact bars grow from the left. Short and
+   one-shot, none of it looping; all of it off for anyone who asks for reduced motion. */
+@keyframes showcase-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes showcase-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes showcase-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes showcase-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes showcase-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@layer components {
+  .showcase-in {
+    animation: showcase-in 0.45s ease-out both;
+  }
+  .showcase-draw {
+    stroke-dasharray: 1;
+    animation: showcase-draw 1.5s ease-out 0.15s both;
+  }
+  .showcase-fill {
+    animation: showcase-fade 0.6s ease-out 1.3s both;
+  }
+  .showcase-pop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: showcase-pop 0.35s ease-out both;
+  }
+  .showcase-grow {
+    transform-origin: left;
+    animation: showcase-grow 0.7s ease-out 0.1s both;
+  }
+  /* A range's uncertain stretch: hatched, so it reads as "somewhere in here" without color. */
+  .showcase-range {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-ink) 0 2px,
+      transparent 2px 6px
+    );
+    background-color: rgb(33 28 20 / 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase-in,
+  .showcase-draw,
+  .showcase-fill,
+  .showcase-pop,
+  .showcase-grow {
+    animation: none;
+  }
+  .showcase-draw {
+    stroke-dasharray: none;
+  }
 }

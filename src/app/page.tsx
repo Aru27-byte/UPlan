@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-import { Badge } from "@/ui/badge";
-import { Card } from "@/ui/card";
 import { buttonClassName } from "@/ui/button-styles";
 import type { LngLatBounds } from "@/ui/geo-bounds";
 import { LandingMap } from "@/ui/landing-map.client";
+
+import { FeatureShowcase } from "./_landing/feature-showcase.client";
 
 const BASEMAP_URL = "/basemap/basemap.pmtiles";
 // The Sammamish jurisdiction boundary scripts/seed-local.ts seeds — inside the committed extract's
@@ -79,48 +79,42 @@ export default function LandingPage() {
         <span>0 verdicts rendered</span>
       </div>
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card color="yellow">
-          <h2 className="font-bold">Stop rebuilding evidence by hand</h2>
-          <p className="mt-2 text-sm">
-            Every decision used to start from a blank map. UPlan gathers and reconciles the public record
-            once, for every study area.
+      <section aria-labelledby="showcase-heading" className="mx-auto mt-20 max-w-7xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="eyebrow text-accent-green">What&rsquo;s inside</p>
+          <h2 id="showcase-heading" className="mt-3 text-4xl leading-tight font-bold sm:text-5xl">
+            From scattered evidence to a report that holds up
+          </h2>
+          <p className="text-cream/80 mt-4 text-lg">
+            Six things UPlan does that a pile of public maps can&rsquo;t. Pick one and try it.
           </p>
-        </Card>
-        <Card color="green">
-          <h2 className="font-bold">See the real tradeoff</h2>
-          <p className="mt-2 text-sm">
-            Know exactly what a proposal would remove or disturb, resource by resource — before anyone has to
-            guess.
-          </p>
-        </Card>
-        <Card color="blue">
-          <h2 className="font-bold">Catch problems before filing</h2>
-          <p className="mt-2 text-sm">
-            Flag the critical areas a site likely touches at the pre-application conference, not three
-            correction letters later.
-          </p>
-        </Card>
-        <Card color="tan">
-          <h2 className="font-bold">Hand over a report that holds up</h2>
-          <p className="mt-2 text-sm">
-            Locked once released, sourced on every figure — built to survive being forwarded, printed, and
-            quoted out of context.
-          </p>
-        </Card>
-      </div>
+        </div>
+        <div className="mt-12">
+          <FeatureShowcase />
+        </div>
+      </section>
 
-      <div className="mt-14 flex flex-col items-center gap-4 text-center">
-        <Badge tone="neutral">Sourced, not guessed</Badge>
-        <h2 className="text-3xl font-bold">
+      <section className="mx-auto mt-24 flex max-w-3xl flex-col items-center gap-6 text-center">
+        <h2 className="text-3xl leading-tight font-bold">
           Helps you help the <span className="text-accent-green">environment</span>.
         </h2>
+        <p className="text-cream/80 text-lg">
+          UPlan lays out the evidence and the tradeoff. The decision stays with the people who make it.
+        </p>
         <div className="flex flex-wrap justify-center gap-3">
           <span className="badge">Provenance on every figure</span>
-          <span className="badge">Evidence, not opinions</span>
-          <span className="badge">Six critical area types</span>
+          <span className="badge">Never clears land</span>
+          <span className="badge">Never makes the call</span>
         </div>
-      </div>
+        <div className="mt-2 flex flex-wrap justify-center gap-4">
+          <Link href="/sign-in" className={buttonClassName("primary", "px-8 py-3.5 text-lg text-ink")}>
+            Launch UPlan &rarr;
+          </Link>
+          <Link href="/register" className={buttonClassName("outline", "px-8 py-3.5 text-lg text-ink")}>
+            Register
+          </Link>
+        </div>
+      </section>
 
       <footer className="eyebrow mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-white/20 pt-6 text-cream/70">
         <span>Piloted with the City of Sammamish, Washington</span>
