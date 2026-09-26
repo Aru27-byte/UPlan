@@ -34,9 +34,11 @@ export function LandingMap({ basemapUrl, bounds }: LandingMapProps) {
 
   // MapLibre's stylesheet sets `position: relative` on the element it mounts into, which would
   // override an `absolute` class on that same element — so the absolute wrapper is a separate div.
+  // A region, not an image: MapLibre puts focusable controls inside it, and an image role may not
+  // contain any.
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className="h-full w-full" role="img" aria-label="Map of Sammamish, WA" />
+      <div ref={containerRef} className="h-full w-full" role="region" aria-label="Map of Sammamish, WA" />
     </div>
   );
 }
