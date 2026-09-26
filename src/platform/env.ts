@@ -8,14 +8,11 @@ const EnvSchema = z.object({
 
   DATABASE_URL: z.url(),
 
-  BETTER_AUTH_SECRET: z.string().min(32),
-  BETTER_AUTH_URL: z.url(),
-  CITY_OIDC_ISSUER: z.url(),
-  CITY_OIDC_DOMAIN: z.string().min(1),
-  CITY_OIDC_CLIENT_ID: z.string().min(1),
-  CITY_OIDC_CLIENT_SECRET: z.string().min(1),
-  GITHUB_CLIENT_ID: z.string().min(1),
-  GITHUB_CLIENT_SECRET: z.string().min(1),
+  // Sign-in is Supabase Auth, called only from the server (TechDesign/accounts-roles.md, D14).
+  // APP_URL is where the emailed confirmation link sends the person back to.
+  APP_URL: z.url(),
+  SUPABASE_URL: z.url(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 
   OCI_S3_ENDPOINT: z.url(),
   OCI_S3_REGION: z.string().min(1),

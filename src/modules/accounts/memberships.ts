@@ -8,8 +8,8 @@ import { requireStaff } from "./access";
 import { membership } from "./tables";
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
-  // app_user is Better Auth's own table; queried by raw SQL here rather than importing its Drizzle
-  // table object, since that lives with platform/auth wiring, not this module.
+  // app_user is the mirror of Supabase identities, written by provisionUser; queried by raw SQL here
+  // rather than importing its Drizzle table object, since that lives with platform/auth wiring.
   const result = await db.execute<{ id: string }>(
     sql`select id from app_user where email = ${email} limit 1`,
   );

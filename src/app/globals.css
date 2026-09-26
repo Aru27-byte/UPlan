@@ -71,6 +71,85 @@ body {
   }
 }
 
+/* The sign-in and register background (src/ui/auth-shell.tsx): two sets of topographic contour
+   lines and two soft glows in the palette's green and gold, all drifting slowly enough to read as
+   still at a glance. Each `alternate` cycle is 40-140 seconds. transform-box lets an SVG group
+   rotate about its own center. Switched off entirely for anyone who asks for reduced motion. */
+@keyframes auth-contour-a {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(14deg) scale(1.06);
+  }
+}
+@keyframes auth-contour-b {
+  from {
+    transform: rotate(0deg) translate(0, 0);
+  }
+  to {
+    transform: rotate(-12deg) translate(-2%, 1.5%);
+  }
+}
+@keyframes auth-glow-green {
+  from {
+    transform: translate(-8%, -6%) scale(1);
+  }
+  to {
+    transform: translate(10%, 8%) scale(1.18);
+  }
+}
+@keyframes auth-glow-gold {
+  from {
+    transform: translate(6%, 4%) scale(1.1);
+  }
+  to {
+    transform: translate(-10%, -8%) scale(0.95);
+  }
+}
+
+@layer components {
+  .auth-contour-a,
+  .auth-contour-b {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .auth-contour-a {
+    animation: auth-contour-a 110s ease-in-out infinite alternate;
+  }
+  .auth-contour-b {
+    animation: auth-contour-b 140s ease-in-out infinite alternate;
+  }
+  .auth-glow {
+    position: absolute;
+    width: 60rem;
+    max-width: 120vw;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+  }
+  .auth-glow-green {
+    top: -22rem;
+    left: -18rem;
+    background: radial-gradient(closest-side, rgb(139 195 74 / 0.2), transparent);
+    animation: auth-glow-green 46s ease-in-out infinite alternate;
+  }
+  .auth-glow-gold {
+    right: -20rem;
+    bottom: -24rem;
+    background: radial-gradient(closest-side, rgb(234 182 118 / 0.16), transparent);
+    animation: auth-glow-gold 58s ease-in-out infinite alternate;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-contour-a,
+  .auth-contour-b,
+  .auth-glow-green,
+  .auth-glow-gold {
+    animation: none;
+  }
+}
+
 /* MapLibre popups (map-workspace.client.tsx) render into their own shadow-free DOM, outside
    Tailwind's reach via className — styled globally here instead. The top border color is set
    per-popup, inline, to the clicked layer's own color (map-styles.ts). */

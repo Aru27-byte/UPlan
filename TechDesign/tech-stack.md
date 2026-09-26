@@ -10,7 +10,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 ## Principles behind the stack
 
 - **Zero cost.** Every choice is open-source software, or a free tier used within its limits. No paid API, and no paid tier.
-- **Few services, little configuration.** One VM runs everything from one Compose file. Oracle Cloud's Always Free tier provides the infrastructure, and the only other external services are GitHub and Let's Encrypt.
+- **Few services, little configuration.** One VM runs everything from one Compose file. Oracle Cloud's Always Free tier provides the infrastructure, and the only other external services are GitHub, Let's Encrypt, and Supabase Auth for sign-in.
 - **Less code.** One repository, one language, one database, and two process types of our own. A dependency earns its place only by removing more code than it adds.
 - **The database guards the invariants.** Constraints, row locks, and immutable rows prevent race conditions. No coordination lives in application memory.
 - **Failures stay visible.** No layer substitutes defaults, cached data, another source, or another model when something fails.
@@ -85,7 +85,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 | Choice                              | Version line | Role                                                                                                                                                            | Decision |
 | ----------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Better Auth with `@better-auth/sso` | 1.7          | City staff sign in over OIDC through the city's identity provider. UPlan staff sign in with Better Auth's built-in GitHub provider. Sessions live in PostgreSQL | D14      |
+| Supabase Auth, through `@supabase/supabase-js` and `@supabase/ssr` | 2 and 0.12   | Everyone registers and signs in with an email address and a password. Supabase holds the credentials and sessions; UPlan mirrors each person into `app_user` | D14      |
 
 ## Quality and delivery
 
@@ -112,7 +112,8 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | OCI Bastion                                                 | —                                  | Time-limited SSH sessions for administration and deploys                           | Free        | D17      |
 | OCI APM synthetic monitoring, Monitoring, and Notifications | —                                  | The health check from outside the VM, alarms, and alarm email                      | Always Free | D22      |
 | pgBackRest                                                  | 2                                  | WAL archiving and encrypted backups to Object Storage                              | Open source | D22      |
-| GitHub                                                      | Free plan                          | Repository, CI, and the OAuth app for UPlan staff                                  | Free        | D14, D18 |
+| GitHub                                                      | Free plan                          | Repository and CI                                                                  | Free        | D18      |
+| Supabase (Auth only)                                        | Free plan                          | Hosts sign-in: email, name, and password hash only                                 | Free        | D14      |
 
 ## Standards the stack must meet
 
@@ -126,7 +127,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | Left out                                                                     | Why                                                                                                                               |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Paid services and APIs, including the Claude and OpenAI APIs                 | Zero cost. Drafting runs on open models on the VM                                                                                 |
-| Redis or any second datastore                                                | PostgreSQL already provides the queue, locks, sessions, and vector search                                                         |
+| Redis or any second datastore                                                | PostgreSQL already provides the queue, locks, and vector search                                                         |
 | A separate vector database, such as Qdrant, Weaviate, or Chroma              | One more service using memory the VM doesn't have. pgvector keeps chunks beside the rules they're compared with                   |
 | A reranking model                                                            | Another model in memory, and more minutes per draft. It's the first upgrade if retrieval misses sections                          |
 | Microservices, GraphQL, a separate API server                                | One Next.js app with Server Functions needs less code                                                                             |

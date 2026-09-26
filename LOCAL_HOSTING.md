@@ -7,7 +7,7 @@ the repository root unless noted.
 
 - Node.js and npm
 - Docker Desktop, running
-- A GitHub OAuth App (for sign-in): callback URL `http://localhost:3000/api/auth/callback/github`
+- A free Supabase project (for sign-in): under Authentication → Providers → Email, turn **Confirm email** off, and under URL Configuration add `http://localhost:3000/auth/callback` to the redirect URLs
 
 ## 1. Install dependencies
 
@@ -23,12 +23,8 @@ cp .env.example .env
 
 Edit `.env` and fill in:
 
-- `BETTER_AUTH_SECRET` — any random string, **32+ characters**
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — from your GitHub OAuth App
-- `CITY_OIDC_ISSUER` / `CITY_OIDC_DOMAIN` / `CITY_OIDC_CLIENT_ID` / `CITY_OIDC_CLIENT_SECRET` —
-  only needed for the city-OIDC sign-in button to actually work; any syntactically valid value
-  (e.g. `CITY_OIDC_ISSUER=https://example.test`) satisfies startup validation if you're not wiring
-  that up yet
+- `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` — from your Supabase project's Project Settings → API
+- `APP_URL` — leave as `http://localhost:3000`
 - `OCI_S3_*` — only exercised by profile uploads and report release; any syntactically valid value
   (a real URL for `OCI_S3_ENDPOINT`, any non-empty string for the rest) satisfies startup
   validation, but those two features will fail at runtime without real OCI Object Storage
@@ -73,8 +69,10 @@ npm run dev
 
 (`npm run dev`/`npm run build` automatically copy MapLibre's worker files into `public/maplibre/` first — required for the vector basemap to actually render; see `src/ui/basemap-style.client.ts`'s comment.)
 
-Open http://localhost:3000, and sign in once with GitHub at http://localhost:3000/sign-in — this
-creates your `app_user` row, which the next step needs.
+Open http://localhost:3000/register and create an account — this creates your `app_user` row, which
+the next step needs. (A local database from before sign-in moved to Supabase has old `app_user` rows
+that match no Supabase user; reset it with `docker compose -f docker-compose.dev.yml down -v` and
+repeat steps 3–4.)
 
 ## 7. Seed local data
 
@@ -82,7 +80,7 @@ creates your `app_user` row, which the next step needs.
 npm run db:seed:local -- you@example.com
 ```
 
-Use the email you just signed in with. This grants you staff + planner access to a "Sammamish"
+Use the email you just registered with. This grants you staff + planner access to a "Sammamish"
 jurisdiction, seeds an approved profile, illustrative evidence datasets, and one demo decision
 ("Sammamish Ridge Estates (test data)") with a real computed analysis run — safe to re-run any
 time, it skips whatever already exists.

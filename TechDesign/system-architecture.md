@@ -10,7 +10,7 @@ This document sets the shape every feature's TechDesign doc builds on. A feature
 ## Constraints
 
 - **Zero cost.** Every service is open-source software, or a free tier used within its limits (see _Free-tier budget_). There is no paid API, and no paid tier held in reserve.
-- **Few external services.** Oracle Cloud Infrastructure's Always Free tier provides all of the infrastructure. The only other external services are GitHub, which already hosts the code, and Let's Encrypt, which issues the TLS certificate. Public data, model files, and the basemap extract are downloads from free public sources, and the city provides its identity provider and a DNS name.
+- **Few external services.** Oracle Cloud Infrastructure's Always Free tier provides all of the infrastructure. The only other external services are GitHub, which already hosts the code, Let's Encrypt, which issues the TLS certificate, and Supabase Auth, which handles sign-in (D14). Public data, model files, and the basemap extract are downloads from free public sources, and the city provides a DNS name.
 - **Minimal configuration.** One VM runs everything from one Compose file. A managed service is used only where the VM can't do the job itself: object storage, admin access, and monitoring from outside the VM.
 - **Sized for the free VM.** Since June 15, 2026, Always Free Arm compute is 2 OCPUs and 12 GB of memory in total. Every process fits in that, including the language models.
 
@@ -39,7 +39,6 @@ flowchart LR
 
   subgraph CITY["Provided by the city"]
     C1["C1 · DNS record<br/>city hostname → reserved IP"]
-    C2["C2 · Identity provider<br/>OIDC, such as Entra ID"]
   end
 
   subgraph OCI["Oracle Cloud Infrastructure · Always Free"]
@@ -49,7 +48,7 @@ flowchart LR
       V2["V2 · caddy<br/>HTTPS · HTTP/3 · basemap file"]
       V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Decisions: study area, footprint, filing date · F5 F8<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Evidence base and impact · F7 F9<br/>W6 · Report preview, release, download · F10<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · scoping F14 · phone F15 · later<br/>W10 · Health check"]
       V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 · F14 later<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
-      V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · sessions · retrieval index")]
+      V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
       V6["V6 · models · llama.cpp server · later<br/>Qwen3.5-4B drafts · Qwen3-Embedding-0.6B embeds"]
       V7["V7 · migrate · once per deploy"]
       V8["V8 · backup timer · systemd · pgBackRest"]
@@ -60,7 +59,7 @@ flowchart LR
 
   subgraph OUTSIDE["Other free services"]
     G1["G1 · GitHub repository and Actions CI"]
-    G2["G2 · GitHub OAuth app · UPlan staff sign-in"]
+    G2["G2 · Supabase Auth · email and password sign-in"]
     E1["E1 · Let's Encrypt · TLS certificates"]
   end
 
@@ -81,8 +80,7 @@ flowchart LR
   V2 -->|"reverse proxy"| V3
   V2 ~~~ V4
   V2 -.->|"basemap extract, downloaded on purpose"| X3
-  V3 -->|"W1 · OIDC sign-in"| C2
-  V3 -->|"W1 · OAuth sign-in"| G2
+  V3 -->|"W1 · sign-in and registration"| G2
   V3 -->|"SQL · add_job in the same transaction · vector tiles"| V5
   V3 -->|"uploads · downloads"| O1
   V4 -->|"job pickup · pinned reads · results · retrieval"| V5
@@ -112,7 +110,6 @@ flowchart LR
 | U3  | UPlan staff            | Sets up cities and datasets, confirms code change drafts, deploys, and receives alarm emails | —                                           |
 | U4  | Phone look-up          | A planner or reviewer opening a decision's map and report on a phone (F15, later)            | —                                           |
 | C1  | City DNS record        | Points the hostname the city chooses, such as `uplan.sammamish.us`, at the VM's reserved IP  | None: the city's existing DNS               |
-| C2  | City identity provider | Signs city staff in over OIDC, for example with Microsoft Entra ID                           | None: the city's existing identity provider |
 
 ### Oracle Cloud Infrastructure — Always Free
 
@@ -130,7 +127,7 @@ flowchart LR
 | V2  | `caddy`          | Caddy 2.11: HTTPS with automatic Let's Encrypt certificates, HTTP/3, a reverse proxy to `web`, and the basemap file with byte ranges. The only container that publishes ports               | Every request from outside |
 | V3  | `web`            | Next.js 16: pages, Server Functions, and route handlers for uploads, downloads, tiles, sign-in, and the health check. It never runs long work: anything slower than a request becomes a job | W1–W10                     |
 | V4  | `worker`         | graphile-worker, running at most two jobs at once and serving no HTTP. Its image carries Chromium, GDAL, and Poppler                                                                        | J1–J10                     |
-| V5  | `postgres`       | PostgreSQL 18 with PostGIS 3.6 and pgvector 0.8: relational and spatial data, the job queue, sessions, and the retrieval index. pgBackRest archives its WAL                                 | `web`, `worker`, `migrate` |
+| V5  | `postgres`       | PostgreSQL 18 with PostGIS 3.6 and pgvector 0.8: relational and spatial data, the job queue, and the retrieval index. pgBackRest archives its WAL                                 | `web`, `worker`, `migrate` |
 | V6  | `models` (later) | llama.cpp's server in router mode, reachable only from `worker`. Qwen3.5-4B drafts profile changes; Qwen3-Embedding-0.6B turns text into vectors. Both stay loaded                          | J8, J9                     |
 | V7  | `migrate`        | Applies database migrations once per deploy, before new containers start                                                                                                                    | Deploys                    |
 | V8  | Backup timer     | A systemd timer on the host that runs pgBackRest backups inside `postgres` and records each run                                                                                             | Recovery                   |
@@ -140,7 +137,7 @@ flowchart LR
 
 | Key | Area                       | Features   | What happens there                                                                                                              |
 | --- | -------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| W1  | Sign-in and roles          | F11        | City staff sign in through C2, and UPlan staff through G2. Memberships decide who is a planner or reviewer for which city       |
+| W1  | Sign-in and roles          | F11        | Everyone registers and signs in with email and password through G2. Memberships decide who is a planner or reviewer for which city       |
 | W2  | City profile               | F1, F17    | View the profile and its settings, download the template, upload a workbook or edit a rule, compare previews, approve or reject |
 | W3  | Decisions                  | F5, F8     | Create a decision under a city; save study area and footprint revisions and the filing date                                     |
 | W4  | Map workspace              | F6, F3, F4 | MapLibre shows evidence tiles PostGIS makes per dataset version, the basemap from `caddy`, and each layer's provenance          |
@@ -171,7 +168,7 @@ flowchart LR
 | Key | Component                        | Role                                                                                    | Cost                                                              |
 | --- | -------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | G1  | GitHub repository and Actions    | Holds the code, runs CI on every pull request, and serves the tags that deploys fetch   | Free plan: 2,000 Actions minutes a month for a private repository |
-| G2  | GitHub OAuth app                 | Signs in UPlan staff, who have no city account                                          | Free                                                              |
+| G2  | Supabase Auth                    | Holds each person's email, name, and password hash, and their sign-in session           | Free plan: 50,000 monthly active users; paused after a week idle  |
 | E1  | Let's Encrypt                    | Issues and renews the TLS certificate for the city's hostname                           | Free                                                              |
 | X1  | Public GIS data                  | County, state, and federal datasets that F3 ingests                                     | Free public data _(round 9)_                                      |
 | X2  | City code and ordinances (later) | The published code and adopted ordinances that F2 watches                               | Free public records                                               |
@@ -184,7 +181,7 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 
 | Module          | Features          | Owns                                                                                     | Release     |
 | --------------- | ----------------- | ---------------------------------------------------------------------------------------- | ----------- |
-| `accounts`      | F11               | Sign-in wiring for both identity providers, memberships, staff members, access checks    | 1           |
+| `accounts`      | F11               | Sign-in wiring for Supabase Auth, memberships, staff members, access checks             | 1           |
 | `profiles`      | F1, F17           | Profile schema, versions, changes and approvals, uploads, Excel template, `rulesInForce` | 1           |
 | `provenance`    | F4                | The provenance type every figure carries, and its one formatter                          | 1           |
 | `evidence`      | F3                | Datasets, versions, ingestion, tiles, dataset mapping per city                           | 1           |
@@ -361,7 +358,8 @@ Race conditions are prevented by design, not by timing:
 
 ## Security and access
 
-- **Sign-in:** city staff sign in over OIDC through Better Auth's SSO plugin. UPlan staff sign in with GitHub, and only a GitHub account linked to a staff member gets staff rights. Session cookies are `HttpOnly`, `Secure`, and `SameSite=Lax`.
+- **Sign-in:** everyone registers and signs in with an email address and a password through Supabase Auth, called only from the server. Registering grants no access: only a membership or a `staff_member` row does. Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` in production.
+- **Personal data outside the VM.** The one exception to keeping personal data on the VM (D14): Supabase holds each person's email, name, and password hash. No decision, applicant, or evidence data goes to it.
 - **Authorization lives in modules.** Module functions take the signed-in actor and check membership for the jurisdiction involved. `src/proxy.ts` only redirects signed-out page visits, because the Next.js docs warn that a matcher change can silently remove Proxy coverage.
 - **Roles:**
   - _Planner:_ builds decisions, proposes profile changes, releases reports.
@@ -428,9 +426,10 @@ Recreating `web` takes a few seconds, so deploys happen outside the city's worki
 | Where                       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Oracle Cloud console        | The Pay As You Go upgrade and a one-dollar budget alert. A VCN with one public subnet and its security list. The VM and its reserved IP. Five buckets: three for production and two for development, with the `reports` retention rule and the development lifecycle rules. Three IAM users (application, backups, development), each with a policy and a key. A Bastion. An APM domain with one synthetic monitor. Two alarms and one notification topic |
-| The city                    | A DNS record, and an OIDC app registration                                                                                                                                                                                                                                                                                                                                                                                                                |
-| GitHub                      | An OAuth app for UPlan staff sign-in, and repository secrets for the development buckets                                                                                                                                                                                                                                                                                                                                                                  |
+| The city                    | A DNS record                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| GitHub                      | Repository secrets for the development buckets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `deploy/` in the repository | `compose.yaml`, `Caddyfile`, `models.ini`, the backup timer and service units, `setup.sh`, and `deploy.sh`                                                                                                                                                                                                                                                                                                                                                |
+| Supabase                    | One project: email sign-in on, "Confirm email" off until an SMTP sender exists (D14), and the site URL and `<hostname>/auth/callback` in its redirect list |
 | The VM                      | Two root-only secrets files: `/etc/uplan/app.env` for `web`, `worker`, and `migrate`, and `/etc/uplan/postgres.env` for `postgres` and pgBackRest                                                                                                                                                                                                                                                                                                         |
 
 One more setting is not a secret: `UPLAN_HOSTNAME`, the name `caddy` serves and gets its certificate for, lives in the gitignored `deploy/.env` on the VM.
@@ -474,6 +473,7 @@ The heartbeat writes every 5 minutes, which also keeps WAL moving, so a stale ar
 | Synthetic monitor runs  | 10 an hour                                     | 6                                                                                                                |
 | Notification emails     | 1,000 a month                                  | Alarms only                                                                                                      |
 | GitHub Actions          | 2,000 minutes a month for a private repository | CI on pull requests                                                                                              |
+| Supabase Auth           | 50,000 monthly active users                    | The pilot's planners, reviewers, and staff: dozens. Projects idle for a week are paused (D14)                    |
 
 A change that raises use of an allowance updates this table in the same change.
 

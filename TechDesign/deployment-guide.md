@@ -20,7 +20,7 @@ This guide puts UPlan on the internet. **Part A** is a demo site: seeded test da
 
 ### A0. What a demo is
 
-- Sign-in works for UPlan staff through GitHub. City sign-in doesn't, because it needs the city's identity provider (B2.4).
+- Sign-in works with an email address and a password through Supabase Auth. Email confirmation stays off, because Supabase's built-in email service can't reach real users (B2.4).
 - The data is the seed script's: illustrative evidence layers and one decision marked "test data". No real planner data goes on it.
 - **`GET /api/health` returns 503, and that is correct.** It names `backup_freshness` because no backup exists. Nothing hides it, and the site works regardless.
 - The database connection uses the schema owner, not the restricted `uplan_app` role (B2.1).
@@ -32,7 +32,7 @@ This guide puts UPlan on the internet. **Part A** is a demo site: seeded test da
 | A hostname, such as `uplan.example.org`                | A domain you control      |
 | An Oracle Cloud account                                | oracle.com/cloud/free     |
 | A GitHub account that owns or can read the repository  | —                         |
-| A 32+ character random string for `BETTER_AUTH_SECRET` | `openssl rand -base64 48` |
+| A Supabase account                                     | supabase.com              |
 | A strong Postgres password                             | `openssl rand -base64 24` |
 
 ### A2. Oracle Cloud
@@ -52,14 +52,15 @@ Arm capacity is sometimes exhausted in a region. If the create fails with "out o
 3. On the user, generate a **Customer Secret Key**. Copy the secret when it's shown; it can't be shown again.
 4. The S3 endpoint is `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`. The namespace is on the tenancy details page. The app addresses buckets by path, which this endpoint supports.
 
-### A4. GitHub OAuth app
+### A4. Supabase project
 
-Create an OAuth app under GitHub → Settings → Developer settings.
+UPlan's only use of Supabase is sign-in (D14). Create a free project, then:
 
-- Homepage URL: `https://<hostname>`
-- Authorization callback URL: `https://<hostname>/api/auth/callback/github`
+1. **Authentication → Providers → Email:** leave it enabled, and turn **Confirm email** off. With it on, registration needs a working email sender, and the built-in one only reaches your own team members (B2.4).
+2. **Authentication → URL Configuration:** set the Site URL to `https://<hostname>`, and add `https://<hostname>/auth/callback` to the redirect URLs. Add `http://localhost:3000/auth/callback` too if you develop locally.
+3. **Project Settings → API:** copy the project URL and the publishable key. The key is designed to be public, but UPlan only ever uses it on the server.
 
-Copy the client id and generate a client secret.
+A free project pauses after a week without use. While it's paused, the sign-in page says it can't reach the sign-in service; restore the project from the dashboard.
 
 ### A5. DNS
 
@@ -93,14 +94,9 @@ POSTGRES_DB=uplan
 ```
 NODE_ENV=production
 DATABASE_URL=postgres://uplan:<the Postgres password>@postgres:5432/uplan
-BETTER_AUTH_SECRET=<32+ random characters>
-BETTER_AUTH_URL=https://<hostname>
-GITHUB_CLIENT_ID=<from A4>
-GITHUB_CLIENT_SECRET=<from A4>
-CITY_OIDC_ISSUER=https://example.test
-CITY_OIDC_DOMAIN=example.test
-CITY_OIDC_CLIENT_ID=placeholder
-CITY_OIDC_CLIENT_SECRET=placeholder
+APP_URL=https://<hostname>
+SUPABASE_URL=<project URL from A4>
+SUPABASE_PUBLISHABLE_KEY=<publishable key from A4>
 OCI_S3_ENDPOINT=https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com
 OCI_S3_REGION=<region, such as us-phoenix-1>
 OCI_S3_ACCESS_KEY_ID=<from A3>
@@ -109,8 +105,6 @@ OCI_BUCKET_OBJECTS=uplan-objects
 OCI_BUCKET_REPORTS=uplan-reports
 LOG_LEVEL=info
 ```
-
-The `CITY_OIDC_*` values are placeholders that pass validation. They stay placeholders until B2.4.
 
 **`/opt/uplan/deploy/.env`** (not secret; read by Compose):
 
@@ -158,11 +152,11 @@ Every later deploy is only `deploy/deploy.sh <tag>`. After that, `restart: unles
 
 ### A10. Load the demo data
 
-1. Open `https://<hostname>/sign-in` and sign in with GitHub. This creates your `app_user` row. The seed needs it.
+1. Open `https://<hostname>/register`, create your account, and let it sign you in. This creates your `app_user` row. The seed needs it. If the database was used before sign-in moved to Supabase, its old `app_user` rows don't match any Supabase user and a matching email will be rejected: start from an empty database, or delete those rows and the rows that reference them.
 2. Build the tools image from the repository's `build` stage and run the seed inside the Compose network. Check the network name first with `docker network ls`; Compose names it after the folder, `deploy_default`:
    ```sh
    sudo docker build --target build -t uplan-tools /opt/uplan
-   sudo docker run --rm --network deploy_default --env-file /etc/uplan/app.env uplan-tools npx tsx scripts/seed-local.ts <your GitHub email>
+   sudo docker run --rm --network deploy_default --env-file /etc/uplan/app.env uplan-tools npx tsx scripts/seed-local.ts <the email you registered with>
    ```
 3. The seed grants that email UPlan-staff and planner access to a "Sammamish" jurisdiction. It also creates an approved profile, eight illustrative evidence datasets, and one decision with a computed analysis run. It's safe to run again.
 
@@ -171,7 +165,7 @@ The demo decision's report stays a draft. Releasing it renders a PDF in the work
 ### A11. Check it
 
 - `https://<hostname>` shows the landing page over HTTPS.
-- Signing in with GitHub returns to the app. If GitHub says the redirect URI doesn't match, A4's callback URL is wrong.
+- Registering, or signing in, returns to the app. If it doesn't, check A4's site URL and redirect list.
 - Open the demo decision: the map draws its basemap and the evidence layers.
 - `curl https://<hostname>/api/health` returns `{"ok":false,"failing":["backup_freshness"]}` with status 503, plus `worker_heartbeat` for the first five minutes.
 - `sudo docker compose -f /opt/uplan/deploy/compose.yaml ps` shows `caddy`, `web`, `worker`, and `postgres` running.
@@ -189,7 +183,7 @@ The demo decision's report stays a draft. Releasing it renders a PDF in the work
 | `docker compose` says `set UPLAN_HOSTNAME in deploy/.env`            | `deploy/.env` is missing or empty (A7)                                                                     |
 | The browser shows a certificate error, and Caddy's logs mention ACME | DNS doesn't resolve to the reserved IP yet, or ports 80 and 443 aren't open in the security list (A2, A5)  |
 | `web` restarts in a loop, and its logs list Zod errors               | A variable in `/etc/uplan/app.env` is missing or malformed. The logs name it                               |
-| Signing in redirects to an error page                                | `BETTER_AUTH_URL` doesn't match the site's address, or the GitHub callback URL is wrong (A4)               |
+| The sign-in page says it can't reach the sign-in service             | `SUPABASE_URL` is wrong, or the free Supabase project is paused (A4)                                       |
 | The map is grey                                                      | `deploy/basemap/basemap.pmtiles` is missing (A8)                                                           |
 | Profile upload or report release fails                               | The Object Storage credentials, endpoint, or bucket names are wrong (A3), or the user can't create objects |
 | `/api/health` names `worker_heartbeat` for more than 15 minutes      | `worker` isn't running or can't reach the database; read its logs                                          |
@@ -205,7 +199,7 @@ The pilot is Sammamish's planners using UPlan on real applications. That is a di
 | Data            | Seeded illustrative layers, "test data" decision | Real public datasets ingested through F3, and the city's own profile uploaded and approved |
 | Database access | `web` and `worker` connect as the schema owner   | They connect as `uplan_app`, with the grants in the data model                             |
 | Backups         | None; `/api/health` fails                        | Nightly pgBackRest to Object Storage, restore rehearsed                                    |
-| City sign-in    | Placeholders                                     | The city's OIDC provider registered                                                        |
+| Email addresses | Unconfirmed; staff check who someone is          | Confirmed through a custom SMTP sender                                                     |
 | Users           | You                                              | Staff, planners, and reviewers, each granted by staff                                      |
 | Releases        | Hand-tagged                                      | Tags from commits whose CI passed                                                          |
 | Monitoring      | You look                                         | An external monitor and alarms email UPlan staff                                           |
@@ -238,10 +232,10 @@ The pilot is Sammamish's planners using UPlan on real applications. That is a di
 **3. A way to onboard a city and its people.** The seed is the only entry point that creates a jurisdiction and grants access. `createJurisdiction` and `grantMembership` already exist as module functions and already require a staff actor.
 
 - Recommended: a staff-run script that calls them, run from the same `build` image as A10, with no user interface. It is less code than a page, and only UPlan staff need it.
-- The first staff member has to exist before staff can grant anything, so the script also covers that one case: it inserts a `staff_member` row for an email that has signed in with GitHub.
+- The first staff member has to exist before staff can grant anything, so the script also covers that one case: it inserts a `staff_member` row for an email that has registered and signed in.
 - The decision to make: a script for the pilot, or a staff page. Either needs its own section in `accounts-roles.md` first.
 
-**4. City sign-in.** Ask the city's IT for an OIDC app registration: issuer URL, client id, client secret, and the email domain. Give them UPlan's redirect URI; take it from the Better Auth SSO plugin's documentation for the installed version, not from memory. Put the real values in `app.env`, restart `web`, sign in once with GitHub as UPlan staff, and register the provider once with `src/platform/register-city-sso-provider.ts`, run from the `build` image the way A10 runs the seed. Then check that a planner's city account signs in and lands in the right jurisdiction, and that a person with no membership sees nothing.
+**4. Verified email addresses.** Registration proves nothing about who owns an address while "Confirm email" is off, and `grantMembership` matches people by address (`accounts-roles.md`). Before real planners register, choose an email sender that fits the zero-cost rule, write its decision record (a new external service), configure it under Supabase's Authentication → SMTP Settings, and turn on **Confirm email**. The register page already handles that setting: it tells the person to check their inbox, and `/auth/callback` finishes the sign-in. Then check that a new address gets its email, that a person with no membership sees no city data, and that a planner lands in the right jurisdiction once granted.
 
 **5. CI and release tags.** Add a GitHub Actions workflow that runs typecheck, lint, unit, integration (Testcontainers), and end-to-end with axe on every pull request, within the 2,000 free minutes a month. A release tag goes only on a commit whose run passed.
 
@@ -277,13 +271,14 @@ Do not open the pilot to planners until every line is true:
 - [ ] An alarm has been triggered deliberately, and the email arrived.
 - [ ] The end-to-end suite passes on the tagged commit, including axe checks and a phone-width viewport.
 - [ ] The database rejects an `update` to a released report when connected as `uplan_app`.
-- [ ] A planner from the city has signed in through city OIDC, and a person with no membership sees no city data.
+- [ ] A planner from the city has registered with a confirmed email address, and a person with no membership sees no city data.
 - [ ] The cipher passphrase and every secret in `/etc/uplan/` exist in a password manager, not only on the VM.
 - [ ] No seeded row exists in the pilot database.
 
 ### B6. Decisions for you
 
-- **Hostname.** A UPlan-owned domain, or a subdomain the city creates, such as `uplan.sammamish.us`. The architecture assumes the city provides the DNS name, and the city's IT can also register the OIDC app.
+- **Hostname.** A UPlan-owned domain, or a subdomain the city creates, such as `uplan.sammamish.us`. The architecture assumes the city provides the DNS name.
 - **Onboarding.** A script or a staff page (B2.3).
-- **Who is UPlan staff.** Named people with GitHub accounts. They can grant access, so the list is short.
+- **Who is UPlan staff.** Named people who have registered. They can grant access, so the list is short.
+- **The email sender.** Which free sender confirms addresses (B2.4).
 - **Charter round 10.** Whether v1 opens to cities beyond Sammamish, who approves profile edits, and whether code tracking stays in release 1 change what the pilot needs, so settle them before B5.

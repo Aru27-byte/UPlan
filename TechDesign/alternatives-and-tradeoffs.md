@@ -210,21 +210,30 @@ One record per decision. A change to the stack starts here: update the record, t
 
 **Revisit when.** Either library stops being maintained.
 
-## D14. Better Auth: the city's sign-in for city staff, GitHub for UPlan staff
+## D14. Supabase Auth: email and password sign-in for everyone
 
-**Chosen.** Better Auth with `@better-auth/sso`, signing city staff in over OIDC through the city's identity provider, such as Microsoft Entra ID. UPlan staff have no city account, so they sign in with GitHub through Better Auth's built-in GitHub provider, and only a GitHub account linked to a `staff_member` row gets staff rights. Sessions are stored in PostgreSQL, and roles live in UPlan's own `membership` and `staff_member` tables.
+**Chosen.** Supabase Auth, on a free-tier hosted project, through `@supabase/supabase-js` and `@supabase/ssr`. Everyone registers and signs in with an email address and a password. Supabase holds the credentials and the session; UPlan keeps a mirror `app_user` row per Supabase user id, and roles stay in UPlan's own `membership` and `staff_member` tables. Registering grants no access: staff grant it (R2, R4). All calls run on the server, so the browser holds no Supabase client and no key. Supersedes the earlier choice of Better Auth with the city's OIDC provider for city staff and GitHub for UPlan staff, which is removed: `better-auth`, `@better-auth/sso`, their tables, and the `CITY_OIDC_*`, `GITHUB_*`, and `BETTER_AUTH_*` settings.
+
+**Why the existing providers can't do the job.** Oracle's Always Free tier gives a VM, not an identity service; running one means writing password storage, rate limiting, and session handling ourselves. The product owner chose to hand that to a managed service and to drop the city-identity-provider dependency, which the pilot could not have set up without the city's IT.
+
+**Exception to the personal-data rule.** `best-practices.md` keeps personal data inside the VM and its Object Storage. Supabase Auth stores each person's email address, name, and password hash outside it. The exception covers those three fields and nothing else: no decision, applicant, parcel, or evidence data goes to Supabase, and the application database keeps only the user id, name, and email. Supabase is a named external service, alongside GitHub and Let's Encrypt.
 
 **Considered.**
 
-- _`openid-client` directly_ — small and standards-focused, but sessions, CSRF protection, and account linking would become our own code.
-- _Hosted identity (WorkOS, Auth0, Clerk)_ — the least code, but another vendor holding government staff identities, with per-user cost.
+- _Self-hosting Supabase's open-source auth server (GoTrue) on the VM_ — keeps credentials in-house and needs no exception, but adds a container and its configuration to a 12 GB VM, and the owner preferred the hosted service.
+- _Keeping Better Auth with a password method_ — no new vendor, but password storage, reset, and rate limiting stay our code.
+- _Hosted identity (WorkOS, Auth0, Clerk)_ — comparable to Supabase, with per-user cost past small free tiers.
 - _NextAuth_ — its npm `latest` release is still 4.x.
-- _Passkeys for UPlan staff_ — no outside service at all, but enrollment and recovery would become our own code.
-- _Guest accounts for UPlan staff in each city's tenant_ — no second sign-in path, but every city's IT would have to invite and remove vendor staff.
 
-**Trade-offs accepted.** Better Auth owns its tables and their text ids. UPlan staff can't sign in while GitHub is down.
+**Trade-offs accepted.**
 
-**Revisit when.** Several cities with different identity providers make a hosted SSO broker worth its cost, or UPlan's team adopts a work identity provider.
+- **A vendor holds staff credentials**, as noted above.
+- **Free projects pause after a week of inactivity.** While paused, sign-in fails with the "couldn't reach the sign-in service" message (R1) until someone restores the project in the dashboard. Signed-in sessions keep working only until their tokens need refreshing.
+- **Email is the weak spot.** The built-in email service sends to the project's own team members only, at 2 messages an hour, so "Confirm email" can't work for real users without a custom SMTP sender. The pilot runs with it off; a registrant's address is then unproven, and staff check identity before granting access. Adding an SMTP provider is a new external service and needs its own record.
+- **Free allowance:** 50,000 monthly active users, far above the pilot.
+- **Existing sign-ins don't carry over.** Better Auth's text ids don't match Supabase's, so `app_user` rows from before this change are orphaned; the deployment guide says to clear them.
+
+**Revisit when.** The pilot needs verified addresses (add SMTP and turn on "Confirm email"), the project's inactivity pause causes an outage, or several cities' own identity providers make single sign-on worth building.
 
 ## D15. Drafting rule updates with RAG on open models (later in v1)
 

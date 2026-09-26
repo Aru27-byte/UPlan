@@ -10,7 +10,7 @@
 //      in every provenance field a planner or report would see
 //   5. one demo decision with a saved study area and footprint, and a real computed analysis run
 //
-// Run after signing in once with GitHub (accounts-roles.md R2: a person must exist in app_user
+// Run after registering once at /register (accounts-roles.md R2: a person must exist in app_user
 // before any membership can be granted to them):
 //
 //   npx tsx --env-file=.env scripts/seed-local.ts you@example.com
@@ -123,7 +123,6 @@ async function ensureReviewerUser(): Promise<{ id: string }> {
       id: randomUUID(),
       name: "UPlan review bot (seed)",
       email,
-      emailVerified: true,
     })
     .returning({ id: appUser.id });
   if (!created) throw new Error("insert into app_user unexpectedly returned no row");
@@ -658,7 +657,7 @@ async function main(): Promise<void> {
   const [user] = await db.select().from(appUser).where(eq(appUser.email, email));
   if (!user) {
     throw new Error(
-      `no app_user found for ${email} — sign in once at http://localhost:3000/sign-in with GitHub first, then re-run this script`,
+      `no app_user found for ${email} — register once at http://localhost:3000/register first, then re-run this script`,
     );
   }
 

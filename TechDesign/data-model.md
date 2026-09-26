@@ -9,7 +9,7 @@ The SQL below is the design target for release 1, plus F2's tables, which are ma
 
 ## Conventions in this model
 
-- Primary keys are `uuid` from `gen_random_uuid()`. The auth tables Better Auth manages keep its text ids.
+- Primary keys are `uuid` from `gen_random_uuid()`. `app_user` is the exception: its id is the Supabase user id, held as `text`.
 - Tables and columns are `snake_case`, and table names are singular.
 - `*_at` columns are `timestamptz` in UTC. `*_on` columns are `date`, used for legal dates such as effective and filing dates.
 - A status is `text` with a `CHECK` list, not a PostgreSQL enum, so adding a state is a one-line migration.
@@ -46,9 +46,16 @@ erDiagram
 
 ## Cities and people
 
-Better Auth manages `app_user`, `session`, `account`, and `verification`. Its user model is renamed to `app_user`, because `user` is a reserved word in PostgreSQL.
+Supabase Auth holds identities, passwords, and sessions. `app_user` mirrors each person by their Supabase user id, so the `created_by` and `granted_by` columns below have something to reference; `provisionUser` writes it (see `accounts-roles.md`). It is named `app_user` because `user` is a reserved word in PostgreSQL.
 
 ```sql
+create table app_user (
+  id         text primary key,        -- the Supabase user id
+  name       text not null,
+  email      text not null unique,
+  created_at timestamptz not null default now()
+);
+
 create table jurisdiction (
   id                         uuid primary key default gen_random_uuid(),
   name                       text not null unique,
@@ -384,7 +391,6 @@ create trigger dataset_version_final before update on dataset_version
   for each row when (old.status <> 'ingesting') execute function forbid_final_row_change();
 ```
 
-- Better Auth's tables get the privileges its sessions need, including deleting expired sessions.
 - graphile-worker installs its own schema. Both processes may call `graphile_worker.add_job()`.
 
 ## The profile document

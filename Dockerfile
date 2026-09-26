@@ -19,11 +19,8 @@ COPY . .
 # validator, and the running containers get their real values from /etc/uplan/app.env, where a
 # missing one is still a startup failure (best-practices.md: "Configuration fails fast").
 RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
-  BETTER_AUTH_SECRET=build-only-placeholder-not-a-real-secret \
-  BETTER_AUTH_URL=http://localhost:3000 \
-  CITY_OIDC_ISSUER=https://build.invalid CITY_OIDC_DOMAIN=build.invalid \
-  CITY_OIDC_CLIENT_ID=build CITY_OIDC_CLIENT_SECRET=build \
-  GITHUB_CLIENT_ID=build GITHUB_CLIENT_SECRET=build \
+  APP_URL=http://localhost:3000 \
+  SUPABASE_URL=https://build.invalid SUPABASE_PUBLISHABLE_KEY=build \
   OCI_S3_ENDPOINT=https://build.invalid OCI_S3_REGION=build \
   OCI_S3_ACCESS_KEY_ID=build OCI_S3_SECRET_ACCESS_KEY=build \
   OCI_BUCKET_OBJECTS=build OCI_BUCKET_REPORTS=build \

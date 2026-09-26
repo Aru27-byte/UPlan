@@ -171,9 +171,9 @@ The report for the planning commission and city council, released as a locked do
 
 **Serves:** every intent; I8 · **Release:** 1 for planners; the reviewer role ships with F12
 
-City staff sign in, and each person is a planner or a reviewer.
+People register and sign in with an email address and a password, and each person is a planner or a reviewer once UPlan staff grant it.
 
-**Open for TechDesign:** how city staff sign in — for example, with the accounts they already use at work.
+**Decided:** sign-in is handled by Supabase Auth (D14), not by the city's own accounts.
 
 ### F16. Records retention and export — `records-export`
 
@@ -268,7 +268,6 @@ Every intent is covered. F16 serves the public records constraint rather than an
 
 - **F1:** how much of the code can be held as configuration (TechDesign).
 - **F8:** whether planners can start from a site plan file instead of tracing (UI design).
-- **F11:** how city staff sign in (TechDesign).
 - **F12:** whether a reviewer can sign off from a phone.
 - **F17:** how planner edits and automatic updates combine for the same city (TechDesign).
 

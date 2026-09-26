@@ -1,7 +1,5 @@
-import { headers } from "next/headers";
-
-import { getActor, type Actor } from "@/modules/accounts";
-import { auth } from "@/platform/auth";
+import { getActor, provisionUser, type Actor } from "@/modules/accounts";
+import { getSessionUser } from "@/platform/auth";
 import { db } from "@/platform/db";
 import { ForbiddenError } from "@/platform/errors";
 
@@ -11,14 +9,16 @@ import { ForbiddenError } from "@/platform/errors";
 // and job tasks stay thin"). Lives outside src/platform/ because platform imports nothing from
 // modules (@/modules/accounts), and outside any module because it's specific to the Next.js request.
 //
-// One session fetch produces both the `Actor` every module function expects and the display
-// name/email the sidebar shows — never fetched twice for one request (conventions.md: "Pin exact
-// versions in every computation").
+// One session read produces both the `Actor` every module function expects and the display
+// name/email the sidebar shows — never read twice for one request (conventions.md: "Pin exact
+// versions in every computation"). provisionUser first, so a person who has just registered has an
+// app_user row before anything references it (accounts-roles.md, R2).
 export type SessionActor = { actor: Actor; name: string; email: string };
 
 export async function requireActor(): Promise<SessionActor> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new ForbiddenError("sign-in required");
-  const actor = await getActor(db, session.user.id);
-  return { actor, name: session.user.name, email: session.user.email };
+  const user = await getSessionUser();
+  if (!user) throw new ForbiddenError("sign-in required");
+  await provisionUser(db, user);
+  const actor = await getActor(db, user.id);
+  return { actor, name: user.name, email: user.email };
 }
