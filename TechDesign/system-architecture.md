@@ -46,9 +46,15 @@ flowchart LR
     O2["O2 · Bastion<br/>admin sessions"]
     subgraph VM["V1 · Arm VM · 2 OCPUs · 12 GB · 200 GB disk · Ubuntu 24.04 LTS · Docker Compose"]
       V2["V2 · caddy<br/>HTTPS · HTTP/3 · basemap file"]
+<<<<<<< HEAD
       V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Decisions: study area, footprint, filing date · F5 F8<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Evidence base and impact · F7 F9<br/>W6 · Report preview, release, download · F10<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · scoping F14 · phone F15 · later<br/>W10 · Health check"]
       V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 · F14 later<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
       V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
+=======
+      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Decisions: details, study area, footprint, filing date, overview · F5 F8 F18<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Evidence, screening, studies, and impact · F7 F9 F14 F19<br/>W6 · Report preview, release, download · F10<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
+      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
+      V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · sessions · retrieval index")]
+>>>>>>> worktree-ux-workflow-specs
       V6["V6 · models · llama.cpp server · later<br/>Qwen3.5-4B drafts · Qwen3-Embedding-0.6B embeds"]
       V7["V7 · migrate · once per deploy"]
       V8["V8 · backup timer · systemd · pgBackRest"]
@@ -139,13 +145,13 @@ flowchart LR
 | --- | -------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | W1  | Sign-in and roles          | F11        | Everyone registers and signs in with email and password through G2. Memberships decide who is a planner or reviewer for which city       |
 | W2  | City profile               | F1, F17    | View the profile and its settings, download the template, upload a workbook or edit a rule, compare previews, approve or reject |
-| W3  | Decisions                  | F5, F8     | Create a decision under a city; save study area and footprint revisions and the filing date                                     |
+| W3  | Decisions                  | F5, F8, F18 | Create a decision under a city; edit its details and filing date; save study area and footprint revisions; the stage rail and Overview |
 | W4  | Map workspace              | F6, F3, F4 | MapLibre shows evidence tiles PostGIS makes per dataset version, the basemap from `caddy`, and each layer's provenance          |
-| W5  | Evidence base and impact   | F7, F9     | The latest run's evidence, disagreements, gaps, and impact ranges, in tables and on the map, beside the previous run            |
+| W5  | Evidence, screening, studies, and impact | F7, F9, F14, F19 | The latest run's evidence and its attributes, disagreements and the planner's recorded resolutions, gaps, the screening register, study flags, and impact ranges, in tables and on the map |
 | W6  | Report                     | F10        | Preview from the latest run, release, and download of the locked PDF                                                            |
 | W7  | Records                    | F16        | Review retention flags; request and download records exports                                                                    |
 | W8  | Code change drafts (later) | F2         | UPlan staff read a draft beside its quoted passages and preview results, then approve or reject it                              |
-| W9  | Later in v1                | F12–F15    | Review and sign-off, conditions tracing, study scoping, and phone look-up views                                                 |
+| W9  | Later in v1                | F12, F13, F15 | Review and sign-off, conditions tracing, and phone look-up views                                                             |
 | W10 | Health check               | —          | `GET /api/health`, called by O3 (see _Operations_)                                                                              |
 
 ### Jobs in the worker (V4)
@@ -153,8 +159,8 @@ flowchart LR
 | Key | Job                                      | Features          | Queue               | What it does                                                                                      |
 | --- | ---------------------------------------- | ----------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
 | J1  | `preview_profile_change`                 | F1, F17           | `jurisdiction:<id>` | Runs a preview analysis of every open decision under a pending profile change                     |
-| J2  | `run_analysis`                           | F7, F9; F14 later | `decision:<id>`     | Computes the evidence base and impact in PostGIS from pinned inputs                               |
-| J3  | `apply_effective_dates`                  | F1                | `jurisdiction:<id>` | Daily: queues runs for open decisions when a rule takes effect or is repealed                     |
+| J2  | `run_analysis`                           | F7, F9, F14       | `decision:<id>`     | Computes the evidence base, screening, study flags, and impact in PostGIS from pinned inputs      |
+| J3  | `apply_effective_dates`                  | F1, F14           | `jurisdiction:<id>` | Daily: queues runs for open decisions when a rule takes effect or is repealed, or when the latest run's results version is out of date |
 | J4  | `ingest_dataset`                         | F3                | `dataset:<id>`      | Scheduled: downloads and hashes a source, loads it with GDAL, and publishes a new dataset version |
 | J5  | `release_report`                         | F10               | `decision:<id>`     | Renders the report, prints the tagged PDF, stores it write-once, and marks the report released    |
 | J6  | `flag_retention`, `build_records_export` | F16               | `jurisdiction:<id>` | Daily: flags records whose retention period ended. On request: builds a records export            |
@@ -184,9 +190,10 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 | `accounts`      | F11               | Sign-in wiring for Supabase Auth, memberships, staff members, access checks             | 1           |
 | `profiles`      | F1, F17           | Profile schema, versions, changes and approvals, uploads, Excel template, `rulesInForce` | 1           |
 | `provenance`    | F4                | The provenance type every figure carries, and its one formatter                          | 1           |
-| `evidence`      | F3                | Datasets, versions, ingestion, tiles, dataset mapping per city                           | 1           |
+| `evidence`      | F3, F19           | Datasets and their attributes, versions, ingestion, tiles, dataset mapping per city      | 1           |
 | `decisions`     | F5, F8            | Decisions, study area and footprint revisions                                            | 1           |
-| `analysis`      | F7, F9; later F14 | Analysis runs, evidence base, impact engine, previews                                    | 1           |
+| `analysis`      | F7, F9, F14, F19  | Analysis runs, evidence base, impact engine, screening and study flags, source resolutions, previews | 1           |
+| `workflow`      | F18               | The stage rail and Overview read model: step states, next actions, analysis status. Read-only, no tables | 1           |
 | `reports`       | F10; later F12    | Report document, release, PDF rendering                                                  | 1           |
 | `records`       | F16               | Retention flags, records exports                                                         | 1           |
 | `operations`    | —                 | The health check, the worker heartbeat, and backup run records                           | 1           |
@@ -194,7 +201,8 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 | `conditions`    | F13               | Conditions and their links to impacts                                                    | Later in v1 |
 
 - F6 (map workspace) and F15 (phone look-up) are UI: routes in `src/app/` and components in `src/ui/`, built on the modules above.
-- F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine.
+- F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine. F19's resolutions live in `analysis` too, since it owns the disagreement they refer to.
+- F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them, nothing imports it, and it owns no table, so it adds no cycle.
 - Clients for PostgreSQL, Object Storage, and the model server live in `src/platform/`. Only `code-tracking` calls the model server.
 
 ## Key flows
@@ -482,9 +490,10 @@ A change that raises use of an allowance updates this table in the same change.
 - **Release 1** deploys `caddy`, `web`, `worker`, `postgres`, and `migrate`, and builds these modules:
   - `accounts`: planners, plus reviewers for profile approvals under the assumption above, and UPlan staff.
   - `profiles`, `provenance`, `evidence`, `decisions`, `records`, and `operations`.
-  - `analysis`: evidence base and impact.
+  - `analysis`: evidence base, screening and study flags, impact, and the source resolutions.
+  - `workflow`: the stage rail and Overview read model.
   - `reports`: release without sign-off.
   - The map workspace UI.
-- **Later in v1:** `code-tracking` with the `models` container and the retrieval index, sign-off in `reports`, `conditions`, study scoping in `analysis`, and the phone look-up views.
+- **Later in v1:** `code-tracking` with the `models` container and the retrieval index, sign-off in `reports`, `conditions`, and the phone look-up views.
 
 Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Free Tier and upgrading](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm) · [Oracle: public IP addresses](https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingpublicIPs.htm) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [Oracle: Object Storage policy reference](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm) · [llama.cpp: server README](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) · [Qwen3.5-4B GGUF files](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) · [Qwen3-Embedding-0.6B GGUF](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [graphile-worker: job keys](https://worker.graphile.org/docs/job-key) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [W3C: WCAG 2.1, success criterion 2.1.1](https://www.w3.org/TR/WCAG21/#keyboard)

@@ -2,7 +2,7 @@
 
 **Feature:** F6
 **Status:** Draft
-**Requirements:** [Requirements/map-workspace.md](../Requirements/map-workspace.md) (R1–R7)
+**Requirements:** [Requirements/map-workspace.md](../Requirements/map-workspace.md) (R1–R9)
 **Builds on:** [system-architecture.md](system-architecture.md) (W4, D10), [evidence-layers.md](evidence-layers.md) (F3 tiles), [provenance.md](provenance.md) (F4)
 **Release:** 1
 
@@ -29,6 +29,11 @@ The Server Component resolves, for the jurisdiction's current profile, one MapLi
 
 - **R1:** clicking a rendered feature opens a popup keyed by the feature's `dataset_version_id` + `source_feature_id`, showing that layer's already-formatted provenance strings (passed down, not re-fetched) — one step from map to source, never more.
 - **R5:** the same page renders the study area and footprint (F5/F8) as additional MapLibre layers, sourced from the Server Component's props (already-fetched GeoJSON), alongside every mapped evidence layer for the jurisdiction — one workspace, not a page per layer.
+
+## Deep links and gaps (R8, R9)
+
+- **R8:** `map/page.tsx` reads an optional `layer` search parameter, validated with Zod as a profile resource type key. A key that is in the profile passes `initiallyVisibleLayer` to `map-workspace.client.tsx` as a prop. A key that isn't renders a visible note ("There is no layer named X in this city's profile") and turns nothing on. Nothing maps an unknown key to a similar one.
+- **R9:** the page builds the layer list from the profile's `resourceTypes`, not from `jurisdiction_dataset`, so a resource type with no mapping still gets an entry. `layer-panel.client.tsx` renders it disabled with the sentence "No dataset is mapped for this resource type", and the R4 text view lists it in the same words. Today's page skips such a type; this replaces that behavior, and the list is the one source of truth for both the panel and the text view.
 
 ## Approximate boundaries and precision (R2, R3)
 
@@ -61,4 +66,5 @@ Release 1 ships one responsive layout that works down to phone width, but F6's _
 ## Verification
 
 - Playwright end-to-end (`tests/e2e/`): load the map workspace, confirm every toggled layer's tile requests succeed, click an approximate-boundary feature and assert the popup's provenance text matches the text view's row for the same feature (R1); toggle every layer and assert `layer-panel` styling classes match `RESOURCE_TYPE_PAINT` for its `mapStatus` (R2); run `@axe-core/playwright` against the page including the text view (R4), and at a phone-width viewport (R7).
-- No unit or integration tests beyond `map-styles.ts`'s pure style-lookup function, since this feature holds no domain logic of its own.
+- Playwright: open the map with `?layer=wetlands` and assert that layer is on (R8); open it with `?layer=nonsense` and assert the note appears and no layer turned on (R8); for a profile with a resource type that has no mapping, assert its disabled entry and sentence appear in the panel and in the text view (R9).
+- No unit or integration tests beyond `map-styles.ts`'s pure style-lookup function and the `layer` parameter's Zod schema, since this feature holds no domain logic of its own.

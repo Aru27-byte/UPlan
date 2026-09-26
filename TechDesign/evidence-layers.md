@@ -2,7 +2,7 @@
 
 **Feature:** F3 · `evidence`
 **Status:** Draft
-**Requirements:** [Requirements/evidence-layers.md](../Requirements/evidence-layers.md) (R1–R11)
+**Requirements:** [Requirements/evidence-layers.md](../Requirements/evidence-layers.md) (R1–R12)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Dataset refresh_, D10, D11), [data-model.md](data-model.md) (`dataset`, `dataset_version`, `evidence_feature`, `jurisdiction_dataset`)
 **Release:** 1
 
@@ -49,6 +49,8 @@ export async function mapToJurisdiction(
 ```
 
 `FREE_PUBLIC_LICENSES` is a short allow-list (e.g., public domain, CC0, CC-BY, ODbL) checked at registration time, not re-validated per feature — R1 is enforced once, where the dataset enters the system.
+
+**R12:** `NewDataset` is a Zod schema whose `authority` and `spatialPrecision` are required literal unions, matching the `check` lists on the two `dataset` columns (see `evidence-review.md` for the columns and the migration that fills them for existing datasets). Omitting either fails validation at registration, and the columns are `not null` with no default.
 
 ## Ingestion (`ingest_dataset`, R4, R5, R6, R7)
 
@@ -151,6 +153,6 @@ The route sets a long, immutable `Cache-Control` header because the URL already 
 
 ## Verification
 
-- Unit tests: license allow-list rejection (R1); `attributeMap` application logic; coverage-vs-gap classification logic used by F7 (a pure function here, consumed there).
+- Unit tests: license allow-list rejection (R1); a `NewDataset` missing `authority` or `spatialPrecision`, or with a value outside the lists, is rejected (R12); `attributeMap` application logic; coverage-vs-gap classification logic used by F7 (a pure function here, consumed there).
 - Testcontainers integration tests: a second ingest of byte-identical content creates no new version (R4, with a race test — two concurrent refreshes of the same source, asserting one `ready` version); a failing ingest (a fixture that fails `ST_IsValid` even after repair, or a corrupt file) leaves the previous version current and records `error_detail` (R7); `mvtTile` against fixture features returns valid MVT bytes for a tile that intersects them and empty bytes for one that doesn't; `ingestDataset` enqueues `run_analysis` only for open decisions whose study area intersects `coverage`.
 - Golden fixtures: a small hand-built shapefile/GeoJSON with one intentionally invalid polygon exercises the repair path end to end, asserting the exact `repairedCount`.

@@ -30,6 +30,12 @@ The decision is the spine's core object: everything else (evidence, footprint, i
 
 **R9. Every geometry revision and every status change records who made it and when.**
 
+**R10. A decision can record its project details: parcel or address, applicant, project manager, and target decision date.** None is required at creation, because a decision may start before they are known, and an unrecorded one is shown as "Not yet recorded", never a placeholder value. The project manager is a planner with membership in the decision's jurisdiction.
+
+**R11. Editing project details, including the filing date (R3), is one compare-and-set on the decision's row version.** An edit based on an out-of-date view fails with a conflict instead of overwriting a newer edit (ties to R6's honesty rule for browsers).
+
+**R12. Changing the filing date makes the decision's analysis run again, in the same transaction as the change,** so the analysis never quietly lags the date that selects its rules (F1 R3).
+
 ## Out of scope for this feature
 
 - Tracing a footprint from a site plan, and any footprint-specific UI (F8).

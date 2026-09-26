@@ -31,8 +31,16 @@ Round 7 decided measuring the proposal's impact is what the pilot must do best �
 
 **R9. A buffer applies only when its `appliesWhen` condition (if any) is met by the feature's recorded attributes,** read through F3's attribute map — never assumed to apply universally or never at all when the attribute is simply missing (in that case R3's range applies).
 
+**R10. Every impact shown on screen names the rules it applied, each with its code section and effective date, and the evidence features it measured, each with its provenance.** They are the `ruleKeys` and `evidence` the run already stores (R2). Showing them is what lets a planner answer "what caused this number, and where did that come from?" without leaving the page.
+
+**R11. Each impact reads as one fact in a fixed form: the proposal's footprint (by revision), the resource it overlaps, how much, and the evidence.** For example, "Footprint revision 3 overlaps 4,210 sq ft of mapped wetlands." The wording is a template over the stored numbers, and it carries no judgment word (R6).
+
+**R12. The Impact page states which run it shows and whether that run is current** — its study area and footprint revisions, the profile version, and the date each rule set was resolved for (F18 R7). An out-of-date or failed run is stated as such, and the page never presents its numbers as current.
+
 ## Out of scope for this feature
 
+- Tagging parts of the footprint as permanent or temporary. That needs more than one footprint layer, so it belongs to F8 and its own design if planners ask for it.
+- Indirect and cumulative effects, which need modeling and professional judgment outside desk analysis. The Impact page says so in one plain sentence.
 - Assembling the evidence itself (F7 — same run, other half of the results).
 - Comparing the impact against alternatives, or any recommendation (explicitly never — Posture).
 - Conditions tracing, which consumes `impactKey` values later in v1 (F13).

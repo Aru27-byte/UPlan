@@ -37,6 +37,12 @@ The report is the product; the map is the instrument (P3). It's what gets forwar
 
 **R12. Until F12 ships, releasing a report requires no sign-off — but the schema and release path must not need to change shape when sign-off is added,** only gain a precondition.
 
+**R13. Before releasing, the planner sees what the release will check and what the report will state.** _Blocking_ items are exactly the conditions that make a release fail today: no successful analysis, an analysis that is out of date or failed (F18 R7), or a filing date that a vesting rule set needs and lacks. _Stated_ items are facts the report will carry, listed so nothing in it is a surprise: evidence gaps, source disagreements, approximate boundaries, and desk-analysis limits. Nothing on the list is a score or a verdict, and showing it adds no rule the release doesn't already enforce (R10).
+
+**R14. The report includes a source register and the planner's recorded resolutions.** The register lists every dataset version and every rule that any figure in the report cites, each with its provenance (F4), so a reader can look up the same sources. Each recorded resolution of a source disagreement (F19 R12) appears with its rationale, who recorded it, and when.
+
+**R15. The report includes the project's details, the screening register, and the study flags, worded as screening and never as clearance.** It states the parcel or address, applicant, and project manager where recorded (F5 R10); the register of critical areas the study area touches or is reached by (F14 R1–R2); and the studies the mapped data flags, with the statements of F14 R6 and R9: a missing flag never waives a study, and a stream or wetland that no dataset records will not appear (P2).
+
 ## Out of scope for this feature
 
 - Review and sign-off itself (F12, later in v1).

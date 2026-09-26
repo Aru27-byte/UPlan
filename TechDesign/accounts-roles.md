@@ -136,6 +136,7 @@ export function requireStaff(actor: Actor): void {
 }
 ```
 
+- `isPlannerOf(userId, jurisdictionId): Promise<boolean>` is the one read that answers "does this other person hold a planner membership here?" It is for a decision's project manager (`decisions.md` R10). It reads `membership` only, and it is a check on a named person, not an authorization of the actor, so it never replaces `requirePlanner`.
 - Every other module's exported functions call one of these first, with the jurisdiction id the caller supplied — never a jurisdiction id read back out of the row being fetched (R3, R6). For example, `decisions.getDecision(actor, decisionId)` loads the decision's `jurisdiction_id` and calls `requireMembership` before returning anything, so a `NotFoundError`-shaped 404 and a `ForbiddenError`-shaped 403 are indistinguishable in what they reveal (R7): both say nothing about the row's contents.
 - `requireStaff` and `requireMembership` read from disjoint tables (`staff_member` vs. `membership`) and are never combined with `||` anywhere in the codebase — a lint rule (`no-restricted-syntax` for a logical-or between calls to these two functions) keeps R9 true as new code is added.
 - `src/proxy.ts` only redirects a visitor with no session at all to `/sign-in`; it never inspects role or jurisdiction (R6; matches `system-architecture.md`'s _Security and access_).
