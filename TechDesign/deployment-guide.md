@@ -152,7 +152,7 @@ Every later deploy is only `deploy/deploy.sh <tag>`. After that, `restart: unles
 
 ### A10. Load the demo data
 
-1. Open `https://<hostname>/register`, create your account, and let it sign you in. This creates your `app_user` row. The seed needs it. If the database was used before sign-in moved to Supabase, its old `app_user` rows don't match any Supabase user and a matching email will be rejected: start from an empty database, or delete those rows and the rows that reference them.
+1. Open `https://<hostname>/register`, create your account, and let it sign you in. This creates your `app_user` row. The seed needs it. (A database that already has people in it is a different case: see A14.)
 2. Build the tools image from the repository's `build` stage and run the seed inside the Compose network. Check the network name first with `docker network ls`; Compose names it after the folder, `deploy_default`:
    ```sh
    sudo docker build --target build -t uplan-tools /opt/uplan
@@ -187,6 +187,31 @@ The demo decision's report stays a draft. Releasing it renders a PDF in the work
 | The map is grey                                                      | `deploy/basemap/basemap.pmtiles` is missing (A8)                                                           |
 | Profile upload or report release fails                               | The Object Storage credentials, endpoint, or bucket names are wrong (A3), or the user can't create objects |
 | `/api/health` names `worker_heartbeat` for more than 15 minutes      | `worker` isn't running or can't reach the database; read its logs                                          |
+
+### A14. Moving a database that already has data to Supabase Auth
+
+For a database that was used before sign-in moved to Supabase Auth: people, memberships, decisions, and reports already exist, keyed by Better Auth's ids. Nothing is re-keyed. Each person keeps their `app_user.id`, and a new `auth_id` column ties them to their Supabase login.
+
+1. **Back up first.** Supabase dashboard → Database → Backups, or `pg_dump`. Migration `0001` drops Better Auth's `session`, `account`, `verification`, and `sso_provider` tables, which can't be undone.
+2. **Apply the migrations:** `npm run db:migrate`. `0001` drops those tables and three unused `app_user` columns; `0002` adds `app_user.auth_id`. Existing people get a null `auth_id`, and nothing else changes.
+3. **Each person registers** at `/register` with the email their old account used. Their new login exists, but the first page load stops with "This email address already belongs to a UPlan account from before sign-in moved to Supabase" until step 4.
+4. **Link them, deliberately.** In the Supabase SQL editor, first read who would be linked:
+   ```sql
+   select a.id as app_user_id, a.email as old_account, u.id as supabase_id, u.created_at as registered_at
+   from public.app_user a
+   join auth.users u on lower(u.email) = lower(a.email)
+   where a.auth_id is null;
+   ```
+   Check that every row is a person you expect, and that each registered themselves. While "Confirm email" is off, anyone can register any address. Then link:
+   ```sql
+   update public.app_user a
+   set auth_id = u.id
+   from auth.users u
+   where lower(u.email) = lower(a.email) and a.auth_id is null;
+   ```
+   To link one person, add `and lower(a.email) = 'them@example.org'`.
+5. **They reload** and are signed in as the same person, with the same memberships and history.
+6. A row with no matching Supabase user, such as the seed's `uplan-review-bot@uplan.local`, keeps a null `auth_id`, and nobody can sign in as it. That is intended.
 
 ## Part B — Pilot
 

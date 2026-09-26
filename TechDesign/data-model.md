@@ -9,7 +9,7 @@ The SQL below is the design target for release 1, plus F2's tables, which are ma
 
 ## Conventions in this model
 
-- Primary keys are `uuid` from `gen_random_uuid()`. `app_user` is the exception: its id is the Supabase user id, held as `text`.
+- Primary keys are `uuid` from `gen_random_uuid()`. `app_user` is the exception: its id is `text`, because it began as Better Auth's id and every reference to a person points at it.
 - Tables and columns are `snake_case`, and table names are singular.
 - `*_at` columns are `timestamptz` in UTC. `*_on` columns are `date`, used for legal dates such as effective and filing dates.
 - A status is `text` with a `CHECK` list, not a PostgreSQL enum, so adding a state is a one-line migration.
@@ -46,11 +46,12 @@ erDiagram
 
 ## Cities and people
 
-Supabase Auth holds identities, passwords, and sessions. `app_user` mirrors each person by their Supabase user id, so the `created_by` and `granted_by` columns below have something to reference; `provisionUser` writes it (see `accounts-roles.md`). It is named `app_user` because `user` is a reserved word in PostgreSQL.
+Supabase Auth holds identities, passwords, and sessions. `app_user` is UPlan's own record of each person: the `created_by` and `granted_by` columns below reference its `id`, which never changes. `auth_id` is the Supabase user id that signs in as the person, and is null for someone from before Supabase Auth until an operator links them. `provisionUser` writes it (see `accounts-roles.md`). It is named `app_user` because `user` is a reserved word in PostgreSQL.
 
 ```sql
 create table app_user (
-  id         text primary key,        -- the Supabase user id
+  id         text primary key default gen_random_uuid()::text,
+  auth_id    uuid unique,             -- the Supabase user id; null until linked
   name       text not null,
   email      text not null unique,
   created_at timestamptz not null default now()

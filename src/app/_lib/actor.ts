@@ -18,7 +18,7 @@ export type SessionActor = { actor: Actor; name: string; email: string };
 export async function requireActor(): Promise<SessionActor> {
   const user = await getSessionUser();
   if (!user) throw new ForbiddenError("sign-in required");
-  await provisionUser(db, user);
-  const actor = await getActor(db, user.id);
+  const userId = await provisionUser(db, user);
+  const actor = await getActor(db, userId);
   return { actor, name: user.name, email: user.email };
 }

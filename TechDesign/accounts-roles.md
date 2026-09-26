@@ -14,12 +14,12 @@ src/modules/accounts/
   tables.ts         membership, staff_member Drizzle tables
   access.ts         requireMembership, requirePlanner, requireReviewer, requireStaff
   memberships.ts    grantMembership, revokeMembership, listMemberships
-  users.ts          provisionUser: keeps app_user in step with the Supabase identity
+  users.ts          provisionUser: finds or creates the app_user for a Supabase identity
   actor.ts          getActor(userId) -> Actor, pinned once per request
   access.test.ts, users.integration.test.ts   unit + Testcontainers integration tests
 ```
 
-Supabase Auth owns identities, passwords, and sessions. UPlan's `app_user` table is a mirror keyed by the Supabase user id: every other table's `created_by`, `granted_by`, and `user_id` column references it, so those foreign keys keep working. `src/platform/auth-tables.ts` defines it, and `accounts` never writes it except through `provisionUser`.
+Supabase Auth owns identities, passwords, and sessions. UPlan's `app_user` table is UPlan's own record of each person: every other table's `created_by`, `granted_by`, and `user_id` column references its `id`, and that id never changes. A nullable, unique `auth_id` column holds the Supabase user id that signs in as the person. `src/platform/auth-tables.ts` defines it, and `accounts` never writes it except through `provisionUser`.
 
 ## Sign-in and registration (R1, R2, R8, R10, R11)
 
@@ -75,7 +75,7 @@ src/ui/text-field.client.tsx                 labeled input with error text and a
 export type Role = "planner" | "reviewer";
 
 export type Actor = {
-  userId: string; // app_user.id — the Supabase user id (a uuid held as text)
+  userId: string; // app_user.id — UPlan's id for the person, not the Supabase user id
   isStaff: boolean;
   memberships: { jurisdictionId: string; role: Role }[];
 };
@@ -83,27 +83,37 @@ export type Actor = {
 
 `actor.ts`'s `getActor(db, userId)` reads `staff_member` and `membership` once per request/job and returns this plain object — every module function takes an `Actor`, never a raw session, and never re-queries membership mid-computation (`conventions.md`: "Pin exact versions in every computation").
 
-`src/app/_lib/actor.ts`'s `requireActor()` is the one bridge from a request to an `Actor`: `getSessionUser()`, then `provisionUser`, then `getActor`.
+`src/app/_lib/actor.ts`'s `requireActor()` is the one bridge from a request to an `Actor`: `getSessionUser()` (which yields the Supabase id as `authId`), then `provisionUser` (which returns `app_user.id`), then `getActor`.
 
-## Keeping `app_user` in step (R2, R4)
+## Finding or creating the person (R2, R4)
 
 ```ts
-// users.ts
-export async function provisionUser(db: DbOrTx, user: { id: string; email: string; name: string }) {
-  await db
+// users.ts — returns app_user.id
+export async function provisionUser(
+  db: DbOrTx,
+  user: { authId: string; email: string; name: string },
+): Promise<string> {
+  const [inserted] = await db
     .insert(appUser)
     .values(user)
     .onConflictDoUpdate({
-      target: appUser.id,
+      target: appUser.authId,
       set: { email: user.email, name: user.name },
       setWhere: sql`${appUser.email} is distinct from ${user.email} or ${appUser.name} is distinct from ${user.name}`,
-    });
+    })
+    .returning({ id: appUser.id });
+  if (inserted) return inserted.id;
+  // The update was skipped because nothing changed, so the conflicting row exists: read its id.
+  const [existing] = await db.select({ id: appUser.id }).from(appUser).where(eq(appUser.authId, user.authId));
+  // …a missing row here is a defect and throws
+  return existing.id;
 }
 ```
 
-- One statement, no check-then-insert: two requests provisioning the same person at once both succeed and leave one row. `setWhere` means an unchanged user costs no write.
+- One insert keyed on `auth_id`, no check-then-insert: two requests provisioning the same person at once both succeed and get the same id. `setWhere` means an unchanged person costs no write.
 - It creates an identity and nothing else. No `membership` and no `staff_member` row appears (R2), so a new person sees "You have no jurisdiction membership yet" until staff grant one (R4).
-- `app_user.email` stays unique. A second Supabase user id arriving with an email already held by a different id — a Supabase user deleted and re-registered — violates the constraint and surfaces as an error. It isn't merged, because that would hand one person's memberships to another identity.
+- **People from before Supabase.** Their `app_user` row already holds their memberships and staff rights, and has a null `auth_id`. An operator links it on purpose, once, for an email they trust: `update app_user set auth_id = <supabase user id> where email = … and auth_id is null` (the deployment guide has the statement). Until then, a new identity with that email hits `app_user.email`'s unique constraint and `provisionUser` throws a `ConflictError` that says staff must link the account. A matching email is never enough on its own to claim an account, because while "Confirm email" is off nobody has proved they own the address.
+- After linking, the person signs in as the same `app_user.id`, so every decision, geometry revision, and report they created stays theirs. No foreign key is rewritten.
 
 ## Authorization (R3, R6, R7, R9)
 
@@ -160,5 +170,5 @@ export async function grantMembership(
 ## Verification
 
 - Unit tests (no database): `requireMembership`/`requireStaff` pass/fail matrices, one test per R3, R6, R7, R9 (asserting `staff_member` and `membership` are never OR'd). `safeNextPath` accepts `/decisions/abc` and rejects `//evil.test`, `/\evil.test`, and `https://evil.test` (R10). `RegisterFormSchema` rejects a short password, a mismatch, and a blank name (R11). `describeAuthError` gives different text for `invalid_credentials` and for an unreachable Supabase (R1). `hardenCookie` forces `httpOnly` and `sameSite: "lax"` whatever it is given, and `secure` only in production (R8).
-- Testcontainers integration tests: `provisionUser` creates an `app_user` row with no membership and no staff rights (R2); two `provisionUser` calls for one id on separate connections leave exactly one row and both succeed; a second id with an existing email is rejected. `grantMembership` rejects an unknown email (R4 wording), rejects a non-staff actor, and a duplicate grant hits the primary key and surfaces as `ConflictError` at the module boundary, with its race test on two connections (concurrency rule: "a guard isn't done until its race test passes").
+- Testcontainers integration tests: `provisionUser` creates an `app_user` row with no membership and no staff rights (R2); two concurrent `provisionUser` calls for one Supabase id leave exactly one row and return the same id; a second Supabase id with an existing email is refused with a `ConflictError`; a legacy row is refused until linked, then signs in as the same id with its staff rights intact (R4). `grantMembership` rejects an unknown email (R4 wording), rejects a non-staff actor, and a duplicate grant hits the primary key and surfaces as `ConflictError` at the module boundary, with its race test on two connections (concurrency rule: "a guard isn't done until its race test passes").
 - End-to-end (Playwright, with axe): `/sign-in` and `/register` render with the Register button visible, no third-party buttons, no WCAG 2.1 A or AA violations, and a phone-width viewport without horizontal scroll (R10, R12). No test calls a real Supabase project: a signed-out visit needs none, and the sign-in round trip is checked by hand against a development project.

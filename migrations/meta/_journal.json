@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1790460060902,
-      "tag": "0001_supabase_auth",
+      "when": 1790460733984,
+      "tag": "0001_drop_better_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790460735231,
+      "tag": "0002_app_user_auth_id",
       "breakpoints": true
     }
   ]

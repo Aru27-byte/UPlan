@@ -1,6 +1,6 @@
 {
-  "id": "74b69b79-3c28-4856-a636-7fdc933212b9",
-  "prevId": "825aaf3b-8d6d-43bc-9a09-40737149bcd3",
+  "id": "78271ade-4b12-4709-9c6a-b78392e26209",
+  "prevId": "74b69b79-3c28-4856-a636-7fdc933212b9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1801,7 +1801,14 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()::text"
+        },
+        "auth_id": {
+          "name": "auth_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -1827,6 +1834,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "app_user_auth_id_unique": {
+          "name": "app_user_auth_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "auth_id"
+          ]
+        },
         "app_user_email_unique": {
           "name": "app_user_email_unique",
           "nullsNotDistinct": false,

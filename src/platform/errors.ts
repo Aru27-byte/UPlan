@@ -31,5 +31,8 @@ export class NotFoundError extends Error {
 
 export function isUniqueViolation(err: unknown): boolean {
   // node-postgres surfaces PostgreSQL's SQLSTATE on the error object; 23505 is unique_violation.
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+  // Drizzle wraps a failed query in its own error and keeps the driver's error as `cause`.
+  if (typeof err !== "object" || err === null) return false;
+  if ("code" in err && err.code === "23505") return true;
+  return "cause" in err && isUniqueViolation(err.cause);
 }

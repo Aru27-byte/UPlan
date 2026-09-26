@@ -10,10 +10,11 @@ import { ValidationError } from "./errors";
 // The auth boundary (TechDesign/accounts-roles.md, D14): Supabase Auth holds identities, passwords,
 // and sessions, and is only ever called from the server. The browser holds no Supabase client, so
 // no key reaches it and every session cookie can be HttpOnly.
-export type SessionUser = { id: string; email: string; name: string };
+// `authId` is the Supabase user id — not UPlan's own app_user.id, which provisionUser looks up.
+export type SessionUser = { authId: string; email: string; name: string };
 
 const ClaimsSchema = z.object({
-  sub: z.string().min(1),
+  sub: z.uuid(),
   email: z.email(),
   user_metadata: z.object({ full_name: z.string().trim().min(1) }),
 });
@@ -78,7 +79,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       "This account has no name on file. Accounts made outside UPlan's register page can't sign in.",
     );
   }
-  return { id: parsed.data.sub, email: parsed.data.email, name: parsed.data.user_metadata.full_name };
+  return { authId: parsed.data.sub, email: parsed.data.email, name: parsed.data.user_metadata.full_name };
 }
 
 /**

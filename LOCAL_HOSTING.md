@@ -70,9 +70,11 @@ npm run dev
 (`npm run dev`/`npm run build` automatically copy MapLibre's worker files into `public/maplibre/` first — required for the vector basemap to actually render; see `src/ui/basemap-style.client.ts`'s comment.)
 
 Open http://localhost:3000/register and create an account — this creates your `app_user` row, which
-the next step needs. (A local database from before sign-in moved to Supabase has old `app_user` rows
-that match no Supabase user; reset it with `docker compose -f docker-compose.dev.yml down -v` and
-repeat steps 3–4.)
+the next step needs.
+
+If your database already has people in it from before sign-in moved to Supabase Auth (for example,
+DATABASE_URL points at a database with data), follow `TechDesign/deployment-guide.md` A14 to link your
+existing accounts to their Supabase logins before anything else; step 7 then only needs your linked email.
 
 ## 7. Seed local data
 
