@@ -52,6 +52,8 @@ export async function mapToJurisdiction(
 
 **R12:** `NewDataset` is a Zod schema whose `authority` and `spatialPrecision` are required literal unions, matching the `check` lists on the two `dataset` columns (see `evidence-review.md` for the columns and the migration that fills them for existing datasets). Omitting either fails validation at registration, and the columns are `not null` with no default.
 
+**R13:** `dataset.is_sample boolean not null default false`. `NewDataset` gains an optional `isSample` that is `true` only when `installSampleEvidence` (F23) creates the dataset, and `false` for everything `ingestDataset` and staff registration produce. `EvidenceProvenance` carries `isSample`, and `formatEvidenceProvenance` prefixes the source line with `Sample data (illustrative) — ` when it is true, so no page or export decides this on its own (`provenance.md` R6). The default is `false` because that is the truth for every dataset that isn't sample data, not a stand-in for missing information.
+
 ## Ingestion (`ingest_dataset`, R4, R5, R6, R7)
 
 ```ts
@@ -129,6 +131,10 @@ export async function ingestDataset(datasetId: string): Promise<void> {
 - **R6:** `repairAndValidate` runs `ST_MakeValid` (or GDAL's equivalent) only on freshly staged source rows, before they become `evidence_feature` rows, and records how many were repaired in `processing_steps`. This is a source-ingestion step, never applied to a planner's drawn geometry (`decisions` module rejects invalid drawings outright, per `decisions.md`).
 - **R7:** the failed branch never touches `dataset.current_version_id` — the previous ready version stays current, and the failed row (with `error_detail`) is queried alongside it by every view that shows the dataset's status (R7's "shown plainly beside it").
 - **R8:** `mapToJurisdiction`'s `attributeMap` is the only place a source's field names (e.g., `WETLAND_TY`) become a rule's attribute names (e.g., `wetlandRating`) — `analysis` reads `attributes` through this map, never assuming a source's raw field name.
+
+## What a dataset can't show (R10)
+
+`dataset.known_limitation` is a nullable text column set at registration, for example "canopy extent only; individual trunk diameters can't be determined". It is a fact about the dataset, recorded once. `collectLimits` in the run (F7 R7) reads it and adds one `Limit` per affected resource type, and it appears in the data-quality panel (F19 R6) and the document. No per-decision inference is involved.
 
 ## Coverage and gaps (R11)
 

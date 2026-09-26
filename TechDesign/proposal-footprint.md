@@ -11,7 +11,7 @@
 No new module. This is a route + client component built entirely on `decisions.saveGeometry(kind: "footprint")` (F5):
 
 ```
-src/app/decisions/[decisionId]/footprint/page.tsx        Server Component: loads decision, study area,
+src/app/(app)/projects/[projectId]/footprint/page.tsx        Server Component: loads decision, study area,
                                                           latest footprint revision; renders the client editor
 src/ui/footprint-editor.client.tsx                        MapLibre + Terra Draw + keyboard tracing (R3)
 src/ui/reference-overlay.client.tsx                        optional site-plan image overlay (R1)

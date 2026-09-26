@@ -48,7 +48,7 @@ export async function flagRetention(jurisdictionId: string): Promise<void> {
 
 export async function reviewFlag(actor: Actor, flagId: string, outcome: "keep" | "dispose", note: string) {
   const flag = await getFlag(flagId);
-  requireReviewer(actor, flag.jurisdictionId); // a compliance judgment, not a routine planner action
+  requireStaff(actor); // a compliance judgment, not a routine planner action (changed 2026-09-27: there are no reviewer memberships)
   const updated = await db
     .update(retentionFlag)
     .set({ reviewedBy: actor.userId, reviewedAt: sql`now()`, outcome })
@@ -72,7 +72,7 @@ export async function requestExport(
   scope: ExportScope,
   format: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
+  requireStaff(actor); // an export spans every person's records in the city, so it is a records-officer action, not a planner's (changed 2026-09-27)
   const profile = await getCurrentProfile(jurisdictionId);
   if (!profile?.document.settings.exportFormats.includes(format)) {
     throw new ValidationError(`"${format}" is not an export format this jurisdiction's profile allows`); // R5

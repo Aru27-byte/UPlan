@@ -175,9 +175,9 @@ The Studies page doesn't read absence from `studyFlags`. It lists the studies na
 
 ## Interfaces
 
-Two routes under `src/app/(app)/decisions/[decisionId]/`, both plain Server Components with no client JavaScript:
+Two routes under `src/app/(app)/projects/[projectId]/`, both plain Server Components with no client JavaScript:
 
-- **`screening/page.tsx`** — the register. Columns: Resource · Finding · Evidence · Confidence · Flag. `describeScreeningRow(row, provenance)` returns the finding sentence from a fixed template, for example "Mapped in the study area: 3 features, 4,210 sq ft" or "None mapped within 300 ft". Numbers pass through `provenance`'s display formatter, so no page rounds anything. A gap from `evidenceBase.gaps` renders as its own row. Each row links to `/decisions/[id]/map?layer=<resourceType>` (R14) and carries the row's formatted provenance (F4).
+- **`screening/page.tsx`** — the register. Columns: Resource · Finding · Evidence · Confidence · Flag. `describeScreeningRow(row, provenance)` returns the finding sentence from a fixed template, for example "Mapped in the study area: 3 features, 4,210 sq ft" or "None mapped within 300 ft". Numbers pass through `provenance`'s display formatter, so no page rounds anything. A gap from `evidenceBase.gaps` renders as its own row. Each row links to `/projects/[id]/site?layer=<resourceType>` (R14) and carries the row's formatted provenance (F4).
 - **`studies/page.tsx`** — the flags and the data gaps. One block per study named in the profile, each flag with its rule's code section, effective date, and the nearest distance; then the data-gaps list (R12): F7's gaps, each pinned dataset with no publisher date (read from the run's `analysis_run_dataset` rows and F3's provenance), and each `Limit`. Both pages open with the R9 statement.
 
 Both pages call one function, `getLatestRun(decisionId, "current")`, and show the "predates study scoping" state for an out-of-date run. `analysis`'s `index.ts` exports `describeScreeningRow`.

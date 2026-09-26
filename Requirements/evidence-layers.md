@@ -36,6 +36,8 @@ Evidence assembly (I2) and screening (I1) both depend on having the public datas
 
 **R12. Every dataset records its source authority (federal, state, regional, county, or local) and its spatial precision (site, parcel, regional, or coarse) when it is set up, and a dataset without both is never registered.** Like confidence (R3), they describe the data's fitness as desk-analysis evidence, are decided by a person, and are never inferred from the features. F19 (`evidence-review.md`) shows them beside each evidence item.
 
+**R13. A dataset can be marked as sample data, and the mark travels with every figure that comes from it.** A sample dataset is illustrative, created by UPlan staff for demonstration (F23), never ingested from a publisher. Its source line says "Sample data (illustrative)" wherever provenance is shown, through the one formatter, and a project whose analysis pinned one says so on its Overview and in its documents. A real dataset is never marked. The mark is a fact recorded when the dataset is set up, and it is never inferred.
+
 ## Out of scope for this feature
 
 - Reconciling disagreements between datasets and stating gaps for one decision's study area — that comparison is F7's job, built on the versions this feature produces.

@@ -105,6 +105,12 @@ export const CONFIDENCE_DESCRIPTIONS: Record<ConfidenceLevel, string> = {
 - **R8:** the report's React tree (`reports` module, rendered by Playwright per `locked-report.md`) imports `formatDerivedProvenance`/`formatEvidenceProvenance` from `@/modules/provenance` exactly as the web app's Server Components do — no second formatter, no print-only string templates.
 - **R9:** every module that assembles something for display (`evidence`, `analysis`, `reports`) types its output so a figure without a `Provenance`/`RuleProvenance` value cannot type-check; `switch`-free, this is enforced by the type shapes above having no optional provenance field.
 
+### Additions (2026-09-27)
+
+- **Sample data (`evidence-layers.md` R13).** `EvidenceProvenance` gains `isSample: boolean`. When it is true, `formatEvidenceProvenance` prefixes `sourceLine` with `Sample data (illustrative) — `. Because every screen, the map popup, the document, and the exports already read `sourceLine` from this one function, none of them decides this separately (R6).
+- **Number display (`research-phases.md` R2).** The drafted phase summaries state areas, lengths, and counts, and conventions.md says values are rounded only in this module's display formatter. `format.ts` therefore gains `formatAcres`, `formatSqFt`, `formatFeet`, and `formatCount(n, singular, plural)`, each taking the stored, unrounded number and returning display text with thousands separators and a fixed precision (acres to one decimal, square feet and feet to whole numbers). `workflow`'s templates call these and never round themselves, and the repository-wide grep test extends to `.toFixed(` outside this module.
+- **Evidence attributes (`evidence-review.md` R1).** `formatEvidenceAttributes` is specified there.
+
 ## Verification
 
 - Unit tests in `format.test.ts`, one named per requirement (`it("R2: never substitutes retrievedAt for a missing sourceAsOn", …)`), covering: missing source date with note, ordinance-less citation, multi-evidence confidence-floor selection, rules-only derived provenance, and the exact confidence sentence text.
