@@ -28,10 +28,10 @@ export function Panel({
     <section
       id={id}
       aria-labelledby={title ? headingId : undefined}
-      className={`rounded-xl border border-line bg-surface shadow-panel ${className}`}
+      className={`rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel ${className}`}
     >
       {title ? (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-line px-5 py-4">
           <div className="min-w-0">
             <Heading id={headingId} className="text-base font-semibold text-text">
               {title}

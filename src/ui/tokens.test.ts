@@ -30,26 +30,36 @@ function contrast(a: string, b: string): number {
 }
 
 const PAIRS: [text: string, fill: string][] = [
+  // What sits directly on the ink page
+  ["page-text", "page"],
+  ["page-muted", "page"],
+  // What sits on a white or cream surface
   ["text", "canvas"],
   ["text", "surface"],
   ["muted", "canvas"],
   ["muted", "surface"],
-  ["surface", "brand"],
-  ["surface", "brand-strong"],
   ["brand", "surface"],
-  ["brand", "brand-soft"],
   ["brand", "canvas"],
+  ["brand", "brand-soft"],
   ["info", "info-soft"],
   ["info", "surface"],
   ["warn", "warn-soft"],
   ["warn", "surface"],
   ["danger", "danger-soft"],
   ["danger", "surface"],
+  ["danger", "canvas"],
   ["ok", "ok-soft"],
-  ["nav-text", "nav"],
-  ["nav-muted", "nav"],
   ["text", "warn-soft"],
   ["text", "info-soft"],
+  ["text", "ok-soft"],
+  // Buttons and the active navigation item: ink on the palette's gold and green
+  ["ink", "accent-gold"],
+  ["ink", "accent-gold-deep"],
+  ["ink", "accent-green"],
+  ["ink", "card-yellow"],
+  // The navigation
+  ["nav-text", "nav"],
+  ["nav-muted", "nav"],
 ];
 
 describe("R8: the signed-in app's colors meet WCAG 2.1 AA", () => {

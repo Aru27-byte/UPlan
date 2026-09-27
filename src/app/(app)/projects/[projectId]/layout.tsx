@@ -90,7 +90,7 @@ export default async function ProjectLayout({
       ) : null}
 
       {w.decisionStatus === "report_released" ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-sm shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-cream/70 bg-surface text-text shadow-panel px-4 py-3 text-sm">
           <p className="max-w-prose text-text">
             <span className="font-semibold">This research is completed.</span> Version {publishedVersion(w.latestVersion)} of its
             document is published and can&apos;t change. You can still update the research: change what needs
@@ -114,7 +114,7 @@ export default async function ProjectLayout({
       {w.decisionStatus === "in_progress" && analysisMatters ? (
         <div
           role={w.facts.status.kind === "failed" ? "alert" : "status"}
-          className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-4 py-3 text-sm shadow-panel"
+          className="flex flex-col gap-1 rounded-lg border-2 border-cream/70 bg-surface text-text shadow-panel px-4 py-3 text-sm"
         >
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel tone={analysis.tone}>{analysis.text}</StatusLabel>

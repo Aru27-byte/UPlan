@@ -21,22 +21,22 @@ export type RailStage = {
 export function StageRail({ stages }: { stages: RailStage[] }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Research stages" className="overflow-x-auto rounded-xl border border-line bg-surface shadow-panel">
-      <ol className="flex min-w-[64rem] divide-x divide-line">
+    <nav aria-label="Research stages" className="overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel">
+      <ol className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4 2xl:grid-cols-8">
         {stages.map((stage, index) => {
           const active = pathname === stage.href || pathname.startsWith(`${stage.href}/`);
           const startsGroup = index === 0 || stages[index - 1]?.group !== stage.group;
           return (
-            <li key={stage.key} className="flex flex-1">
+            <li key={stage.key} className="flex bg-surface">
               <Link
                 href={stage.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex w-full flex-col gap-1 px-3 py-3 ${active ? "bg-brand-soft" : "hover:bg-canvas"}`}
+                className={`flex w-full flex-col gap-1 px-3 py-3 ${active ? "bg-card-yellow" : "hover:bg-canvas"}`}
               >
-                <span className="text-[0.6875rem] font-semibold tracking-wide text-muted uppercase">
+                <span className="eyebrow text-[0.6875rem] text-muted">
                   {startsGroup ? stage.group : " "}
                 </span>
-                <span className={`text-sm font-semibold ${active ? "text-brand" : "text-text"}`}>
+                <span className={`text-sm font-semibold ${active ? "text-ink underline decoration-2 underline-offset-4" : "text-text"}`}>
                   {index + 1}. {stage.label}
                 </span>
                 <StatusLabel tone={stage.tone}>{stage.stateText}</StatusLabel>

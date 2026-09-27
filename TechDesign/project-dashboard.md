@@ -8,7 +8,7 @@
 
 ## Approach
 
-The dashboard is a read model plus a handful of actions. It adds no table of its own. Two existing modules gain functions (`decisions`: list and delete; `workflow`: a per-project summary), and the signed-in app gets one visual system in place of the "sticker" look, which stays on the public landing, sign-in, and register pages.
+The dashboard is a read model plus a handful of actions. It adds no table of its own. Two existing modules gain functions (`decisions`: list and delete; `workflow`: a per-project summary), and the signed-in app gets one visual system, built from the same palette and "sticker" treatment as the public landing, sign-in, and register pages so the two read as one product.
 
 **Rejected:** a `project` table separate from `decision`. The charter has one core object, and a second table would need to be kept in step with the first. The product word "project" lives in screens and routes, and the code keeps `decision`.
 
@@ -96,27 +96,28 @@ src/ui/shell/mobile-nav.client.tsx  client: a disclosure button that opens the r
 
 ## The visual system (R8)
 
-One set of design tokens in `src/app/globals.css`, declared in Tailwind's `@theme`. Tokens carry meaning, and components never use a raw color.
+The signed-in app looks like the landing and sign-in pages: the same ink page, cream text, white cards with a cream edge and a flat green offset shadow (the sign-in card's), gold primary actions, green for the current item, the serif "UPlan" mark, mono uppercase captions, and the slowly moving contour-line backdrop (`Backdrop` in `src/ui/auth-shell.tsx`, used by both). One set of design tokens in `src/app/globals.css`, declared in Tailwind's `@theme`. Tokens carry meaning, and components never use a raw color. `page*` is what sits directly on the ink page; everything else is for what sits on a white or cream surface.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `canvas` | `#f5f6f8` | The page behind panels |
-| `surface` | `#ffffff` | Panels, tables, forms |
-| `line` | `#dfe3e8` | Borders and dividers |
-| `text` | `#16202a` | Body text (16.5:1 on `surface`) |
-| `muted` | `#556270` | Secondary text (6.2:1 on `surface`, 5.4:1 on `brand-soft`) |
-| `nav` | `#12202b` | The navigation rail (text on it: 14.1:1) |
-| `brand` | `#1b6a4b` | Primary buttons with white text, current item, links (6.5:1 on `surface`) |
-| `brand-strong` | `#14523a` | Hover and pressed |
-| `brand-soft` | `#e6f2ec` | A quiet fill behind the current item or a tip |
-| `info`, `warn`, `danger`, `ok` | blue `#1d4ed8`, amber `#8a4b06`, red `#b42318`, green `#1b6a4b` | The four states below, each with a soft fill |
+| `page`, `page-text`, `page-muted` | `#211c14`, `#f2ecd8`, `#cdc4a8` | The ink page, and the headings, breadcrumbs, and meta text set directly on it |
+| `canvas` | `#f2ecd8` | A quiet cream block inside a card (an inner panel, a disabled field) |
+| `surface` | `#ffffff` | Cards, tables, forms |
+| `line` | `#d8cfb3` | Dividers inside a card |
+| `text`, `muted` | `#211c14`, `#5b5340` | Body and secondary text on a surface |
+| `nav`, `nav-text`, `nav-muted` | `#332c1a`, `#f2ecd8`, `#cdc4a8` | The navigation rail |
+| `brand`, `brand-strong`, `brand-soft` | `#3c6317`, `#2d4a11`, `#e4efd0` | Links and quiet accents on a surface |
+| `info`, `warn`, `danger`, `ok` and their `-soft` fills | blue `#0f3f8a` on `#b6dde3`, amber `#5e3a00` on `#ecdf9a`, red `#8a1a10` on `#f4c7c0`, green `#1f4d0f` on `#a9cf78` | The four states below, using the landing's card fills |
+| `accent-gold`, `accent-green` | `#eab676`, `#8bc34a` | Primary actions (gold, ink text) and the current navigation item (green, ink text) |
 
-- **Type.** The system UI font stack, so nothing is fetched from a font service (`tech-stack.md`). Headings are semibold, numbers use tabular figures, body text is 15px on a 1.5 line height, and no text is smaller than 12px.
-- **Panels.** White, a 1px `line` border, a 12px radius, and a single soft shadow. There are no thick borders and no offset shadows.
-- **Motion.** A 150ms color transition on interactive elements and nothing that moves on its own. Under `prefers-reduced-motion: reduce` the transitions are off.
-- **Focus.** Every interactive element shows a 2px `brand` outline offset by 2px. It is never removed.
+`src/ui/tokens.test.ts` reads these values and asserts at least 4.5:1 for every text and fill pair.
 
-The old tokens (`ink`, `cream`, `accent-*`, `card-*`) and `card-sticker` stay, used only by `src/app/page.tsx`, `src/app/_landing/`, `src/ui/auth-shell.tsx`, and the sign-in and register forms.
+- **Type.** The system UI font stack, so nothing is fetched from a font service (`tech-stack.md`). The brand mark is serif. Page titles are bold, captions and table headers are the mono uppercase `eyebrow`, numbers use tabular figures, body text is 15px on a 1.5 line height, and no text is smaller than 12px.
+- **Cards.** White, a 2px cream/70 edge, a 12px radius, and a 5px flat green offset shadow. Buttons are 2px ink-bordered with a 3px ink offset shadow that flattens when pressed; inputs are 2px ink-bordered.
+- **Status.** A pill with a shape and words, never color alone, filled from the landing's card colors.
+- **Motion.** A 150ms color transition on interactive elements. The backdrop drifts slowly, and under `prefers-reduced-motion: reduce` it and the transitions are off.
+- **Focus.** A 3px ink outline offset by 2px, drawn in gold on the ink page and the navigation (`data-on-dark`), where ink would vanish. It is never removed.
+- **The stage rail** wraps instead of scrolling: two stages across on a phone, four on a laptop, eight on a wide screen, so none is ever hidden.
 
 ### Components (`src/ui/`)
 

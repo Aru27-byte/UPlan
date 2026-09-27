@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Backdrop } from "../auth-shell";
+
 import { AppNav, type NavItem } from "./app-nav.client";
 
 // The signed-in app's frame: the navigation rail and the content column. A Server Component: userName,
@@ -23,10 +25,11 @@ export function AppShell({
     { href: "/help", label: "Help", icon: "help", matchPrefixes: ["/help"] },
   ];
   return (
-    <div data-app className="min-h-screen">
+    <div data-app className="relative isolate min-h-screen overflow-x-clip">
+      <Backdrop className="fixed" />
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-brand focus:shadow-panel"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:border-2 focus:border-ink focus:bg-accent-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink focus:shadow-button"
       >
         Skip to content
       </a>
