@@ -25,10 +25,12 @@ Edit `.env` and fill in:
 
 - `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` — from your Supabase project's Project Settings → API
 - `APP_URL` — leave as `http://localhost:3000`
-- `OCI_S3_*` — only exercised by profile uploads and report release; any syntactically valid value
+- `OCI_S3_*` — only exercised by profile workbook uploads; any syntactically valid value
   (a real URL for `OCI_S3_ENDPOINT`, any non-empty string for the rest) satisfies startup
-  validation, but those two features will fail at runtime without real OCI Object Storage
-  credentials
+  validation, but uploading a workbook fails at runtime without real OCI Object Storage
+  credentials. Final documents are stored in the database, not in object storage, so finishing
+  research needs none of this (`OCI_BUCKET_REPORTS` is still required at startup but unused; see
+  `TechDesign/deployment-guide.md`).
 
 Everything in `.env.example` is required — `src/platform/env.ts` validates it at startup and the
 app refuses to start if anything is missing.
@@ -82,20 +84,37 @@ existing accounts to their Supabase logins before anything else; step 7 then onl
 npm run db:seed:local -- you@example.com
 ```
 
-Use the email you just registered with. This grants you staff + planner access to a "Sammamish"
-jurisdiction, seeds an approved profile, illustrative evidence datasets, and one demo decision
-("Sammamish Ridge Estates (test data)") with a real computed analysis run — safe to re-run any
-time, it skips whatever already exists.
+Use the email you just registered with. This makes you UPlan staff, creates the one city
+("Sammamish"), approves an illustrative Sammamish profile, and installs the illustrative sample
+evidence datasets. It creates no project: you start one from the dashboard. Safe to re-run any time;
+it skips whatever already exists. There is no jurisdiction membership: every signed-in person is a
+planner, and a project belongs to the person who created it.
 
-## 8. (Optional) Run the background worker
+## 8. Run the background worker
 
-Needed for dataset ingestion, profile-change previews, and report release/PDF rendering — not
-needed to browse decisions, trace geometry, or view evidence/impact.
+The worker is required, not optional: it runs each project's analysis (so the phases have output to
+review) and generates the final document. Without it a project sits at "Analysis is out of date".
 
 ```sh
-npm run worker:build
-npm run worker:start
+npx playwright install chromium   # once: the worker prints the final document as a PDF with it
+npm run worker:dev                # builds the worker, then starts it (leave it running)
 ```
+
+## 9. Walk through the workflow
+
+1. Open http://localhost:3000 and sign in. You land on the **Dashboard**: your projects, and the city
+   profile beside them.
+2. Choose **Start with sample data**. The project opens on its **Overview** with every input filled in
+   from a fictional site (labeled as sample data everywhere it appears), and the analysis starts.
+3. Work through the stage rail: **Site, Evidence, Screening, Studies, Footprint, Impact**. On each,
+   read the drafted output and choose **Record review**, or request a revision and change an input.
+   On **Evidence**, record which source you rely on for each disagreement before reviewing it.
+4. On **Report**, choose **Finish research and generate the document**. When the worker finishes, the
+   project is **Completed** and version 1 can be downloaded.
+5. Choose **Re-research** (dashboard) or **Start a research change** (project). Change something, for
+   example the target decision date, or load a new footprint. The Overview lists what changed and the
+   phases to review again. Finish the change with a reason to publish version 2. The version history
+   on **Report** keeps both.
 
 ## Everyday commands
 

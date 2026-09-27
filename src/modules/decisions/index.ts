@@ -1,15 +1,47 @@
 export {
   createDecision,
+  insertDecision,
   getDecision,
   getDecisionForAnalysis,
-  setFilingDate,
+  listDecisions,
+  lockEditableDecision,
+  updateDecisionDetails,
+  deleteDecision,
   reopen,
+  beginFinish,
+  markReportReleased,
+  markFinishFailed,
+  restoreCompleted,
   listOpenDecisions,
   listOpenDecisionsIntersecting,
-  listDecisions,
-  markReportReleased,
+  DecisionStatusSchema,
+  ApplicationTypeSchema,
+  LIST_LIMIT,
 } from "./decisions";
-export type { NewDecision } from "./decisions";
+export type { Decision, DecisionStatus, DecisionDetailsPatch, NewDecision, ApplicationType } from "./decisions";
 
-export { saveGeometry, getLatestGeometry, getLatestGeometryInternal, getGeometryAreaAcres } from "./geometry";
-export type { GeometryKind, DecisionGeometry } from "./geometry";
+export {
+  saveGeometry,
+  insertGeometryRevision,
+  getLatestGeometry,
+  getLatestGeometryInternal,
+  getGeometryRevisionInternal,
+  getGeometrySummaryInternal,
+  getGeometrySvgInternal,
+  assertValidGeometry,
+  MultiPolygonSchema,
+} from "./geometry";
+export type { GeometryKind, DecisionGeometry, GeometrySummary, GeometrySvg } from "./geometry";
+
+export { parseBoundaryUpload, saveGeometryFromUpload, MAX_UPLOAD_BYTES } from "./upload";
+
+export {
+  createSampleProject,
+  loadSampleGeometry,
+  loadSampleDetails,
+  isSampleNote,
+  SAMPLE_NOTE_PREFIX,
+  SAMPLE_DETAILS,
+  SAMPLE_STUDY_AREA,
+  SAMPLE_FOOTPRINT,
+} from "./sample-data";

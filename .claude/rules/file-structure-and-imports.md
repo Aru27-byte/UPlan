@@ -29,7 +29,7 @@ tests/e2e/               Playwright specs
 deploy/                  compose.yaml, Caddyfile, models.ini, backup timer units, setup.sh, deploy.sh
 ```
 
-Modules are `accounts`, `profiles`, `provenance`, `evidence`, `decisions`, `analysis`, `reports`, `records`, and `operations`, with `code-tracking` and `conditions` coming later in v1. A new module needs a row in the module table in `TechDesign/system-architecture.md` before any code.
+Modules are `accounts`, `profiles`, `provenance`, `evidence`, `decisions`, `analysis`, `workflow`, `reports`, `records`, and `operations`, with `code-tracking` and `conditions` coming later in v1. A new module needs a row in the module table in `TechDesign/system-architecture.md` before any code.
 
 ## Where code goes
 

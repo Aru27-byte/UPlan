@@ -16,6 +16,8 @@ export const EvidenceProvenanceSchema = z
     retrievedAt: z.iso.datetime(), // dataset_version.retrieved_at, UTC
     confidence: ConfidenceLevelSchema,
     confidenceRationale: z.string().min(1),
+    // evidence-layers.md R13: illustrative sample data (F23). Recorded on the dataset, never inferred.
+    isSample: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (v.sourceAsOn === null && v.sourceAsOfNote === null) {
@@ -41,3 +43,24 @@ export const DerivedProvenanceSchema = z
     message: "a derived figure must cite at least one source",
   });
 export type DerivedProvenance = z.infer<typeof DerivedProvenanceSchema>;
+
+// evidence-review.md R1–R5: the facts behind an evidence item's confidence label. Plain data read from
+// the dataset and its version; display goes through formatEvidenceAttributes. `verification` and
+// `professionalReview` are single-value literals because release 1 has no field verification and no
+// professional review (R4) — when that changes, the type changes and the compiler finds every use.
+export const EvidenceAttributesSchema = z
+  .object({
+    authority: z.enum(["federal", "state", "regional", "county", "local"]),
+    sourceAsOfOn: z.iso.date().nullable(),
+    sourceAsOfNote: z.string().min(1).nullable(),
+    retrievedAt: z.iso.datetime(), // never shown as the publisher's date (F4)
+    spatialPrecision: z.enum(["site", "parcel", "regional", "coarse"]),
+    verification: z.literal("mapped-remote"),
+    professionalReview: z.literal("none"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.sourceAsOfOn === null && v.sourceAsOfNote === null) {
+      ctx.addIssue({ code: "custom", message: "sourceAsOfNote is required when sourceAsOfOn is null" });
+    }
+  });
+export type EvidenceAttributes = z.infer<typeof EvidenceAttributesSchema>;

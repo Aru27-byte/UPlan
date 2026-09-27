@@ -57,7 +57,7 @@ export async function proposeUpload(
   fileBuffer: Buffer,
   reason: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
+  // Any signed-in person may propose a change (accounts-roles.md R2); only staff decide one (R7).
   const fileSha256 = sha256(fileBuffer);
   const objectKey = `profile-uploads/${jurisdictionId}/${fileSha256}.xlsx`;
   await objectStorage.putIfAbsent(objectKey, fileBuffer); // idempotent write; see platform/objectStorage
@@ -92,7 +92,6 @@ export async function proposeEdit(
   editedDocument: unknown,
   reason: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
   const document = ProfileDocumentSchema.parse(editedDocument); // R8 in jurisdiction-profile.md
   return db.transaction((tx) =>
     insertPendingChange(tx, {
@@ -164,7 +163,7 @@ export async function decideChange(
   return db.transaction(async (tx) => {
     const change = await tx.query.profileChange.findFirst({ where: eq(profileChange.id, changeId) });
     if (!change) throw new NotFoundError("profile change");
-    requireReviewer(actor, change.jurisdictionId); // assumed per round 10 — see Requirements' Open items
+    requireStaff(actor); // assumed per round 10, changed 2026-09-27 — see Requirements' Open items
     if (actor.userId === change.proposedBy)
       throw new ForbiddenError("cannot approve or reject your own change");
 
@@ -215,7 +214,7 @@ export async function decideChange(
 }
 ```
 
-- **R7:** `requireReviewer` plus the `actor.userId === change.proposedBy` check together implement the assumed round-10 default; the schema also backs this with `check (decided_by is null or decided_by <> proposed_by)` in `data-model.md`, so even a future code path that skipped the application check would hit a database constraint.
+- **R7:** `requireStaff` plus the `actor.userId === change.proposedBy` check together implement the assumed round-10 default; the schema also backs this with `check (decided_by is null or decided_by <> proposed_by)` in `data-model.md`, so even a future code path that skipped the application check would hit a database constraint.
 - **R8:** everything above — the lock, the base-version recheck, the version insert, the pointer move, and every re-analysis enqueue — is one transaction. A crash before commit leaves the city on its old version with no partial state; nothing after commit can be observed half-done.
 - **R9:** rejection only sets `status`, `decided_by`, `decided_at`, `decision_note` — the proposed document, the reason, and the upload (if any) are already immutable rows and stay exactly as proposed.
 - **R10:** `listOpenDecisions` filters `status = 'in_progress'`; a decision with `status = 'report_released'` is never enqueued here, matching F10's "released reports never change."
@@ -223,5 +222,5 @@ export async function decideChange(
 ## Verification
 
 - Unit tests: `generateTemplate`'s columns match `ProfileDocumentSchema`'s field names exactly (a schema/template drift test, guarding R1 as the schema evolves); `parseUpload` against fixture workbooks — one valid, and one per validation failure named in R2 (missing citation, missing effective date, unknown resource type, a row that tries to carry geometry for R11) — asserting the complete error list, not just the first.
-- Testcontainers integration tests: `proposeUpload`/`proposeEdit` insert the pending change and its job in one transaction; a second proposal while one is pending fails with `ConflictError` naming the first (R5) — including a **race test** starting both proposals at once on separate connections, asserting exactly one succeeds; `decideChange` approval is atomic end-to-end (version created, pointer moved, open decisions requeued, released decisions excluded — R10); rejecting leaves the row queryable with its reason intact (R9); approving twice (double-click) hits the compare-and-set and the second call gets `ConflictError`; a reviewer approving their own change is refused (R7) both by the application check and, in a dedicated test, by the database constraint directly.
+- Testcontainers integration tests: `proposeUpload`/`proposeEdit` insert the pending change and its job in one transaction; a second proposal while one is pending fails with `ConflictError` naming the first (R5) — including a **race test** starting both proposals at once on separate connections, asserting exactly one succeeds; `decideChange` approval is atomic end-to-end (version created, pointer moved, open decisions requeued, released decisions excluded — R10); rejecting leaves the row queryable with its reason intact (R9); approving twice (double-click) hits the compare-and-set and the second call gets `ConflictError`; a staff member approving their own change is refused (R7), and a non-staff person deciding one is refused both by the application check and, in a dedicated test, by the database constraint directly.
 - `runPreview` integration test: a pending change against a jurisdiction with two open decisions produces two `purpose = 'preview'` runs, and a run that fails (fixture data that breaks the impact engine) still completes as `failed` and is visible to the review query (R6).

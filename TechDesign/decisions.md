@@ -2,181 +2,194 @@
 
 **Feature:** F5 · `decisions`
 **Status:** Draft
-**Requirements:** [Requirements/decisions.md](../Requirements/decisions.md) (R1–R12)
-**Builds on:** [data-model.md](data-model.md) (`decision`, `decision_geometry`), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_)
-**Shared module with:** [proposal-footprint.md](proposal-footprint.md) (F8 — the footprint-tracing workflow built on `saveGeometry`)
+**Requirements:** [Requirements/decisions.md](../Requirements/decisions.md) (R1–R15)
+**Builds on:** [data-model.md](data-model.md) (`decision`, `decision_geometry`), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_), [accounts-roles.md](accounts-roles.md) (ownership, F11)
+**Shared module with:** [proposal-footprint.md](proposal-footprint.md) (F8 — the footprint-tracing workflow built on `saveGeometry`), [sample-data.md](sample-data.md) (F23 — sample inputs), [research-phases.md](research-phases.md) (F21 — boundary upload)
 **Release:** 1
 
 ## Module
 
 ```
 src/modules/decisions/
-  index.ts        public API
-  tables.ts         decision, decision_geometry
-  decisions.ts      createDecision, getDecision, listOpenDecisions, updateDecisionDetails, reopen
-  geometry.ts        saveGeometry, getLatestGeometry, getGeometryRevision
+  index.ts            public API
+  tables.ts             decision, decision_geometry
+  decisions.ts          createDecision, getDecision, listDecisions, updateDecisionDetails, deleteDecision,
+                        reopen, lockEditableDecision, beginFinish, markReportReleased, markFinishFailed
+  geometry.ts           saveGeometry, getLatestGeometry, getGeometryRevision, getGeometryAreaAcres
+  upload.ts             parseBoundaryUpload, saveGeometryFromUpload            (F21 R11)
+  sample-data.ts        SAMPLE_*, createSampleProject, loadSampleGeometry, loadSampleDetails   (F23)
   *.test.ts
 ```
 
-## Decisions (R1, R3, R4, R9, R10, R11, R12)
+## Status and ownership
+
+`decision.status` has three values, matched by a `check` constraint:
+
+| Value | Screen label | Meaning |
+| --- | --- | --- |
+| `in_progress` | In progress | Research is open. The only status in which anything can be changed |
+| `finishing` | Generating document | A final document is being produced. Everything is read-only |
+| `report_released` | Completed | A document has been published |
+
+The transitions and who performs each are drawn in [research-changes.md](research-changes.md). Each is one compare-and-set on the row.
+
+**Ownership.** A decision's owner is `created_by`. Every function that takes a `decisionId` reaches the row through `getDecision` or `lockEditableDecision`, and both put `created_by = actor` and `deleted_at is null` in the query itself (`accounts-roles.md`). There is no jurisdiction check because there is no membership.
+
+## Decisions (R1, R3, R4, R9–R15)
 
 ```ts
 // decisions.ts
-export async function createDecision(actor: Actor, input: NewDecision): Promise<Decision> {
-  requirePlanner(actor, input.jurisdictionId);
-  return db
-    .insert(decision)
-    .values({ ...input, status: "in_progress", createdBy: actor.userId })
-    .returning();
-}
-
-export async function getDecision(actor: Actor, decisionId: string): Promise<Decision> {
-  const row = await db.query.decision.findFirst({ where: eq(decision.id, decisionId) });
-  if (!row) throw new NotFoundError("decision");
-  requireMembership(actor, row.jurisdictionId); // R1
-  return row;
-}
-
-// R10–R12: replaces setFilingDate. One function edits every project detail, so there is one
-// compare-and-set and one place that decides whether an edit needs a new analysis run.
-export type DecisionDetailsPatch = {
-  parcelOrAddress?: string | null; // null clears a detail; absent leaves it alone
+export type NewDecision = {
+  jurisdictionId: string;
+  title: string;
+  applicationType: "subdivision" | "short_subdivision" | "clearing_grading";
+  parcelOrAddress?: string | null;
   applicant?: string | null;
-  projectManagerId?: string | null;
-  targetDecisionOn?: string | null; // YYYY-MM-DD
+  projectManager?: string | null;
+  targetDecisionOn?: string | null;   // YYYY-MM-DD
   applicationFiledOn?: string | null; // YYYY-MM-DD
 };
 
-export async function updateDecisionDetails(
-  actor: Actor,
-  decisionId: string,
-  patch: DecisionDetailsPatch,
-  expectedRowVersion: number,
-): Promise<Decision> {
-  const d = await getDecision(actor, decisionId);
-  requirePlanner(actor, d.jurisdictionId);
-  if (patch.projectManagerId && !(await isPlannerOf(patch.projectManagerId, d.jurisdictionId))) {
-    throw new ValidationError("the project manager must be a planner in this jurisdiction"); // R10
-  }
+export async function createDecision(actor: Actor, input: NewDecision): Promise<Decision> {
+  return db.transaction((tx) => insertDecision(tx, actor, input)); // insertDecision is shared with createSampleProject (F23)
+}
 
+export async function getDecision(actor: Actor, decisionId: string): Promise<Decision> {
+  const [row] = await db.select().from(decision)
+    .where(and(eq(decision.id, decisionId), eq(decision.createdBy, actor.userId), isNull(decision.deletedAt)));
+  if (!row) throw new NotFoundError("project"); // R1: not yours, deleted, and absent are one answer
+  return row;
+}
+
+export async function listDecisions(actor: Actor): Promise<Decision[]> {
+  return db.select().from(decision)
+    .where(and(eq(decision.createdBy, actor.userId), isNull(decision.deletedAt)))
+    .orderBy(desc(decision.createdAt))
+    .limit(LIST_LIMIT); // LIST_LIMIT = 100; project-dashboard.md says so on the page when reached
+}
+```
+
+`insertDecision(tx, actor, input)` validates `input` with Zod (title non-empty and at most 200 characters; dates as `YYYY-MM-DD`), verifies the jurisdiction exists (a foreign key does the real work, and a violation becomes a `ValidationError` naming the city), and inserts with `status = 'in_progress'`, `created_by = actor.userId`. When a filing date is supplied it enqueues an analysis run in the same transaction (R12), and otherwise none: a decision with no study area has nothing to analyze.
+
+### The lock (R13)
+
+```ts
+// The one guard every change takes. Returns the locked row.
+export async function lockEditableDecision(tx: DbOrTx, actor: Actor, decisionId: string): Promise<Decision> {
+  const [row] = await tx.select().from(decision)
+    .where(and(eq(decision.id, decisionId), eq(decision.createdBy, actor.userId), isNull(decision.deletedAt)))
+    .for("update");
+  if (!row) throw new NotFoundError("project");
+  switch (row.status) {
+    case "in_progress": return row;
+    case "finishing": throw new ConflictError("A document is being generated for this project. Try again when it finishes.");
+    case "report_released": throw new ConflictError("This project is completed. Start a research change to edit it.");
+  }
+}
+```
+
+`select … for update` serializes every writer of one project: `saveGeometry`, `updateDecisionDetails`, `saveResolution`, `recordReview`, `finishResearch`, and `deleteDecision`. It is cheap because the row is per project. The `switch` lists every status with no `default`, so a fourth status fails to compile until handled (conventions).
+
+### Details, delete, reopen, finishing
+
+```ts
+export type DecisionDetailsPatch = {
+  title?: string; applicationType?: NewDecision["applicationType"];
+  parcelOrAddress?: string | null;    // null clears a detail; absent leaves it alone
+  applicant?: string | null; projectManager?: string | null;
+  targetDecisionOn?: string | null; applicationFiledOn?: string | null;
+};
+
+export async function updateDecisionDetails(actor, decisionId, patch: DecisionDetailsPatch, expectedRowVersion: number): Promise<Decision> {
   return db.transaction(async (tx) => {
-    const updated = await tx
-      .update(decision)
-      .set({ ...patch, rowVersion: sql`row_version + 1` })
+    const d = await lockEditableDecision(tx, actor, decisionId);
+    const [row] = await tx.update(decision).set({ ...normalized(patch), rowVersion: sql`row_version + 1` })
       .where(and(eq(decision.id, decisionId), eq(decision.rowVersion, expectedRowVersion))) // R11: compare-and-set
       .returning();
-    if (updated.length === 0) throw new ConflictError("decision changed since you loaded it");
-    if (patch.applicationFiledOn !== undefined && patch.applicationFiledOn !== d.applicationFiledOn) {
-      await addJob(tx, "run_analysis", { decisionId, purpose: "current" }, {
-        queueName: `decision:${decisionId}`,
-        jobKey: `run_analysis:${decisionId}`,
-        maxAttempts: 3,
-      }); // R12: the change and its job commit together
-    }
-    return updated[0];
+    if (!row) throw new ConflictError("This project changed since you loaded it. Reload and try again.");
+    if (patch.applicationFiledOn !== undefined && patch.applicationFiledOn !== d.applicationFiledOn)
+      await enqueueAnalysisRun(decisionId, { purpose: "current" }, tx); // R12: the change and its job commit together
+    return row;
   });
 }
 
-export async function listOpenDecisions(jurisdictionId: string, tx = db): Promise<Decision[]> {
-  return tx
-    .select()
-    .from(decision)
-    .where(and(eq(decision.jurisdictionId, jurisdictionId), eq(decision.status, "in_progress"))); // R4
-}
+export async function deleteDecision(actor, decisionId, expectedRowVersion: number): Promise<void>; // R14 — see below
+export async function reopen(actor, decisionId, expectedRowVersion: number): Promise<Decision>;      // R8 — research-changes.md
+export async function beginFinish(tx, decisionId): Promise<void>;                                     // in_progress -> finishing, one row
+export async function markReportReleased(decisionId, tx): Promise<void>;                              // finishing -> report_released, one row
+export async function markFinishFailed(decisionId, tx): Promise<void>;                                // finishing -> in_progress, one row
 ```
 
-- **R1:** every read function loads the row, then calls `requireMembership`/`requirePlanner` with the row's own `jurisdiction_id` — never a jurisdiction id supplied by the caller alone, so a mismatched id can't be used to probe another city's decision.
-- **R3:** `application_filed_on` is a nullable `date` column; F1's `resolveRulesInForce`/`ruleSetResolutionDate` is what actually enforces "required before a vesting run," not this module — `decisions` only stores the date.
-- **R10:** `parcel_or_address`, `applicant`, `project_manager_id`, and `target_decision_on` are nullable columns (see `data-model.md`), the same "a fact that may not exist yet" case as `permit_number`. The UI shows null as "Not yet recorded". `project_manager_id` references `app_user`, and the function checks that user holds a planner membership in the decision's jurisdiction before it is stored. `createDecision`'s `NewDecision` accepts the same optional fields.
-- **R11, R12:** one function, one `row_version` compare-and-set, and the enqueue inside the same transaction, as the concurrency rules require (transactional enqueue, explicit `max_attempts`). It enqueues only when the filing date actually changed, because no other detail is an analysis input. The `run_analysis` job key collapses a duplicate that is still pending.
-- **R9:** `created_by`/`created_at` are set once at insert; `row_version` (see R6 below) plus `decision`'s own audit columns record every status and filing-date change without a separate history table, since the row itself is small and mutable by design (unlike geometry, which is append-only).
+- **R11.** Details are one compare-and-set. It also holds the lock, so a details edit and a geometry save don't interleave, while a geometry save doesn't bump `row_version` (its own revision key is its guard), so saving a boundary never makes an open details form stale.
+- **R12.** It enqueues only when the filing date changed, because no other detail is an analysis input. The job key collapses a still-pending duplicate.
+- **R14.** `deleteDecision` is `update decision set deleted_at = now(), deleted_by = $actor, row_version = row_version + 1 where id = $id and created_by = $actor and deleted_at is null and row_version = $expected and status <> 'finishing'`. Zero rows means `ConflictError`, or `NotFoundError` when the row isn't the actor's (a second read tells which). Nothing else is written, and no other table is touched.
+- `beginFinish`, `markReportReleased`, and `markFinishFailed` are the three status moves of a document's life. Each is `update … where id = $id and status = $from` and throws `ConflictError` unless it affected exactly one row. `markReportReleased` is called by `reports` in the same transaction that stores the document.
+- **R9.** `created_by` and `created_at` are set once. `deleted_by` and `deleted_at` record a delete. The document history (`report` rows) and reviews record the rest of a decision's life, so no separate audit table is needed.
 
-## Reopening (R8)
+`listOpenDecisions(jurisdictionId, tx)` (used when a profile version or dataset version is approved, F1 and F3) and `listOpenDecisionsIntersecting(tx, coverage)` stay, and now filter on `status = 'in_progress' and deleted_at is null`. They are system-authority reads for job bodies, with no actor, like `getDecisionForAnalysis`.
 
-```ts
-export async function reopen(
-  actor: Actor,
-  decisionId: string,
-  expectedRowVersion: number,
-): Promise<Decision> {
-  const d = await getDecision(actor, decisionId);
-  requirePlanner(actor, d.jurisdictionId);
-  const updated = await db
-    .update(decision)
-    .set({ status: "in_progress", rowVersion: sql`row_version + 1` })
-    .where(
-      and(
-        eq(decision.id, decisionId),
-        eq(decision.rowVersion, expectedRowVersion),
-        eq(decision.status, "report_released"),
-      ),
-    )
-    .returning();
-  if (updated.length === 0)
-    throw new ConflictError("decision is not currently report_released, or changed since you loaded it");
-  return updated[0];
-}
-```
-
-`reports.md` (F10) owns what a released report _is_ and guarantees it never changes; `reopen` only flips `decision.status`, which is what makes the decision eligible for a new analysis run and, eventually, a new report sequence number (R8).
-
-## Geometry revisions (R2, R5, R6, R7)
+## Geometry revisions (R2, R5, R6, R7, R13)
 
 ```ts
 // geometry.ts
-export async function saveGeometry(
-  actor: Actor,
-  decisionId: string,
-  kind: "study_area" | "footprint",
-  geojson: unknown,
-  sourceNote: string,
-  expectedRevision: number,
-): Promise<DecisionGeometry> {
-  const d = await getDecision(actor, decisionId);
-  requirePlanner(actor, d.jurisdictionId);
-
-  const geom = MultiPolygonSchema.parse(geojson); // Zod boundary validation (R2: no parcel-line constraint)
-  const validity =
-    await db.execute(sql`select ST_IsValid(ST_GeomFromGeoJSON(${JSON.stringify(geom)})) as valid,
-    ST_IsValidReason(ST_GeomFromGeoJSON(${JSON.stringify(geom)})) as reason`);
-  if (!validity[0].valid) {
-    throw new ValidationError(`drawn geometry is invalid: ${validity[0].reason}`); // R7: rejected, never repaired
-  }
-
+export async function saveGeometry(actor, decisionId, kind: GeometryKind, geojson: Geometry, sourceNote: string, expectedRevision: number) {
+  const geom = MultiPolygonSchema.parse(geojson);   // Zod at the boundary; R2: no parcel-line constraint
+  await assertValidGeometry(geom);                  // ST_IsValid / ST_IsValidReason (R7)
   try {
-    return await db
-      .insert(decisionGeometry)
-      .values({
-        decisionId,
-        kind,
-        revision: expectedRevision,
-        geom,
-        sourceNote,
-        createdBy: actor.userId,
-      })
-      .returning();
+    return await db.transaction(async (tx) => {
+      await lockEditableDecision(tx, actor, decisionId); // R13
+      const row = await insertGeometryRevision(tx, { decisionId, kind, revision: expectedRevision, geom, sourceNote, createdBy: actor.userId });
+      await enqueueAnalysisRun(decisionId, { purpose: "current" }, tx); // same transaction as the insert
+      return row;
+    });
   } catch (err) {
-    if (isUniqueViolation(err))
-      throw new ConflictError(`revision ${expectedRevision} already exists for this ${kind}`); // R6
+    if (isUniqueViolation(err)) throw new ConflictError(`revision ${expectedRevision} already exists for this ${kind}`); // R6
     throw err;
   }
 }
-
-export async function getLatestGeometry(actor: Actor, decisionId: string, kind: "study_area" | "footprint") {
-  const d = await getDecision(actor, decisionId);
-  requireMembership(actor, d.jurisdictionId);
-  return db.query.decisionGeometry.findFirst({
-    where: and(eq(decisionGeometry.decisionId, decisionId), eq(decisionGeometry.kind, kind)),
-    orderBy: desc(decisionGeometry.revision),
-  });
-}
 ```
 
-- **R2:** validation checks only that the input is a valid `MultiPolygon` — there is no parcel-boundary constraint anywhere in this path.
-- **R5, R6:** the primary key `(decision_id, kind, revision)` is the actual guard (per `data-model.md`); `saveGeometry` never reads "the current max revision" and computes the next one itself — the client sends the revision it believes is next (having read the latest one), and a collision surfaces as `ConflictError`, matching the browser-honesty rule ("send the revision an edit was based on").
-- **R7:** `ST_IsValid`/`ST_IsValidReason` run before insert and a failure is a `ValidationError` naming the actual problem (self-intersection, etc.) — there is no repair call anywhere in this file, unlike `evidence.ts`'s `repairAndValidate`, which only ever touches ingested source data.
+- **R2:** validation checks only that the input is a valid `MultiPolygon`. There is no parcel-boundary constraint anywhere in this path.
+- **R5, R6:** the primary key `(decision_id, kind, revision)` is the guard (`data-model.md`). `saveGeometry` never reads the current maximum and increments it. The client sends the revision it believes is next, and a collision is a `ConflictError`. The lock does not replace this guard: two saves of one revision serialize on the lock, and the second then fails on the key.
+- **R7:** `ST_IsValid` and `ST_IsValidReason` run before the insert, and a failure is a `ValidationError` naming the problem. Nothing in this file repairs a geometry. It runs before the transaction and its lock, so an invalid drawing never holds the project's lock.
+- `getLatestGeometry`, `getGeometryAreaAcres`, and the new `getGeometryRevision(actor, decisionId, kind, revision)` (used to render a pinned revision) reach the row through `getDecision`. `getGeometryAreaAcres` still computes the area in PostGIS, in the jurisdiction's analysis projection (`do-not.md`).
+- `getLatestGeometryInternal` stays for job bodies. Renderers read a **pinned revision** with `getGeometryRevisionInternal(decisionId, kind, revision)`, never the latest (F22 R11).
+
+## Boundary upload (F21 R11) and sample inputs (F23)
+
+`upload.ts` and `sample-data.ts` are described in [research-phases.md](research-phases.md) and [sample-data.md](sample-data.md). Both end in `saveGeometry` or `updateDecisionDetails`, so the lock, the revision guard, and the analysis enqueue apply to them without a second path.
+
+## Requirement coverage
+
+| Req | Satisfied by | Notes |
+| --- | --- | --- |
+| R1 | `getDecision`, `lockEditableDecision`, `listDecisions` | Ownership and `deleted_at` in the query; one `NotFoundError` |
+| R2 | `MultiPolygonSchema`; no parcel constraint | |
+| R3 | Nullable `application_filed_on` (a `date`) | F1's `resolveRulesInForce` enforces "required before a vesting run" |
+| R4 | The three-value status and its `check` | Gates requeue and every change |
+| R5 | `insertGeometryRevision`; no update or delete path | Runs pin the revision number |
+| R6 | Primary key `(decision_id, kind, revision)` | Race test |
+| R7 | `assertValidGeometry` | Rejected with PostGIS's reason, never repaired |
+| R8 | `reopen` | One compare-and-set plus an enqueue |
+| R9 | `created_by`, `created_at`, `deleted_by`, `deleted_at`; reports and reviews | |
+| R10 | Nullable detail columns; `projectManager` is text | "Not yet recorded" is shown for null |
+| R11 | `updateDecisionDetails`'s compare-and-set | |
+| R12 | The enqueue inside the same transaction | Only when the filing date changed |
+| R13 | `lockEditableDecision` in every writer | `switch` without a `default` |
+| R14 | `deleteDecision` | Soft delete, compare-and-set |
+| R15 | `createDecision` with optional details; `createSampleProject` | One transaction |
 
 ## Verification
 
-- Unit tests: `MultiPolygonSchema` boundary parsing rejects malformed GeoJSON before it reaches SQL.
-- Testcontainers integration tests: `createDecision`/`getDecision` jurisdiction scoping (R1, with a cross-jurisdiction fetch asserted to `NotFoundError`-shape rather than leak); `updateDecisionDetails`/`reopen` compare-and-set conflict path, plus **a race test** — two `updateDecisionDetails` calls on one `row_version` fired at once on separate connections, asserting exactly one succeeds (R11); changing the filing date leaves one pending `run_analysis` job and changing only the applicant leaves none (R12); a `projectManagerId` who isn't a planner in the jurisdiction is rejected (R10); `saveGeometry` invalid-geometry rejection with the real `ST_IsValidReason` text; **a race test** — two `saveGeometry` calls for the same `(decisionId, kind, revision)` fired at once on separate connections, asserting exactly one succeeds with `ConflictError` on the other (concurrency rule: "a guard isn't done until its race test passes"); `listOpenDecisions` excludes `report_released` rows.
+- Unit tests: `MultiPolygonSchema` boundary parsing rejects malformed GeoJSON before it reaches SQL; `NewDecision` validation (empty title, bad dates, an over-long title).
+- Testcontainers integration tests, against a real PostGIS with the migrations applied:
+  - **Ownership (R1):** a second actor and a staff actor each get `NotFoundError` from `getDecision`, `saveGeometry`, and `listDecisions` for the first actor's project; a deleted project reads as absent.
+  - **Details (R10–R12):** `updateDecisionDetails` with a stale `row_version` fails with `ConflictError`, **and a race test** fires two updates on one version at once on separate connections and asserts one succeeds; changing the filing date leaves one pending `run_analysis` job and changing only the applicant leaves none.
+  - **Geometry (R5–R7):** an invalid drawing is rejected with the real `ST_IsValidReason` text; two saves of one revision, sequential and **concurrent**, leave exactly one row and one `ConflictError`; saving a boundary does not change `row_version`.
+  - **The lock (R13):** every writer fails with `ConflictError` on a `report_released` and on a `finishing` decision; a concurrent `saveGeometry` and `deleteDecision` serialize.
+  - **Delete (R14):** hides the project, leaves geometry, runs, reviews, and reports in place, fails on a stale version and on `finishing`, and **a race test** fires two deletes at once and asserts one succeeds.
+  - `listOpenDecisions` excludes completed, generating, and deleted decisions (R4).
+
+## Open questions
+
+- None.

@@ -46,11 +46,11 @@ export default tseslint.config(
       "no-restricted-syntax": [
         "error",
         {
-          // accounts-roles.md R9: staff rights and jurisdiction membership are never combined.
-          selector:
-            "LogicalExpression[operator='||'] CallExpression[callee.name=/^(requireStaff|requireMembership|requirePlanner|requireReviewer)$/]",
+          // accounts-roles.md R9: staff rights and project ownership are never combined, so a staff
+          // check is never one branch of an OR: a staff shortcut into someone else's project must fail lint.
+          selector: "LogicalExpression[operator='||'] CallExpression[callee.name='requireStaff']",
           message:
-            "Don't OR an accounts access check with another — staff and membership checks must never combine (accounts-roles.md R9).",
+            "Don't OR requireStaff with another check — staff rights and project ownership must never combine (accounts-roles.md R9).",
         },
         {
           // platform/db.ts constructs `db` without a schema (platform must never import module
@@ -123,16 +123,16 @@ export default tseslint.config(
     // excluded from reports/index.ts because it pulls in `react-dom/server`, which Next.js 16
     // refuses anywhere in the app router's build graph (see reports/index.ts's and render-and-
     // store.ts's comments). The worker is a separate esbuild bundle Next never traces into, so this
-    // one path is safe here specifically — every other deep import still fails lint, in this file
-    // and everywhere else.
-    files: ["src/worker/tasks.ts"],
+    // one path is safe here specifically — and so are the integration tests, which run the same job
+    // body the worker does. Every other deep import still fails lint, in these files and everywhere else.
+    files: ["src/worker/tasks.ts", "src/**/*.integration.test.ts"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/modules/*/*", "!@/modules/reports/render-and-store"],
+              group: ["@/modules/*/*", "!@/modules/reports/render-and-store", "!@/modules/reports/render"],
               message: "Import only a module's index.ts — its public API — from outside the module.",
             },
           ],

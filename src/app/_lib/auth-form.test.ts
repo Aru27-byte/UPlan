@@ -33,17 +33,17 @@ describe("R1: sign-in fails clearly, and differently, for wrong credentials and 
 
 describe("R10: a sign-in only ever returns to a path on this site", () => {
   it("R10: keeps a same-site path and its query", () => {
-    expect(safeNextPath("/decisions/abc/map?layer=wetlands")).toBe("/decisions/abc/map?layer=wetlands");
+    expect(safeNextPath("/projects/abc/site?layer=wetlands")).toBe("/projects/abc/site?layer=wetlands");
   });
 
   it("R10: falls back to the decisions page when there is no next", () => {
-    expect(safeNextPath(undefined)).toBe("/decisions");
+    expect(safeNextPath(undefined)).toBe("/dashboard");
   });
 
-  it.each(["//evil.test", "/\\evil.test", "https://evil.test/decisions", "evil.test", "/\t/evil.test"])(
+  it.each(["//evil.test", "/\\evil.test", "https://evil.test/dashboard", "evil.test", "/\t/evil.test"])(
     "R10: refuses %j",
     (next) => {
-      expect(safeNextPath(next)).toBe("/decisions");
+      expect(safeNextPath(next)).toBe("/dashboard");
     },
   );
 });

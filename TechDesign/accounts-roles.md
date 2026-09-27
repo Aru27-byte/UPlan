@@ -3,21 +3,33 @@
 **Feature:** F11 · `accounts`
 **Status:** Draft
 **Requirements:** [Requirements/accounts-roles.md](../Requirements/accounts-roles.md) (R1–R12)
-**Builds on:** [system-architecture.md](system-architecture.md) (D14, W1, _Security and access_), [data-model.md](data-model.md) (`app_user`, `membership`, `staff_member`)
-**Release:** 1 (planner role; reviewer role's schema only)
+**Builds on:** [system-architecture.md](system-architecture.md) (D14, W1, _Security and access_), [data-model.md](data-model.md) (`app_user`, `staff_member`)
+**Release:** 1 (planners; staff rights)
+
+## Approach (changed 2026-09-27)
+
+Jurisdiction membership is removed. The first design gave each person a per-city role and made every module function check it. With one pilot city and a planner's work being their own, that check answered a question nobody was asking, and a person who had just registered saw nothing until someone else acted. The access model is now two rules:
+
+- A **project** belongs to the person who created it (`decision.created_by`). Every project function checks that, inside the function, and answers `NotFoundError` for a project that isn't the actor's, is deleted, or doesn't exist.
+- **Staff rights** come from a `staff_member` row and gate the few actions that need a second pair of eyes: approving a profile change (F17), creating a jurisdiction or a dataset (F3), installing sample evidence (F23), and exporting records (F16).
+
+**Rejected:** keeping `membership` for a future reviewer role. A table nothing can write would be dead code, and F12 needs a per-project grant, not a per-city one. F12's Requirements state that.
+
+**Migration.** `0003` drops `membership` after nothing reads it. It doesn't touch `app_user` or `staff_member`. A project keeps its `created_by`, so each person keeps what they created; work that several members of a city could once see is now visible to its creator alone (see the deployment guide's upgrade note).
 
 ## Module
 
 ```
 src/modules/accounts/
   index.ts          public API (below) — the only import path other modules use
-  tables.ts         membership, staff_member Drizzle tables
-  access.ts         requireMembership, requirePlanner, requireReviewer, requireStaff
-  memberships.ts    grantMembership, revokeMembership, listMemberships
+  tables.ts         staff_member Drizzle table
+  access.ts         requireStaff
   users.ts          provisionUser: finds or creates the app_user for a Supabase identity
   actor.ts          getActor(userId) -> Actor, pinned once per request
   access.test.ts, users.integration.test.ts   unit + Testcontainers integration tests
 ```
+
+`memberships.ts` (`grantMembership`, `revokeMembership`, `listMemberships`) is deleted, and so are `requireMembership`, `requirePlanner`, and `requireReviewer`. The project-ownership check lives with the project, in `decisions` (`getDecision`, `lockEditableDecision`), because it reads `decision.created_by` and `accounts` can't import `decisions` (`decisions` imports `accounts` for `Actor`).
 
 Supabase Auth owns identities, passwords, and sessions. UPlan's `app_user` table is UPlan's own record of each person: every other table's `created_by`, `granted_by`, and `user_id` column references its `id`, and that id never changes. A nullable, unique `auth_id` column holds the Supabase user id that signs in as the person. `src/platform/auth-tables.ts` defines it, and `accounts` never writes it except through `provisionUser`.
 
@@ -53,10 +65,10 @@ src/ui/text-field.client.tsx                 labeled input with error text and a
 ```
 
 - **`signIn`** validates the form with `SignInFormSchema`, calls `supabase.auth.signInWithPassword`, and on success calls `redirect(safeNextPath(next))`. On failure it returns `{ error }` for the form to show. `redirect` sits outside any `try`, because it works by throwing.
-- **`register`** validates with `RegisterFormSchema` (name, email, password of at least 8 characters, matching confirmation), then calls `supabase.auth.signUp` with `options.data.full_name` and `emailRedirectTo: <APP_URL>/auth/callback`. If the response carries a session, it redirects to `/decisions`. If it doesn't, "Confirm email" is on, and the action returns `{ confirmEmail: <address> }`; the form replaces itself with a message to check the inbox. If Supabase answers with a user that has no identities, the address is already registered, and the form says to sign in.
+- **`register`** validates with `RegisterFormSchema` (name, email, password of at least 8 characters, matching confirmation), then calls `supabase.auth.signUp` with `options.data.full_name` and `emailRedirectTo: <APP_URL>/auth/callback`. If the response carries a session, it redirects to `/dashboard`. If it doesn't, "Confirm email" is on, and the action returns `{ confirmEmail: <address> }`; the form replaces itself with a message to check the inbox. If Supabase answers with a user that has no identities, the address is already registered, and the form says to sign in.
 - **`describeAuthError(error)`** turns a Supabase error into the text a person sees, and keeps the two R1 cases apart: an `AuthApiError` with code `invalid_credentials` reads "That email and password don't match"; `email_not_confirmed` and rate-limit codes have their own text; any other API error shows Supabase's message; a non-API error (Supabase unreachable) reads "UPlan couldn't reach the sign-in service" and the Server Function logs it once with `logger.error`.
-- **`safeNextPath(next)`** (R10) returns `next` only if it starts with a single `/` and contains no `//`, `\`, or scheme; otherwise `/decisions`. A sign-in must never redirect off the site.
-- **`/auth/callback`** reads `code`, calls `exchangeCodeForSession`, and redirects to `/decisions`. If the code is missing or can't be exchanged — for example the link was opened in a different browser from the one that registered, so the PKCE verifier cookie is absent — it redirects to `/sign-in?notice=confirm-failed`, and the page tells the person that their address may already be confirmed and to try signing in. Supabase has confirmed the address before it redirects here, so signing in works.
+- **`safeNextPath(next)`** (R10) returns `next` only if it starts with a single `/` and contains no `//`, `\`, or scheme; otherwise `/dashboard`. A sign-in must never redirect off the site.
+- **`/auth/callback`** reads `code`, calls `exchangeCodeForSession`, and redirects to `/dashboard`. If the code is missing or can't be exchanged — for example the link was opened in a different browser from the one that registered, so the PKCE verifier cookie is absent — it redirects to `/sign-in?notice=confirm-failed`, and the page tells the person that their address may already be confirmed and to try signing in. Supabase has confirmed the address before it redirects here, so signing in works.
 - **Field errors** use React Aria's `Form` `validationErrors`, so each message is tied to its field and announced (R12). The general error sits in an element with `role="alert"`. Fields keep their entered values across a failed submit, because React resets an uncontrolled form after an action: the action returns `values` and the inputs use `defaultValue`. Passwords are never returned.
 
 ### The pages (R10, R11, R12)
@@ -66,22 +78,19 @@ src/ui/text-field.client.tsx                 labeled input with error text and a
 - **Fills the page.** `min-h-dvh`, no max-width wrapper around the background. A single card, about 36rem wide, sits in the centre and holds only the form: the logo link, a heading, the fields, and the buttons. There is no side panel.
 - **Background.** Two layers on `--color-ink`, both pure CSS animation with no JavaScript: (1) two sets of topographic contour lines, drawn as SVG paths whose radii vary smoothly, cream at about 7% opacity, drifting and turning over 90–140 seconds; (2) two large blurred radial glows in the palette's green and gold, moving over 40–60 seconds. Under `prefers-reduced-motion: reduce` the animations are switched off and the layers stay as a still image. The contour paths are generated once, on the server, from fixed sine terms, so there is no randomness and no hydration mismatch. The layers are `aria-hidden` and `pointer-events-none`.
 - **Sign-in page:** heading, email, password with a show toggle, a gold "Sign in" button, then a divider and a full-width green "Register" button under "New to UPlan?". The Register button is a `Link` styled by `buttonClassName`, per that file's rule for links that look like buttons.
-- **Register page:** the same shell, four fields, a hint under the password, a gold "Create account" button, a plain sentence saying UPlan staff grant access to a city after registration (R2), and a link back to sign-in.
+- **Register page:** the same shell, four fields, a hint under the password, a gold "Create account" button, a plain sentence saying a new account can start research right away and that UPlan staff hold the extra rights (R2), and a link back to sign-in.
 - **Contrast.** Text sits on the white card, ink on white. The only text over the animated background is the footer line, cream on ink, with the glows kept dark enough that it stays above 4.5:1.
 
 ## Types
 
 ```ts
-export type Role = "planner" | "reviewer";
-
 export type Actor = {
   userId: string; // app_user.id — UPlan's id for the person, not the Supabase user id
   isStaff: boolean;
-  memberships: { jurisdictionId: string; role: Role }[];
 };
 ```
 
-`actor.ts`'s `getActor(db, userId)` reads `staff_member` and `membership` once per request/job and returns this plain object — every module function takes an `Actor`, never a raw session, and never re-queries membership mid-computation (`conventions.md`: "Pin exact versions in every computation").
+`actor.ts`'s `getActor(db, userId)` reads `staff_member` once per request/job and returns this plain object — every module function takes an `Actor`, never a raw session, and never re-queries staff status mid-computation (`conventions.md`: "Pin exact versions in every computation").
 
 `src/app/_lib/actor.ts`'s `requireActor()` is the one bridge from a request to an `Actor`: `getSessionUser()` (which yields the Supabase id as `authId`), then `provisionUser` (which returns `app_user.id`), then `getActor`.
 
@@ -111,65 +120,42 @@ export async function provisionUser(
 ```
 
 - One insert keyed on `auth_id`, no check-then-insert: two requests provisioning the same person at once both succeed and get the same id. `setWhere` means an unchanged person costs no write.
-- It creates an identity and nothing else. No `membership` and no `staff_member` row appears (R2), so a new person sees "You have no jurisdiction membership yet" until staff grant one (R4).
-- **People from before Supabase.** Their `app_user` row already holds their memberships and staff rights, and has a null `auth_id`. An operator links it on purpose, once, for an email they trust: `update app_user set auth_id = <supabase user id> where email = … and auth_id is null` (the deployment guide has the statement). Until then, a new identity with that email hits `app_user.email`'s unique constraint and `provisionUser` throws a `ConflictError` that says staff must link the account. A matching email is never enough on its own to claim an account, because while "Confirm email" is off nobody has proved they own the address.
+- It creates an identity and nothing else. No `staff_member` row appears (R2), so a new person is a planner with an empty dashboard and no staff rights.
+- **People from before Supabase.** Their `app_user` row already holds their staff rights and the projects they created, and has a null `auth_id`. An operator links it on purpose, once, for an email they trust: `update app_user set auth_id = <supabase user id> where email = … and auth_id is null` (the deployment guide has the statement). Until then, a new identity with that email hits `app_user.email`'s unique constraint and `provisionUser` throws a `ConflictError` that says staff must link the account. A matching email is never enough on its own to claim an account, because while "Confirm email" is off nobody has proved they own the address.
 - After linking, the person signs in as the same `app_user.id`, so every decision, geometry revision, and report they created stays theirs. No foreign key is rewritten.
 
 ## Authorization (R3, R6, R7, R9)
 
 ```ts
 // access.ts
-export function requireMembership(actor: Actor, jurisdictionId: string, role?: Role): void {
-  const has = actor.memberships.some(
-    (m) => m.jurisdictionId === jurisdictionId && (role === undefined || m.role === role),
-  );
-  if (!has) throw new ForbiddenError(`no ${role ?? "membership"} access to this jurisdiction`);
-}
-
-export const requirePlanner = (actor: Actor, jurisdictionId: string) =>
-  requireMembership(actor, jurisdictionId, "planner");
-export const requireReviewer = (actor: Actor, jurisdictionId: string) =>
-  requireMembership(actor, jurisdictionId, "reviewer");
-
 export function requireStaff(actor: Actor): void {
   if (!actor.isStaff) throw new ForbiddenError("staff access required");
 }
 ```
 
-- `isPlannerOf(userId, jurisdictionId): Promise<boolean>` is the one read that answers "does this other person hold a planner membership here?" It is for a decision's project manager (`decisions.md` R10). It reads `membership` only, and it is a check on a named person, not an authorization of the actor, so it never replaces `requirePlanner`.
-- Every other module's exported functions call one of these first, with the jurisdiction id the caller supplied — never a jurisdiction id read back out of the row being fetched (R3, R6). For example, `decisions.getDecision(actor, decisionId)` loads the decision's `jurisdiction_id` and calls `requireMembership` before returning anything, so a `NotFoundError`-shaped 404 and a `ForbiddenError`-shaped 403 are indistinguishable in what they reveal (R7): both say nothing about the row's contents.
-- `requireStaff` and `requireMembership` read from disjoint tables (`staff_member` vs. `membership`) and are never combined with `||` anywhere in the codebase — a lint rule (`no-restricted-syntax` for a logical-or between calls to these two functions) keeps R9 true as new code is added.
-- `src/proxy.ts` only redirects a visitor with no session at all to `/sign-in`; it never inspects role or jurisdiction (R6; matches `system-architecture.md`'s _Security and access_).
-
-## Granting and revoking membership (R4, R5)
+That is the whole of `accounts`' access API. Project access is in `decisions`:
 
 ```ts
-// memberships.ts
-export async function grantMembership(
-  actor: Actor,
-  jurisdictionId: string,
-  userEmail: string,
-  role: Role,
-): Promise<void> {
-  requireStaff(actor);
-  const user = await findUserByEmail(userEmail); // the app_user mirror
-  if (!user) throw new ValidationError(`${userEmail} must sign in at least once before being granted access`);
-  await db.insert(membership).values({
-    userId: user.id,
-    jurisdictionId,
-    role,
-    grantedBy: actor.userId,
-  }); // primary key (user_id, jurisdiction_id, role) rejects a duplicate grant
+// decisions.ts
+export async function getDecision(actor: Actor, decisionId: string): Promise<Decision> {
+  const [row] = await db.select().from(decision)
+    .where(and(eq(decision.id, decisionId), eq(decision.createdBy, actor.userId), isNull(decision.deletedAt)));
+  if (!row) throw new NotFoundError("project"); // not yours, deleted, or absent: one answer (R7)
+  return row;
 }
 ```
 
-- Only `requireStaff` gates a grant or revoke in release 1 (R4) — there is no planner-facing invite screen yet. The person must have registered and signed in once, because `app_user` only gains a row at that moment.
-- **The email is not proven to be theirs while "Confirm email" is off.** Anyone can register any address, and `grantMembership` matches on address. Staff must confirm who a person is before granting, and turning on "Confirm email" with a custom SMTP sender (see D14's revisit condition) is the fix that removes the risk.
-- `role` already accepts `"reviewer"` today (R5): the column, the check constraint, and `grantMembership` all work for a reviewer membership now, so F12 adds a sign-off _workflow_ against existing rows, never a migration or backfill.
-- `granted_by` and `granted_at` are set once at insert and never updated — there is no `updateMembership`; a role change is a revoke plus a new grant, which keeps the audit trail honest (R4).
+- The ownership condition is part of the query, not a check after it, so a caller never holds a row it may not see (R3, R6, R7).
+- Every module function that takes a `decisionId` reaches the project through `getDecision` or `lockEditableDecision`, both of which apply the same condition. A route never checks ownership itself.
+- **R9.** `requireStaff` reads `staff_member` and ownership reads `decision.created_by`. Nothing ORs them, so a staff member gets no view of another person's project. `eslint.config.js`'s `no-restricted-syntax` rule now forbids a logical-or with a `requireStaff` call, so a future staff shortcut fails lint.
+- `src/proxy.ts` only redirects a visitor with no session at all to `/sign-in`; it never inspects role or ownership (R6; matches `system-architecture.md`'s _Security and access_).
+
+## Staff rights (R4)
+
+There is no function that grants staff rights. An operator inserts a `staff_member` row (the setup script does it for the person it is given, and the deployment guide has the statement). `granted_by` and `granted_at` are set once and never updated. The reviewer role, and a way to give a reviewer one project, are F12's (R5).
 
 ## Verification
 
-- Unit tests (no database): `requireMembership`/`requireStaff` pass/fail matrices, one test per R3, R6, R7, R9 (asserting `staff_member` and `membership` are never OR'd). `safeNextPath` accepts `/decisions/abc` and rejects `//evil.test`, `/\evil.test`, and `https://evil.test` (R10). `RegisterFormSchema` rejects a short password, a mismatch, and a blank name (R11). `describeAuthError` gives different text for `invalid_credentials` and for an unreachable Supabase (R1). `hardenCookie` forces `httpOnly` and `sameSite: "lax"` whatever it is given, and `secure` only in production (R8).
-- Testcontainers integration tests: `provisionUser` creates an `app_user` row with no membership and no staff rights (R2); two concurrent `provisionUser` calls for one Supabase id leave exactly one row and return the same id; a second Supabase id with an existing email is refused with a `ConflictError`; a legacy row is refused until linked, then signs in as the same id with its staff rights intact (R4). `grantMembership` rejects an unknown email (R4 wording), rejects a non-staff actor, and a duplicate grant hits the primary key and surfaces as `ConflictError` at the module boundary, with its race test on two connections (concurrency rule: "a guard isn't done until its race test passes").
+- Unit tests (no database): `requireStaff` pass and fail (R6, R7). `safeNextPath` accepts `/projects/abc/overview` and rejects `//evil.test`, `/\evil.test`, and `https://evil.test` (R10), and returns `/dashboard` for everything else. `RegisterFormSchema` rejects a short password, a mismatch, and a blank name (R11). `describeAuthError` gives different text for `invalid_credentials` and for an unreachable Supabase (R1). `hardenCookie` forces `httpOnly` and `sameSite: "lax"` whatever it is given, and `secure` only in production (R8).
+- Testcontainers integration tests: `provisionUser` creates an `app_user` row with no membership and no staff rights (R2); two concurrent `provisionUser` calls for one Supabase id leave exactly one row and return the same id; a second Supabase id with an existing email is refused with a `ConflictError`; a legacy row is refused until linked, then signs in as the same id with its staff rights intact (R4). Project ownership is tested with the decisions module: a second actor gets `NotFoundError` for the first's project, a staff actor does too, and a deleted project reads the same as an absent one (R3, R7, R9).
 - End-to-end (Playwright, with axe): `/sign-in` and `/register` render with the Register button visible, no third-party buttons, no WCAG 2.1 A or AA violations, and a phone-width viewport without horizontal scroll (R10, R12). No test calls a real Supabase project: a signed-out visit needs none, and the sign-in round trip is checked by hand against a development project.

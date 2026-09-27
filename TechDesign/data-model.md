@@ -1,7 +1,7 @@
 # UPlan — Data Model
 
 **Status:** Draft — system-level technical design
-**Last updated:** 2026-09-12
+**Last updated:** 2026-09-27
 **Derived from:** [charter.md](../Requirements/charter.md), [features.md](../Requirements/features.md)
 **Related:** [tech-stack.md](tech-stack.md) · [system-architecture.md](system-architecture.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
@@ -21,8 +21,8 @@ The SQL below is the design target for release 1, plus F2's tables, which are ma
 
 ```mermaid
 erDiagram
-  jurisdiction ||--o{ membership : "grants"
-  app_user ||--o{ membership : "holds"
+  app_user ||--o| staff_member : "may be"
+  app_user ||--o{ decision : "creates and owns"
   jurisdiction ||--o{ profile_change : "receives"
   profile_upload |o--o| profile_change : "proposes"
   profile_change ||--o| profile_version : "becomes"
@@ -34,13 +34,14 @@ erDiagram
   jurisdiction ||--o{ decision : "contains"
   decision ||--o{ decision_geometry : "revisions"
   decision ||--o{ evidence_resolution : "records"
+  decision ||--o{ phase_review : "reviewed in"
   dataset_version ||--o{ evidence_resolution : "compared in"
   decision ||--o{ analysis_run : "runs"
   profile_version |o--o{ analysis_run : "analyzed under"
   profile_change |o--o{ analysis_run : "previewed by"
   analysis_run ||--o{ analysis_run_dataset : "pins"
   dataset_version ||--o{ analysis_run_dataset : "pinned in"
-  decision ||--o{ report : "releases"
+  decision ||--o{ report : "publishes versions of"
   analysis_run ||--o{ report : "reported in"
   jurisdiction ||--o{ retention_flag : "flags"
   jurisdiction ||--o{ records_export : "exports"
@@ -48,7 +49,7 @@ erDiagram
 
 ## Cities and people
 
-Supabase Auth holds identities, passwords, and sessions. `app_user` is UPlan's own record of each person: the `created_by` and `granted_by` columns below reference its `id`, which never changes. `auth_id` is the Supabase user id that signs in as the person, and is null for someone from before Supabase Auth until an operator links them. `provisionUser` writes it (see `accounts-roles.md`). It is named `app_user` because `user` is a reserved word in PostgreSQL.
+Supabase Auth holds identities, passwords, and sessions. `app_user` is UPlan's own record of each person: the `created_by` and `granted_by` columns below reference its `id`, which never changes. There is no membership table (removed 2026-09-27, `accounts-roles.md`): a project belongs to the person in `decision.created_by`, and `staff_member` is the only extra right. `auth_id` is the Supabase user id that signs in as the person, and is null for someone from before Supabase Auth until an operator links them. `provisionUser` writes it (see `accounts-roles.md`). It is named `app_user` because `user` is a reserved word in PostgreSQL.
 
 ```sql
 create table app_user (
@@ -68,15 +69,6 @@ create table jurisdiction (
   boundary                   geometry(MultiPolygon, 4326) not null,
   current_profile_version_id uuid,                        -- null until the first approval; FK below
   created_at                 timestamptz not null default now()
-);
-
-create table membership (
-  user_id         text not null references app_user (id),
-  jurisdiction_id uuid not null references jurisdiction (id),
-  role            text not null check (role in ('planner', 'reviewer')),
-  granted_by      text not null references app_user (id),
-  granted_at      timestamptz not null default now(),
-  primary key (user_id, jurisdiction_id, role)
 );
 
 create table staff_member (
@@ -157,6 +149,7 @@ create table dataset (
   source_url         text not null,
   authority          text not null check (authority in ('federal', 'state', 'regional', 'county', 'local')),
   spatial_precision  text not null check (spatial_precision in ('site', 'parcel', 'regional', 'coarse')),
+  is_sample          boolean not null default false,    -- F23: illustrative data, labeled everywhere it is shown; false is the truth for every real dataset
   coverage           geometry(MultiPolygon, 4326) not null,
   current_version_id uuid,                              -- null until the first ready version; FK below
   last_checked_at    timestamptz,
@@ -223,13 +216,18 @@ create table decision (
   application_filed_on date,                    -- required before a run when a rule set vests
   parcel_or_address    text,                    -- null until recorded; shown as "Not yet recorded"
   applicant            text,                    -- null until recorded
-  project_manager_id   text references app_user (id),   -- null until recorded; a planner of this city, checked in decisions
+  project_manager      text,                    -- null until recorded; a name, entered as text
   target_decision_on   date,                    -- null until recorded
-  status               text not null check (status in ('in_progress', 'report_released')),
+  status               text not null check (status in ('in_progress', 'finishing', 'report_released')),
   row_version          integer not null default 1,   -- compare-and-set for edits to this row
-  created_by           text not null references app_user (id),
-  created_at           timestamptz not null default now()
+  created_by           text not null references app_user (id),   -- the owner: the only person who can see or change it
+  created_at           timestamptz not null default now(),
+  deleted_at           timestamptz,             -- soft delete (F20 R5): the row and everything under it stay
+  deleted_by           text references app_user (id),
+  check ((deleted_at is null) = (deleted_by is null))
 );
+
+create index decision_by_owner on decision (created_by, created_at desc) where deleted_at is null;
 
 create table decision_geometry (
   decision_id uuid not null references decision (id),
@@ -287,41 +285,62 @@ create table evidence_resolution (
   primary key (decision_id, resource_type_key, mapped_by, not_mapped_by, revision),
   check (mapped_by <> not_mapped_by)
 );
+
+-- A planner's recorded response to one phase's drafted output (F21). Append-only.
+create table phase_review (
+  id             uuid primary key default gen_random_uuid(),
+  decision_id    uuid not null references decision (id),
+  phase          text not null check (phase in ('site', 'evidence', 'screening', 'studies', 'footprint', 'impact')),
+  content_sha256 text not null,                 -- the fingerprint of the output that was reviewed
+  verdict        text not null check (verdict in ('reviewed', 'revision_requested')),
+  note           text,
+  summary        jsonb not null,                -- { templateVersion, headline, lines } as it was shown
+  reviewed_by    text not null references app_user (id),
+  reviewed_at    timestamptz not null default now(),
+  check (verdict <> 'revision_requested' or (note is not null and length(btrim(note)) > 0))
+);
+
+create index phase_review_by_phase on phase_review (decision_id, phase, reviewed_at);
 ```
 
 - Geometry revisions are never updated or deleted, so a run's revision numbers can't dangle.
 - `results_version` is added to a table that already holds finished runs. The migration adds it with `default 1` and then drops the default, so PostgreSQL fills the existing rows without an `UPDATE` (the `analysis_run_final` trigger never fires) and no default remains to stand in for missing information. Readers parse by version: a run at another version than the code's `RESULTS_VERSION` is reported as out of date, never parsed as best it can (see `study-scoping.md`).
 - The four project-detail columns on `decision` are nullable because they are facts that may not exist yet, like `permit_number`. Only `application_filed_on` feeds an analysis, and changing it enqueues a run in the same transaction (`decisions.md` R12).
-- An _open decision_ has status `in_progress`, and only open decisions re-run when rules or data change. Releasing a report sets `report_released`; reopening the decision to prepare a revised report sets `in_progress` again.
+- An _open decision_ has status `in_progress`, and only open decisions re-run when rules or data change, and only they can be edited. `finishing` is the window while a document is generated; publishing sets `report_released`; starting a research change sets `in_progress` again (`research-changes.md`). Every move is a compare-and-set.
+- A deleted decision keeps its row and everything under it; only `deleted_at` and `deleted_by` change. Reads filter it out.
+- `input_sha256` hashes the sorted list of rules in force, not the date they were resolved for, so a run doesn't go out of date at midnight (`decision-overview.md`, _Pinned inputs_). `rules_resolved_for` records the dates for display.
 - A drawn geometry that fails `ST_IsValid` is rejected with a `ValidationError`, never repaired. Only source data is repaired, during ingestion.
 
 ## Reports (F10)
 
 ```sql
+-- One row per attempt to publish a project's final document; a released row is one version (F10, F22).
 create table report (
   id                uuid primary key default gen_random_uuid(),
   decision_id       uuid not null references decision (id),
-  sequence_number   integer not null check (sequence_number > 0),
-  analysis_run_id   uuid not null references analysis_run (id),   -- a 'current' run, checked on insert
+  sequence_number   integer not null check (sequence_number > 0),   -- numbers attempts, so a retry never collides
+  version_number    integer check (version_number > 0),             -- numbers published documents; assigned at release, no gaps
+  analysis_run_id   uuid not null references analysis_run (id),     -- the run the document is built from
   template_version  integer not null,
   status            text not null check (status in ('releasing', 'released', 'failed')),
-  object_key        text not null,              -- contains the report id
+  snapshot          jsonb not null,             -- ReportSnapshot: details, phase reviews, what changed (research-changes.md)
+  change_note       text,                       -- the reason for this version; required after version 1
+  pdf               bytea,                      -- the document itself, kept in the database (F22 R1)
   pdf_sha256        text,
   error_detail      text,
   requested_by      text not null references app_user (id),
   requested_at      timestamptz not null default now(),
   released_at       timestamptz,
   unique (decision_id, sequence_number),
-  check ((status = 'released') = (pdf_sha256 is not null and released_at is not null)),
+  check ((status = 'released') = (pdf is not null and pdf_sha256 is not null and released_at is not null and version_number is not null)),
   check (status <> 'failed' or error_detail is not null)
 );
 
--- One release in flight per decision.
-create unique index report_one_releasing
-  on report (decision_id) where status = 'releasing';
+-- Version numbers are unique per project, and only released rows have one.
+create unique index report_one_version on report (decision_id, version_number) where version_number is not null;
 ```
 
-A failed release keeps its row and sequence number as the record of the attempt. The planner releases again, which creates a new row. A released PDF is write-once, and its hash is also stored in the object's metadata, so a retried release job finalizes from the stored object (see _Object storage_).
+A failed attempt keeps its row and sequence number as the record of the attempt and takes no version number. The planner finishes again, which creates a new row. `decision.status = 'finishing'` is the one-in-flight guard, so no partial index on `releasing` is needed. A published row is write-once: a trigger (below) rejects every change to it, so the bytes, the hash, and the record can't be altered.
 
 ## Records (F16)
 
@@ -390,7 +409,7 @@ The migrate task runs as the schema owner. Web and worker connect as `uplan_app`
 -- Append-only tables: rows are inserted, never changed.
 grant select, insert on
   profile_upload, profile_version, evidence_feature, decision_geometry, analysis_run_dataset,
-  evidence_resolution
+  evidence_resolution, phase_review
   to uplan_app;
 
 -- Tables with state or pointers that move.
@@ -399,8 +418,8 @@ grant select, insert, update on
   decision, analysis_run, report, retention_flag, records_export
   to uplan_app;
 
--- Access can be revoked; nothing else is deleted.
-grant select, insert, update, delete on membership, staff_member to uplan_app;
+-- Staff rights are created by an operator, and nothing is deleted from this table by the application.
+grant select on staff_member to uplan_app;
 
 -- The worker rewrites its heartbeat; the backup timer writes backup runs as the schema owner.
 grant select, insert, update on worker_heartbeat to uplan_app;
@@ -418,7 +437,23 @@ create trigger report_final before update on report
   for each row when (old.status <> 'releasing') execute function forbid_final_row_change();
 create trigger dataset_version_final before update on dataset_version
   for each row when (old.status <> 'ingesting') execute function forbid_final_row_change();
+
+-- Append-only and immutable tables also reject DELETE and, where noted, any UPDATE. These triggers
+-- protect the records even from a connection that holds the grants above.
+create function forbid_row_change() returns trigger language plpgsql as $$
+begin
+  raise exception '% rows cannot be % (append-only)', tg_table_name, lower(tg_op);
+end $$;
+
+create trigger phase_review_append_only before update or delete on phase_review
+  for each row execute function forbid_row_change();
+create trigger evidence_resolution_append_only before update or delete on evidence_resolution
+  for each row execute function forbid_row_change();
+create trigger report_no_delete before delete on report
+  for each row execute function forbid_row_change();
 ```
+
+- `report_final` lets a `releasing` row become `released` or `failed` and rejects every later change; `report_no_delete` rejects a delete in any state. A `releasing` row may not change columns other than the ones the job sets (`status`, `pdf`, `pdf_sha256`, `released_at`, `version_number`, `error_detail`), which a `before update` check in the same migration enforces.
 
 - graphile-worker installs its own schema. Both processes may call `graphile_worker.add_job()`.
 
@@ -563,8 +598,9 @@ export type Gap = {
 };
 
 export type Limit = {
-  key: "significant-trees-not-countable" | "boundary-set-by-site-study";
+  key: "significant-trees-not-countable" | "boundary-set-by-site-study" | "dataset-limitation";
   resourceType: string | null;
+  datasetVersionId: string | null; // set for "dataset-limitation": the version whose recorded limitation (F3 R10) is stated
 };
 
 // One row per resource type and mapped dataset whose coverage includes the study area.
@@ -599,10 +635,12 @@ Rounding happens only when a value is displayed, in one formatter in `src/module
 
 Buckets live in OCI Object Storage and are reached through its S3 compatibility API. Production has all three buckets. Development has `objects` and `reports`, each with a lifecycle rule that deletes objects after a day.
 
+**Since 2026-09-27 the `reports` bucket holds no documents.** Published documents are kept in the database (`report.pdf`, F10 R9, F22 R1), so one backup and one transaction cover them. The `reports` bucket and its environment variables (`OCI_BUCKET_REPORTS`) stay configured in this release, because removing an environment variable from a deployed stack is its own change, and are listed in `deployment-guide.md` as safe to remove. Nothing writes to it.
+
 | Bucket                | Key pattern                                                                                                                                                                                                      | Protection                                                                                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `uplan-<env>-objects` | `profile-uploads/<jurisdictionId>/<fileSha256>.xlsx` · `evidence-raw/<datasetKey>/<rawSha256>/<source file name>` · `code-raw/<jurisdictionId>/<contentSha256>` · `exports/<jurisdictionId>/<exportId>.<format>` | The application's credentials can create and read objects, never overwrite or delete them                                                                                   |
-| `uplan-<env>-reports` | `<jurisdictionId>/<decisionId>/<reportId>.pdf`, with the PDF's SHA-256 in the object's metadata                                                                                                                  | The same create-and-read credentials. In production, an indefinite retention rule also blocks overwriting and deleting for everyone until an administrator removes the rule |
+| `uplan-<env>-reports` | _(unused since 2026-09-27: documents are in `report.pdf`)_                                                                                                                                                        | —                                                                                                                                                                            |
 | `uplan-prod-backups`  | pgBackRest's own layout                                                                                                                                                                                          | pgBackRest's credentials, which reach only this bucket. pgBackRest encrypts everything it writes                                                                            |
 
 - Keys built from content hashes or record ids make every write idempotent. With create-only credentials, a second write to an existing key fails instead of replacing the object, and the writer treats an existing object with the expected hash as already written.
@@ -706,6 +744,6 @@ create trigger code_change_draft_final before update on code_change_draft
 
 ## Additions later in v1
 
-- **Review and sign-off (F12):** a `report_review` table, and `report.status` gains `awaiting_signoff` before `releasing`.
+- **Review and sign-off (F12):** a `report_review` table, `report.status` gains `awaiting_signoff` before `releasing`, and a per-project reviewer grant (there is no membership to reuse).
 - **Conditions tracing (F13):** a revisioned `condition` table, plus `condition_impact` linking conditions to `impactKey` values. A link whose impact key is missing from the current run shows as needing review. It is never remapped automatically.
 - **Study scoping (F14)** is no longer a later addition. It is part of every run's results (`screening`, `studyFlags`), and it needs no new `purpose`: a run with no footprint is already a run with `footprint_revision = null`.

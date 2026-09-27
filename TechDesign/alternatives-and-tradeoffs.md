@@ -181,7 +181,7 @@ One record per decision. A change to the stack starts here: update the record, t
 
 - The report is a React component rendered to static HTML. The worker prints it with Playwright's Chromium, using `tagged: true` and `outline: true`.
 - Maps inside the report are SVG paths that PostGIS generates with `ST_AsSVG`, from the same geometries the numbers came from.
-- The PDF's SHA-256 is recorded, and the file is stored write-once in the `reports` bucket. The application's credentials can create objects but never overwrite or delete them, and a retention rule blocks everyone else until an administrator removes it.
+- The PDF's SHA-256 is recorded, and the file is stored in the database, write-once behind a trigger (D23). _(Revised 2026-09-27: it was stored in the `reports` bucket with create-only credentials and a retention rule.)_
 
 **Considered.**
 
@@ -190,9 +190,9 @@ One record per decision. A change to the stack starts here: update the record, t
 - _Screenshots of the live WebGL map_ — heavier, and nondeterministic in headless browsers.
 - _PDF permission passwords_ — trivial to remove.
 - _PAdES digital signatures_ — would make altered copies detectable, at the cost of certificate and key management. Deferred.
-- _S3 Object Lock with a retention date per object_ — OCI's S3 compatibility API doesn't support it. A bucket retention rule is OCI's equivalent.
+- _S3 Object Lock with a retention date per object_ — OCI's S3 compatibility API doesn't support it. A bucket retention rule is OCI's equivalent, and D23 replaced the bucket for documents.
 
-**Trade-offs accepted.** A forwarded copy can still be altered; the recorded hash and the write-once original prove what UPlan released. The worker image carries Chromium. A retention rule covers the whole bucket, so disposing of one report would mean lifting protection from all of them; disposal is designed with records export.
+**Trade-offs accepted.** A forwarded copy can still be altered; the recorded hash and the write-once original prove what UPlan released. The worker image carries Chromium. Disposal of one document is designed with records export.
 
 **Revisit when.** A city asks for signed PDFs.
 
@@ -212,7 +212,7 @@ One record per decision. A change to the stack starts here: update the record, t
 
 ## D14. Supabase Auth: email and password sign-in for everyone
 
-**Chosen.** Supabase Auth, on a free-tier hosted project, through `@supabase/supabase-js` and `@supabase/ssr`. Everyone registers and signs in with an email address and a password. Supabase holds the credentials and the session; UPlan keeps an `app_user` row per person, with the Supabase user id in a separate `auth_id` column, and roles stay in UPlan's own `membership` and `staff_member` tables. Registering grants no access: staff grant it (R2, R4). All calls run on the server, so the browser holds no Supabase client and no key. Supersedes the earlier choice of Better Auth with the city's OIDC provider for city staff and GitHub for UPlan staff, which is removed: `better-auth`, `@better-auth/sso`, their tables, and the `CITY_OIDC_*`, `GITHUB_*`, and `BETTER_AUTH_*` settings.
+**Chosen.** Supabase Auth, on a free-tier hosted project, through `@supabase/supabase-js` and `@supabase/ssr`. Everyone registers and signs in with an email address and a password. Supabase holds the credentials and the session; UPlan keeps an `app_user` row per person, with the Supabase user id in a separate `auth_id` column, and staff rights stay in UPlan's own `staff_member` table. Registering grants no staff rights, and a person works on the projects they create (D24; the per-city `membership` table was removed on 2026-09-27). All calls run on the server, so the browser holds no Supabase client and no key. Supersedes the earlier choice of Better Auth with the city's OIDC provider for city staff and GitHub for UPlan staff, which is removed: `better-auth`, `@better-auth/sso`, their tables, and the `CITY_OIDC_*`, `GITHUB_*`, and `BETTER_AUTH_*` settings.
 
 **Why the existing providers can't do the job.** Oracle's Always Free tier gives a VM, not an identity service; running one means writing password storage, rate limiting, and session handling ourselves. The product owner chose to hand that to a managed service and to drop the city-identity-provider dependency, which the pilot could not have set up without the city's IT.
 
@@ -231,7 +231,7 @@ One record per decision. A change to the stack starts here: update the record, t
 - **Free projects pause after a week of inactivity.** While paused, sign-in fails with the "couldn't reach the sign-in service" message (R1) until someone restores the project in the dashboard. Signed-in sessions keep working only until their tokens need refreshing.
 - **Email is the weak spot.** The built-in email service sends to the project's own team members only, at 2 messages an hour, so "Confirm email" can't work for real users without a custom SMTP sender. The pilot runs with it off; a registrant's address is then unproven, and staff check identity before granting access. Adding an SMTP provider is a new external service and needs its own record.
 - **Free allowance:** 50,000 monthly active users, far above the pilot.
-- **Existing people must be linked by hand.** Better Auth's ids don't match Supabase's, so each person from before this change has an `app_user` row with no `auth_id`. An operator links them with one statement (deployment guide). Their ids, memberships, and history are untouched. Matching by email automatically was rejected: while "Confirm email" is off, anyone could register a colleague's address and inherit their access.
+- **Existing people must be linked by hand.** Better Auth's ids don't match Supabase's, so each person from before this change has an `app_user` row with no `auth_id`. An operator links them with one statement (deployment guide). Their ids, staff rights, and history are untouched. Matching by email automatically was rejected: while "Confirm email" is off, anyone could register a colleague's address and inherit their projects and staff rights.
 
 **Revisit when.** The pilot needs verified addresses (add SMTP and turn on "Confirm email"), the project's inactivity pause causes an outage, or several cities' own identity providers make single sign-on worth building.
 
@@ -402,5 +402,60 @@ Prettier handles formatting.
 **Trade-offs accepted.** Logs are read on the VM, and they're lost if the VM is. The monitor runs inside Oracle's cloud, so an outage across the region could silence the monitor along with the app.
 
 **Revisit when.** UPlan serves more than one city, or an incident can't be explained from the logs on the VM.
+
+## D23. Final documents are stored in the database
+
+**Chosen.** A published document is a row in `report`: the PDF in a `bytea` column beside its SHA-256, numbered as a version, and protected by a trigger that rejects any change or delete. The worker prints it with Playwright, as before, and stores it in the same transaction that completes the project. Object Storage no longer holds documents.
+
+**Considered.**
+
+- _Object Storage with create-only credentials (the first design)_ — strong write-once protection, but a second place that must agree with the database, a failure mode between the two (an object written and a row not updated), credentials a local developer must have for the app to work at all, and a retention rule that only exists in production.
+- _Object Storage plus a copy in the database_ — two copies to keep identical, for no gain.
+- _A PDF library in the web process_ — no browser, but it can't produce the tagged, outlined, accessible PDF the requirements ask for, and it would be a new dependency.
+
+**Trade-offs accepted.** Documents add to the database's size and backups: a few hundred kilobytes each, which the pilot's volume makes negligible. The protection against tampering is a database trigger rather than storage permissions, so an operator with schema-owner rights could still change a row. The hash recorded beside it is how anyone detects that. The list queries never read the `pdf` column, so the history page stays fast.
+
+**Revisit when.** Documents grow past a few megabytes each, or a city requires write-once storage that a trigger can't satisfy. The `reports` bucket and its variables stay configured, unused, until a deploy removes them.
+
+## D24. A project belongs to its creator: no jurisdiction membership
+
+**Chosen.** Access to a project is `decision.created_by`. The membership table, its grant and revoke functions, and the planner and reviewer checks are removed. Everyone who signs in is a planner. `staff_member` stays for the actions that need a second pair of eyes: approving profile changes, creating datasets and jurisdictions, installing sample evidence, and exporting records. A project that isn't the actor's, is deleted, or is absent is one `NotFoundError`.
+
+**Considered.**
+
+- _Keep membership and default every registered person into the pilot city_ — it hides the removal instead of doing it, and leaves a table whose only rows say "everyone".
+- _Share every project with everyone in the city_ — the simplest model for a team, but it lets any planner change a colleague's work and read an applicant's details, which the charter's privacy posture doesn't support.
+- _Per-project sharing now_ — the right answer for reviewers, but a feature of its own (F12), and nothing in release 1 needs it.
+
+**Trade-offs accepted.** Colleagues can't see each other's projects until F12 designs sharing. Work that several members of a city could once see is visible to its creator alone after the migration. Anyone can register and reach the app, and a stranger sees only their own empty dashboard, which matters less now that "Confirm email" being off can't grant access to anything.
+
+**Revisit when.** A supervisor needs to review a planner's project (F12), or the app opens beyond one city.
+
+## D25. Deleting a project hides it and keeps its records
+
+**Chosen.** "Delete research" sets `deleted_at` and `deleted_by` on the decision, and every read filters on it. Nothing else is touched.
+
+**Considered.**
+
+- _A hard delete with cascades_ — the request's plain reading, but working data may be public record (charter; F16), the data model forbids deleting geometry revisions, finished runs, and released documents, and a cascade would break the version history.
+- _Deleting only in-progress projects_ — leaves a completed project impossible to remove from a person's dashboard.
+
+**Trade-offs accepted.** A planner who deletes a project still has its records in the database. The confirmation says so. Purging is a records process (F16), not a button.
+
+**Revisit when.** A city's retention setting requires disposal to be actioned in UPlan.
+
+## D26. Phase outputs are derived and reviews are append-only; drafting stays deterministic
+
+**Chosen.** A phase's output is computed from immutable records and fingerprinted; it is never stored. A planner's review is one append-only row bound to the fingerprint it was made on. The drafted summaries are fixed sentence templates over PostGIS measurements. No language model writes any phase output, in this or any release-1 feature.
+
+**Considered.**
+
+- _Storing each output_ — duplicates the run's results and adds a second place for numbers to disagree.
+- _A language model to write summaries_ — reads well, but every sentence becomes untestable, it can't be pinned to a measurement, it contradicts `do-not.md` and the charter's posture, and a released report would depend on a model file. F2's model drafts only profile rules, with quoted sources.
+- _A single "phase approved" flag_ — goes stale the moment an input changes, and can't say what was reviewed.
+
+**Trade-offs accepted.** The summaries are plainer than generated prose. Their wording is changed in code, reviewed in a pull request, and versioned by `TEMPLATE_VERSION`.
+
+**Revisit when.** A model can be constrained so that every sentence it writes is provably backed by a measurement, and the charter's posture allows it.
 
 Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [OpenAI: gpt-oss](https://openai.com/index/introducing-gpt-oss/) · [Unsloth: Qwen3.5 memory requirements](https://unsloth.ai/docs/models/qwen3.5) · [Google: Gemma 4](https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/) · [Neon: plans](https://neon.com/docs/introduction/plans) · [Supabase: free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing) · [Vercel: Hobby plan](https://vercel.com/docs/plans/hobby)

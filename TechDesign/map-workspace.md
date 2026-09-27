@@ -11,7 +11,7 @@
 UI only — no module. Routes and components on top of `evidence`, `decisions`, and `provenance`:
 
 ```
-src/app/decisions/[decisionId]/map/page.tsx     Server Component: loads decision, jurisdiction's current
+src/app/(app)/projects/[projectId]/site/page.tsx     Server Component: loads decision, jurisdiction's current
                                                  profile (for layer definitions and mapStatus), the latest
                                                  study area/footprint, and — per evidence layer — the
                                                  dataset version id and its formatted provenance (F4, called
@@ -32,7 +32,7 @@ The Server Component resolves, for the jurisdiction's current profile, one MapLi
 
 ## Deep links and gaps (R8, R9)
 
-- **R8:** `map/page.tsx` reads an optional `layer` search parameter, validated with Zod as a profile resource type key. A key that is in the profile passes `initiallyVisibleLayer` to `map-workspace.client.tsx` as a prop. A key that isn't renders a visible note ("There is no layer named X in this city's profile") and turns nothing on. Nothing maps an unknown key to a similar one.
+- **R8:** `site/page.tsx` reads an optional `layer` search parameter, validated with Zod as a profile resource type key. A key that is in the profile passes `initiallyVisibleLayer` to `map-workspace.client.tsx` as a prop. A key that isn't renders a visible note ("There is no layer named X in this city's profile") and turns nothing on. Nothing maps an unknown key to a similar one.
 - **R9:** the page builds the layer list from the profile's `resourceTypes`, not from `jurisdiction_dataset`, so a resource type with no mapping still gets an entry. `layer-panel.client.tsx` renders it disabled with the sentence "No dataset is mapped for this resource type", and the R4 text view lists it in the same words. Today's page skips such a type; this replaces that behavior, and the list is the one source of truth for both the panel and the text view.
 
 ## Approximate boundaries and precision (R2, R3)

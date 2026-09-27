@@ -68,7 +68,7 @@ Like `Impact`, neither type has a free-text field, a severity, or a score, so a 
 export const RESULTS_VERSION = 2; // 1: impacts, evidenceBase, limits · 2: adds screening, studyFlags
 ```
 
-- `getRun` and `getLatestRun` parse by `results_version`. A run whose version isn't `RESULTS_VERSION` returns a typed `outOfDate` result that pages show as "This run predates study scoping and is being replaced". Nothing parses an old document "as best it can", and nothing fills the missing sections with empty arrays.
+- `readRunResults` (and `getAnalysisSnapshot`, which pages reach through `getWorkflow`) parse by `results_version`. A run whose version isn't `RESULTS_VERSION` is reported as an out-of-date analysis and is never parsed; pages say the analysis is out of date and is being replaced. Nothing parses an old document "as best it can", and nothing fills the missing sections with empty arrays.
 - `results_version` is part of the `input_sha256` payload. Without it, an open decision's inputs would hash the same as its version-1 run, and F7 R8's "identical inputs are a no-op" rule would skip the recompute.
 - J3 (`apply_effective_dates`, daily per city) also enqueues `run_analysis` for each open decision whose latest `current` run has an outdated `results_version`, on that decision's own queue with an explicit `max_attempts`. A migration can't enqueue these itself, because the graphile-worker schema doesn't exist on a fresh database until the worker first starts. Released reports are PDFs and are unaffected.
 
@@ -124,7 +124,7 @@ export async function computeScreening(
 - **R2, R4:** `computeBufferReaches` runs F9's buffer query shape against the study area (`ST_DWithin` in the analysis SRID) and reuses `evaluateAppliesWhen`. An applicability of `"no"` is dropped, `"yes"` and `"unknown"` are kept per rule key with their feature counts. It doesn't duplicate that function, so the range rule stays in one place.
 - **R7:** the `continue` is deliberate. The gap is already in `evidenceBase.gaps` (F7), and the register joins the two at display time, so the fact is stated once.
 - **R11:** the function takes the study area geometry only. Nothing here reads a footprint.
-- `sortScreening` orders by `overlapAreaSqFt + overlapLengthFt` descending, then `nearestDistanceFt` ascending with `null` last, then `resourceType`, then dataset key. It is a display order and carries no rank field (R10).
+- `sortScreening` orders by `overlapAreaSqFt` descending, then `overlapLengthFt` descending, then `nearestDistanceFt` ascending with `null` last, then `resourceType`, then dataset version id. The two overlaps are not added: an area and a length have different units. It is a display order and carries no rank field (R10).
 
 ## Study flags (R5, R6)
 
@@ -175,12 +175,12 @@ The Studies page doesn't read absence from `studyFlags`. It lists the studies na
 
 ## Interfaces
 
-Two routes under `src/app/(app)/decisions/[decisionId]/`, both plain Server Components with no client JavaScript:
+Two routes under `src/app/(app)/projects/[projectId]/`, both plain Server Components with no client JavaScript:
 
-- **`screening/page.tsx`** — the register. Columns: Resource · Finding · Evidence · Confidence · Flag. `describeScreeningRow(row, provenance)` returns the finding sentence from a fixed template, for example "Mapped in the study area: 3 features, 4,210 sq ft" or "None mapped within 300 ft". Numbers pass through `provenance`'s display formatter, so no page rounds anything. A gap from `evidenceBase.gaps` renders as its own row. Each row links to `/decisions/[id]/map?layer=<resourceType>` (R14) and carries the row's formatted provenance (F4).
+- **`screening/page.tsx`** — the register. Columns: Resource · Finding · Evidence · Confidence · Flag. `describeScreeningRow(row, provenance)` returns the finding sentence from a fixed template, for example "Mapped in the study area: 3 features, 4,210 sq ft" or "None mapped within 300 ft". Numbers pass through `provenance`'s display formatter, so no page rounds anything. A gap from `evidenceBase.gaps` renders as its own row. Each row links to `/projects/[id]/site?layer=<resourceType>` (R14) and carries the row's formatted provenance (F4).
 - **`studies/page.tsx`** — the flags and the data gaps. One block per study named in the profile, each flag with its rule's code section, effective date, and the nearest distance; then the data-gaps list (R12): F7's gaps, each pinned dataset with no publisher date (read from the run's `analysis_run_dataset` rows and F3's provenance), and each `Limit`. Both pages open with the R9 statement.
 
-Both pages call one function, `getLatestRun(decisionId, "current")`, and show the "predates study scoping" state for an out-of-date run. `analysis`'s `index.ts` exports `describeScreeningRow`.
+Both pages read `facts.run` from `getWorkflow`, which is set only when the analysis for the current inputs is current, and otherwise show the analysis status in words. `analysis`'s `index.ts` exports `describeScreeningRow`.
 
 ## Requirement coverage
 

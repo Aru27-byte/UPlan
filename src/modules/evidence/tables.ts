@@ -2,6 +2,7 @@ import {
   pgTable,
   uuid,
   bigint,
+  boolean,
   text,
   timestamp,
   jsonb,
@@ -15,13 +16,21 @@ import { sql } from "drizzle-orm";
 import { geometryColumn } from "@/platform/geometry-column";
 
 // TechDesign/data-model.md ("Evidence"), TechDesign/evidence-layers.md.
-export const dataset = pgTable("dataset", {
+export const dataset = pgTable(
+  "dataset",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
   key: text("key").notNull().unique(),
   title: text("title").notNull(),
   publisher: text("publisher").notNull(),
   license: text("license").notNull(),
   sourceUrl: text("source_url").notNull(),
+  // R2 of evidence-review.md: recorded when the dataset is set up, never inferred from its features.
+  authority: text("authority").notNull(),
+  spatialPrecision: text("spatial_precision").notNull(),
+  // R13 of evidence-layers.md: illustrative sample data (F23). False is the truth for every real
+  // dataset, not a stand-in for missing information.
+  isSample: boolean("is_sample").notNull().default(false),
   coverage: geometryColumn("MultiPolygon", 4326)("coverage").notNull(),
   currentVersionId: uuid("current_version_id"), // FK added after dataset_version exists
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
@@ -35,7 +44,15 @@ export const dataset = pgTable("dataset", {
   publisherDateAttribute: text("publisher_date_attribute"),
   sourceAsOfNoteDefault: text("source_as_of_note_default"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (t) => [
+    check("dataset_authority_check", sql`${t.authority} in ('federal', 'state', 'regional', 'county', 'local')`),
+    check(
+      "dataset_spatial_precision_check",
+      sql`${t.spatialPrecision} in ('site', 'parcel', 'regional', 'coarse')`,
+    ),
+  ],
+);
 
 export const datasetVersion = pgTable(
   "dataset_version",

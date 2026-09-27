@@ -25,7 +25,7 @@ Both of Sammamish's code-hosting sites returned 403 on 2026-09-12, so automatic 
 
 **R6. Before a change takes effect, it shows what it would change in every open decision under that city.** A preview analysis runs the proposed document against every open decision, so a reviewer sees rule differences and impact differences, including any decision whose preview run failed, before deciding.
 
-**R7. Nobody approves their own change.** _Assumed per `system-architecture.md`'s round-10 table:_ a reviewer for that city approves or rejects a pending change, and the reviewer approving cannot be the planner (or system) that proposed it. If round 10 answers differently — no approval step, or UPlan staff approve instead — only the approval check changes, not the proposal or preview flow.
+**R7. Nobody approves their own change.** _Assumed per `system-architecture.md`'s round-10 table, changed 2026-09-27:_ a UPlan staff member approves or rejects a pending change, and the person approving cannot be the person (or system) that proposed it. Any signed-in person can propose a change. If round 10 answers differently — no approval step, or a city reviewer — only the approval check changes, not the proposal or preview flow.
 
 **R8. Approving a change is final and atomic: the new version is created, the city's current pointer moves to it, and every open decision is queued for re-analysis, all together or not at all.** A crash partway can never leave the city pointing at no version, or at a version with no re-analysis queued.
 
@@ -42,4 +42,4 @@ Both of Sammamish's code-hosting sites returned 403 on 2026-09-12, so automatic 
 
 ## Open items
 
-- **Round 10 — who approves:** R7 states the assumed default (a reviewer). This doc's approval step is written so a different answer (no approval, or UPlan staff) replaces one function's authorization check, not the transaction shape.
+- **Round 10 — who approves:** R7 states the assumed default (UPlan staff, now that jurisdiction membership is gone). This doc's approval step is written so a different answer (no approval, or a city reviewer) replaces one function's authorization check, not the transaction shape.

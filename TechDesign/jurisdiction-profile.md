@@ -63,8 +63,11 @@ export async function createJurisdiction(actor: Actor, input: NewJurisdiction): 
 export async function getJurisdiction(actor: Actor, jurisdictionId: string): Promise<Jurisdiction> {
   const row = await db.query.jurisdiction.findFirst({ where: eq(jurisdictionTable.id, jurisdictionId) });
   if (!row) throw new NotFoundError("jurisdiction");
-  requireMembership(actor, jurisdictionId); // any role
-  return row;
+  return row; // the city and its profile are not anyone's project: every signed-in person may read them
+}
+
+export async function listJurisdictions(): Promise<Jurisdiction[]> {
+  return db.select().from(jurisdictionTable).orderBy(jurisdictionTable.name); // the one-city rule is applied by the caller (project-dashboard.md)
 }
 ```
 
@@ -152,7 +155,6 @@ export async function getCurrentProfile(
 export async function getProfileVersion(actor: Actor, versionId: string): Promise<ProfileVersion> {
   const row = await db.query.profileVersion.findFirst({ where: eq(profileVersion.id, versionId) });
   if (!row) throw new NotFoundError("profile version");
-  requireMembership(actor, row.jurisdictionId);
   return row;
 }
 
@@ -178,5 +180,5 @@ export function assertNoOrphanedDatasetMapping(
 ## Verification
 
 - Unit tests: `checkProfileDocument` rejects each invalid shape named in R11 (duplicate key, dangling reference, overlapping in-force entries, missing settings entry); `resolveRulesInForce` against fixture documents for both a vesting and non-vesting rule set, including the missing-filing-date failure (R3); `ruleSetResolutionDate` with an injected clock, never `Date.now()`.
-- Testcontainers integration tests: `createJurisdiction` requires staff; `getJurisdiction`/`getProfileVersion` enforce membership and jurisdiction scoping (R accounts R3/R6); `getCurrentProfile` returns `null` before any approval and the correct version after one is inserted directly for the test; `assertNoOrphanedDatasetMapping` against a fixture `jurisdiction_dataset` row.
+- Testcontainers integration tests: `createJurisdiction` requires staff; `getJurisdiction`/`getProfileVersion` read for any signed-in actor (accounts-roles.md R3: the profile isn't a project), and `getProfileOverview` counts resource types and rules (F20 R6); `getCurrentProfile` returns `null` before any approval and the correct version after one is inserted directly for the test; `assertNoOrphanedDatasetMapping` against a fixture `jurisdiction_dataset` row.
 - A golden fixture test resolves a hand-built profile document at three dates spanning a rule's `effectiveOn` and `repealedOn` and asserts the exact rule set returned at each, per the testing rules' determinism requirement.

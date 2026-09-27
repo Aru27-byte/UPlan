@@ -1,40 +1,17 @@
-import { fileURLToPath } from "node:url";
-
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { eq, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { appUser } from "@/platform/auth-tables";
-import type { Db } from "@/platform/db";
+import { db } from "@/platform/db";
 import { ConflictError } from "@/platform/errors";
 
 import { getActor } from "./actor";
 import { staffMember } from "./tables";
 import { provisionUser } from "./users";
 
-// TechDesign/accounts-roles.md — Testcontainers integration tests: a real PostgreSQL with PostGIS,
-// with the repository's real migrations applied (never a mocked or in-memory database). Requires
-// Docker. Run with `npm run test:integration`.
-
-let container: StartedPostgreSqlContainer;
-let pool: Pool;
-let db: Db;
-
-beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgis/postgis:18-3.6").start();
-  pool = new Pool({ connectionString: container.getConnectionUri() });
-  await pool.query("create extension if not exists postgis");
-  db = drizzle(pool);
-  await migrate(db, { migrationsFolder: fileURLToPath(new URL("../../../migrations", import.meta.url)) });
-}, 120_000);
-
-afterAll(async () => {
-  await pool.end();
-  await container.stop();
-});
+// TechDesign/accounts-roles.md — integration tests against the real PostgreSQL with PostGIS that
+// tests/setup/integration-db.ts starts once, with the repository's real migrations applied (never a
+// mocked or in-memory database). Requires Docker. Run with `npm run test:integration`.
 
 // Supabase user ids are uuids; each test uses its own so none depends on another's rows.
 const AUTH_IDS = {
@@ -50,12 +27,12 @@ async function rowsFor(authId: string) {
   return db.select().from(appUser).where(eq(appUser.authId, authId));
 }
 
-describe("R2: registering creates an identity, never access", () => {
-  it("R2: a provisioned person has no membership and no staff rights", async () => {
+describe("R2: registering creates an identity, never staff rights", () => {
+  it("R2: a provisioned person has no staff rights", async () => {
     const userId = await provisionUser(db, { authId: AUTH_IDS.first, email: "planner@example.test", name: "Pat Planner" });
 
     expect(await rowsFor(AUTH_IDS.first)).toMatchObject([{ id: userId, email: "planner@example.test" }]);
-    expect(await getActor(db, userId)).toEqual({ userId, isStaff: false, memberships: [] });
+    expect(await getActor(db, userId)).toEqual({ userId, isStaff: false });
   });
 
   it("R2: two requests provisioning the same person at once both succeed and get the same id", async () => {
@@ -92,8 +69,8 @@ describe("R2: registering creates an identity, never access", () => {
   });
 });
 
-describe("R4: a person from before the move to Supabase keeps their id and access once an operator links them", () => {
-  it("R4: is refused until linked, then signs in as the same person with their staff rights", async () => {
+describe("R2: a person from before the move to Supabase keeps their id and staff rights once an operator links them", () => {
+  it("R2: is refused until linked, then signs in as the same person with their staff rights", async () => {
     await db.execute(sql`insert into app_user (id, name, email) values ('legacy-user', 'Lee Legacy', 'legacy@example.test')`);
     await db.insert(staffMember).values({ userId: "legacy-user", grantedBy: "legacy-user" });
     const identity = { authId: AUTH_IDS.legacy, email: "legacy@example.test", name: "Lee Legacy" };

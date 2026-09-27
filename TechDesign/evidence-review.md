@@ -68,10 +68,10 @@ export async function saveResolution(
     expectedRevision: number;
   },
 ): Promise<EvidenceResolution> {
-  const d = await getDecision(actor, decisionId);
-  requirePlanner(actor, d.jurisdictionId);
-  const run = await getLatestRun(decisionId, "current");
-  if (!run || run.status !== "succeeded") throw new ValidationError("run an analysis before recording a resolution");
+  const status = await getAnalysisStatus(actor, decisionId); // reaches the project through getDecision: the actor must own it
+  if (status.kind !== "current") throw new ValidationError("Wait for the analysis to finish before recording a resolution.");
+  const run = await getRun(status.runId);
+  // The write below takes lockEditableDecision(tx, actor, decisionId), so a completed or generating project refuses it (F22 R3, R8).
   // R11: only a disagreement the latest run reports can be resolved
   const isReported = run.results.evidenceBase.disagreements.some(
     (x) =>
@@ -79,13 +79,20 @@ export async function saveResolution(
   );
   if (!isReported) throw new ValidationError("no such disagreement in the latest analysis");
   try {
-    return await db.insert(evidenceResolution).values({ ...input, decisionId, revision: input.expectedRevision, createdBy: actor.userId }).returning();
+    return await db.transaction(async (tx) => {
+      await lockEditableDecision(tx, actor, decisionId); // F22 R3, R8: refused when completed or generating
+      const [row] = await tx.insert(evidenceResolution)
+        .values({ ...input, decisionId, revision: input.expectedRevision, createdBy: actor.userId }).returning();
+      return row;
+    });
   } catch (err) {
     if (isUniqueViolation(err)) throw new ConflictError(`revision ${input.expectedRevision} already exists for this disagreement`); // R10
     throw err;
   }
 }
 ```
+
+**A resolution and the phase review (F21).** The Evidence phase's fingerprint includes each resolution's key and revision, so recording one asks the planner to review the Evidence phase again and, on a completed project, shows in the research change. It still changes no measurement: the fingerprint changes because the output now states the note, not because any number moved.
 
 `rationale` is validated by Zod as non-empty at the route boundary and by the `check` in the table (R7). `listResolutions(actor, decisionId)` returns every revision, and the page shows the highest per key.
 

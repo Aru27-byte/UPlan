@@ -2,7 +2,7 @@ import { listOpenDecisions } from "@/modules/decisions";
 import { enqueueAnalysisRun } from "@/platform/jobs";
 
 import { ProfileDocumentSchema } from "./schema";
-import { getCurrentProfileForAnalysis } from "./versions";
+import { getCurrentProfile } from "./versions";
 
 /**
  * The apply_effective_dates job body (J3), daily per jurisdiction (R10 of jurisdiction-profile.md):
@@ -10,7 +10,7 @@ import { getCurrentProfileForAnalysis } from "./versions";
  * re-analysis, so results never silently lag a rule taking effect.
  */
 export async function applyEffectiveDates(jurisdictionId: string, today: string): Promise<void> {
-  const profile = await getCurrentProfileForAnalysis(jurisdictionId);
+  const profile = await getCurrentProfile(jurisdictionId);
   if (!profile) return;
 
   // Re-validate rather than `as`-cast: profile.document is untyped jsonb (conventions.md: "no

@@ -21,7 +21,7 @@ Round 10 is unanswered. The design follows the recommended options, and each one
 | Open question                          | Assumed                                                                               | If the answer differs                                                                                     |
 | -------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | What a vesting setting does            | A rule set marked as vesting uses the rules in force on the application's filing date | _Warn only:_ `rulesInForce` runs for both dates and the run flags the differences                         |
-| Who approves profile uploads and edits | A reviewer for that city. _Proposed:_ nobody approves their own change                | _No approval:_ the change applies at submit. _UPlan's team:_ a staff check replaces the reviewer check    |
+| Who approves profile uploads and edits | UPlan staff, and never the person who proposed the change _(changed 2026-09-27, when reviewer memberships were removed)_ | _No approval:_ the change applies at submit. _A city reviewer:_ returns with F12's per-project or per-city grant |
 | Cities beyond Sammamish in v1          | Sammamish only                                                                        | Every table is already keyed by jurisdiction. More cities need evidence coverage, not a new design        |
 | Automatic code tracking in release 1   | Upload first; F2 ships later in v1                                                    | F2 moves into release 1, and the `models` container ships with it. Its module is designed here either way |
 
@@ -46,21 +46,15 @@ flowchart LR
     O2["O2 · Bastion<br/>admin sessions"]
     subgraph VM["V1 · Arm VM · 2 OCPUs · 12 GB · 200 GB disk · Ubuntu 24.04 LTS · Docker Compose"]
       V2["V2 · caddy<br/>HTTPS · HTTP/3 · basemap file"]
-<<<<<<< HEAD
-      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Decisions: study area, footprint, filing date · F5 F8<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Evidence base and impact · F7 F9<br/>W6 · Report preview, release, download · F10<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · scoping F14 · phone F15 · later<br/>W10 · Health check"]
-      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 · F14 later<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
       V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
-=======
-      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Decisions: details, study area, footprint, filing date, overview · F5 F8 F18<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Evidence, screening, studies, and impact · F7 F9 F14 F19<br/>W6 · Report preview, release, download · F10<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
-      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
-      V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · sessions · retrieval index")]
->>>>>>> worktree-ux-workflow-specs
+      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Projects: dashboard, details, study area, footprint, overview · F5 F8 F18 F20<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Phases: evidence, screening, studies, impact, review · F7 F9 F14 F19 F21<br/>W6 · Final document: finish, versions, download · F10 F22<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
+      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10 F22<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
       V6["V6 · models · llama.cpp server · later<br/>Qwen3.5-4B drafts · Qwen3-Embedding-0.6B embeds"]
       V7["V7 · migrate · once per deploy"]
       V8["V8 · backup timer · systemd · pgBackRest"]
       V9["V9 · deploy script<br/>build · migrate · restart"]
     end
-    O1[("O1 · Object Storage<br/>objects · reports · backups")]
+    O1[("O1 · Object Storage<br/>objects · backups")]
   end
 
   subgraph OUTSIDE["Other free services"]
@@ -90,7 +84,7 @@ flowchart LR
   V3 -->|"SQL · add_job in the same transaction · vector tiles"| V5
   V3 -->|"uploads · downloads"| O1
   V4 -->|"job pickup · pinned reads · results · retrieval"| V5
-  V4 -->|"raw files · write-once PDFs · exports"| O1
+  V4 -->|"raw files · exports"| O1
   V4 -->|"J4 · download datasets"| X1
   V4 -->|"J7 · fetch documents · later"| X2
   V4 -->|"J8 J9 · embed, generate JSON drafts · later"| V6
@@ -111,9 +105,9 @@ flowchart LR
 
 | Key | Component              | Role                                                                                         | Cost to UPlan                               |
 | --- | ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| U1  | Planner                | Builds decisions, maintains the city's profile, and releases reports                         | —                                           |
-| U2  | Reviewer               | Approves profile changes, and signs off reports once F12 ships                               | —                                           |
-| U3  | UPlan staff            | Sets up cities and datasets, confirms code change drafts, deploys, and receives alarm emails | —                                           |
+| U1  | Planner                | Every signed-in person: builds projects, works through their phases, and publishes document versions | —                                   |
+| U2  | Reviewer (later)       | Signs off documents once F12 ships, with a per-project grant. Not in release 1                | —                                           |
+| U3  | UPlan staff            | Sets up cities and datasets, approves profile changes, exports records, confirms code change drafts, deploys, and receives alarm emails | —                                           |
 | U4  | Phone look-up          | A planner or reviewer opening a decision's map and report on a phone (F15, later)            | —                                           |
 | C1  | City DNS record        | Points the hostname the city chooses, such as `uplan.sammamish.us`, at the VM's reserved IP  | None: the city's existing DNS               |
 
@@ -122,7 +116,7 @@ flowchart LR
 | Key | Component                                               | Role                                                                                                                                                       | Free allowance                                                                      |
 | --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | V1  | Arm VM (`VM.Standard.A1.Flex`)                          | Runs every UPlan process under Docker Compose on Ubuntu Server 24.04 LTS                                                                                   | 2 OCPUs and 12 GB in total; 200 GB of block storage; 10 TB of outbound data a month |
-| O1  | Object Storage                                          | Three buckets reached through the S3 compatibility API: `objects`, `reports` with a retention rule, and `backups` (see _Object storage_ in the data model) | 20 GB, and 50,000 requests a month                                                  |
+| O1  | Object Storage                                          | Buckets reached through the S3 compatibility API: `objects` and `backups`. Published documents are not here: they are in the database (see _Object storage_ in the data model) | 20 GB, and 50,000 requests a month                                                  |
 | O2  | Bastion                                                 | Time-limited SSH sessions for administration and deploys, so the VM exposes no SSH port to the internet                                                    | Free                                                                                |
 | O3  | APM synthetic monitor, Monitoring alarms, Notifications | Calls the health check from outside the VM every 10 minutes, and emails UPlan staff when it fails or Object Storage nears its free limits                  | 10 monitor runs an hour; 1,000 notification emails a month                          |
 
@@ -143,12 +137,12 @@ flowchart LR
 
 | Key | Area                       | Features   | What happens there                                                                                                              |
 | --- | -------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| W1  | Sign-in and roles          | F11        | Everyone registers and signs in with email and password through G2. Memberships decide who is a planner or reviewer for which city       |
+| W1  | Sign-in                    | F11        | Everyone registers and signs in with email and password through G2. Everyone is a planner and sees only the projects they created; a `staff_member` row adds the staff rights |
 | W2  | City profile               | F1, F17    | View the profile and its settings, download the template, upload a workbook or edit a rule, compare previews, approve or reject |
-| W3  | Decisions                  | F5, F8, F18 | Create a decision under a city; edit its details and filing date; save study area and footprint revisions; the stage rail and Overview |
+| W3  | Projects                   | F5, F8, F18, F20 | The dashboard after sign-in; create a project (or with sample data); edit its details and filing date; save study area and footprint revisions by drawing, upload, or sample; the stage rail and Overview; delete from view |
 | W4  | Map workspace              | F6, F3, F4 | MapLibre shows evidence tiles PostGIS makes per dataset version, the basemap from `caddy`, and each layer's provenance          |
-| W5  | Evidence, screening, studies, and impact | F7, F9, F14, F19 | The latest run's evidence and its attributes, disagreements and the planner's recorded resolutions, gaps, the screening register, study flags, and impact ranges, in tables and on the map |
-| W6  | Report                     | F10        | Preview from the latest run, release, and download of the locked PDF                                                            |
+| W5  | Phases                     | F7, F9, F14, F19, F21 | For each phase: what it is drafted from, the drafted output, the planner's review, and the history. The evidence and its attributes, disagreements and resolutions, gaps, the screening register, study flags, and impact ranges |
+| W6  | Final document             | F10, F22   | The finish checklist, the reason for a new version, the version history, download of any version, and starting or cancelling a research change |
 | W7  | Records                    | F16        | Review retention flags; request and download records exports                                                                    |
 | W8  | Code change drafts (later) | F2         | UPlan staff read a draft beside its quoted passages and preview results, then approve or reject it                              |
 | W9  | Later in v1                | F12, F13, F15 | Review and sign-off, conditions tracing, and phone look-up views                                                             |
@@ -162,7 +156,7 @@ flowchart LR
 | J2  | `run_analysis`                           | F7, F9, F14       | `decision:<id>`     | Computes the evidence base, screening, study flags, and impact in PostGIS from pinned inputs      |
 | J3  | `apply_effective_dates`                  | F1, F14           | `jurisdiction:<id>` | Daily: queues runs for open decisions when a rule takes effect or is repealed, or when the latest run's results version is out of date |
 | J4  | `ingest_dataset`                         | F3                | `dataset:<id>`      | Scheduled: downloads and hashes a source, loads it with GDAL, and publishes a new dataset version |
-| J5  | `release_report`                         | F10               | `decision:<id>`     | Renders the report, prints the tagged PDF, stores it write-once, and marks the report released    |
+| J5  | `release_report`                         | F10, F22          | `decision:<id>`     | Renders the document from pinned records, prints the tagged PDF, stores it in the database as the next version, and completes the project. After its last retry it records the failure |
 | J6  | `flag_retention`, `build_records_export` | F16               | `jurisdiction:<id>` | Daily: flags records whose retention period ended. On request: builds a records export            |
 | J7  | `check_code_source` (later)              | F2                | `code-source:<id>`  | Daily: fetches a code source and records whether it's unchanged, changed, blocked, or failing     |
 | J8  | `index_code_document` (later)            | F2                | `rag`               | Converts a changed document to text, splits it by section, embeds the sections, and stores them   |
@@ -187,14 +181,14 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 
 | Module          | Features          | Owns                                                                                     | Release     |
 | --------------- | ----------------- | ---------------------------------------------------------------------------------------- | ----------- |
-| `accounts`      | F11               | Sign-in wiring for Supabase Auth, memberships, staff members, access checks             | 1           |
+| `accounts`      | F11               | Sign-in wiring for Supabase Auth, staff members, the staff check. No memberships        | 1           |
 | `profiles`      | F1, F17           | Profile schema, versions, changes and approvals, uploads, Excel template, `rulesInForce` | 1           |
 | `provenance`    | F4                | The provenance type every figure carries, and its one formatter                          | 1           |
 | `evidence`      | F3, F19           | Datasets and their attributes, versions, ingestion, tiles, dataset mapping per city      | 1           |
 | `decisions`     | F5, F8            | Decisions, study area and footprint revisions                                            | 1           |
 | `analysis`      | F7, F9, F14, F19  | Analysis runs, evidence base, impact engine, screening and study flags, source resolutions, previews | 1           |
-| `workflow`      | F18               | The stage rail and Overview read model: step states, next actions, analysis status. Read-only, no tables | 1           |
-| `reports`       | F10; later F12    | Report document, release, PDF rendering                                                  | 1           |
+| `workflow`      | F18, F20–F22      | Phases and their drafted outputs, planner reviews (`phase_review`), the stage rail and Overview, the dashboard summaries, finishing and cancelling a research change | 1 |
+| `reports`       | F10, F22; later F12 | The document, its versions, PDF rendering, storage in the database                     | 1           |
 | `records`       | F16               | Retention flags, records exports                                                         | 1           |
 | `operations`    | —                 | The health check, the worker heartbeat, and backup run records                           | 1           |
 | `code-tracking` | F2                | Code sources, checks, the retrieval index, and drafting                                  | Later in v1 |
@@ -202,7 +196,7 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 
 - F6 (map workspace) and F15 (phone look-up) are UI: routes in `src/app/` and components in `src/ui/`, built on the modules above.
 - F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine. F19's resolutions live in `analysis` too, since it owns the disagreement they refer to.
-- F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them, nothing imports it, and it owns no table, so it adds no cycle.
+- F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them and nothing imports it but routes and the worker, so it adds no cycle. It owns one table, `phase_review` (F21), and it is the one place that starts a document (F22), because that needs the planner's reviews and `reports` can't import `workflow`. `reports` receives what it needs as arguments: the snapshot, and the worker-injected drafting function.
 - Clients for PostgreSQL, Object Storage, and the model server live in `src/platform/`. Only `code-tracking` calls the model server.
 
 ## Key flows
@@ -230,18 +224,24 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 5. The run stores its pinned inputs and results, and becomes immutable when it finishes.
 6. The workspace shows the new run beside the previous one, with what changed.
 
-### Report release (F10)
+### Finishing research and publishing a document version (F10, F22)
 
-1. The planner releases from the preview, which shows the latest successful run.
-2. One transaction does the claim:
-   - Lock the decision row.
-   - Take `FOR SHARE` locks on the jurisdiction row and on the dataset rows the run pinned.
-   - Check that the run's inputs are still the current inputs.
-   - Insert the `report` as `releasing` with the next sequence number, and enqueue `release_report`.
-3. The worker renders the HTML, prints the PDF, and stores it in the `reports` bucket under a key containing the report id, with the PDF's SHA-256 in the object's metadata. It then marks the report `released` with that hash.
-4. The stored PDF is write-once. The worker's credentials can't overwrite or delete it, and the bucket's retention rule blocks everyone else. A retried job first checks whether the report's object already exists, and if it does, finalizes the report from the stored hash instead of rendering again.
+1. Every phase has a review of its current output (F21), and the analysis for the current inputs has finished. The planner finishes research from the Report page, giving a reason for any version after the first.
+2. One transaction does the claim (`finishResearch`):
+   - Lock the decision row `FOR UPDATE`. Every input write, review, delete, and start of a research change takes the same lock.
+   - Check that the project is `in_progress`, and that no input changed after the page was loaded (the row version and each phase's output fingerprint).
+   - Read the current run and each phase's latest review, and check that every phase is reviewed at its current output and, for a research change, that something changed.
+   - Compare-and-set the decision `in_progress → finishing`, insert the `report` as `releasing` with the review snapshot, and enqueue `release_report`.
+3. While `finishing`, the project is read-only. The worker renders the HTML from pinned records (the run, its recorded geometry revisions, its profile version, and the snapshot), prints the tagged PDF, and in one transaction stores it in `report.pdf` with its SHA-256 as the next `version_number`, and moves the decision `finishing → report_released`.
+4. A published row is immutable: a trigger rejects any update or delete. A retried job that finds the row already released does nothing. After the last retry, the report is marked `failed`, the decision returns to `in_progress`, and the failure is shown.
 
-Profile approvals and dataset refreshes take `FOR UPDATE` on the same rows, so a release can't interleave with them. Either the release commits first and truthfully reflects the earlier versions, or the change commits first and the release fails its input check with a conflict the planner sees.
+A profile approval or dataset refresh that lands after step 2 doesn't touch the document: it is built from the pinned run, and its requeue skips projects that aren't `in_progress`.
+
+### Research change (F22)
+
+1. The planner starts a research change from the dashboard, the Overview, or a phase page. One compare-and-set moves the decision `report_released → in_progress` and enqueues a fresh analysis in the same transaction.
+2. The planner changes inputs (a boundary drawn, uploaded, or loaded from sample data; the details; a resolution note) and the analysis reruns. Each phase's output is compared by fingerprint with the last published version, and the changed phases ask for review.
+3. Finishing publishes the next version (above). A change that changed nothing can be cancelled instead, moving the decision back to `report_released`.
 
 ### Dataset refresh (F3)
 
@@ -338,12 +338,13 @@ Race conditions are prevented by design, not by timing:
 | Two planners propose profile changes for one city          | Partial unique index: one pending change per city                                                                                   |
 | An approval is clicked twice                               | The compare-and-set on `status = 'pending'` lets only one click through                                                             |
 | Rules change while an analysis runs                        | The run pinned its inputs, and the approval queued a new run behind it on the same queue                                            |
-| A release races a rule or data change                      | `FOR SHARE` against `FOR UPDATE` serializes them, and the release rechecks its inputs                                               |
+| Finishing races an input change or a review               | Both take `FOR UPDATE` on the decision row, so they serialize. The finish rereads every fingerprint inside the lock                 |
+| Two people finish one project at once                      | The `in_progress → finishing` compare-and-set lets exactly one through                                                              |
 | Two saves of the same footprint                            | The primary key on (decision, kind, revision) rejects the second save                                                               |
 | The same workbook is submitted twice                       | Unique (jurisdiction, file hash)                                                                                                    |
 | A worker crashes mid-job                                   | The job is retried, and the handler is idempotent                                                                                   |
-| A report upload succeeded but finalizing failed            | The retry finds the object by report id and finalizes it from the stored hash                                                       |
-| A rule takes effect at midnight during a release           | The release resolves rules for today inside its transaction, so a stale run fails the input check                                   |
+| A document was rendered but not yet stored                 | The retry renders again from the same pinned records and stores once: the store is a compare-and-set from `releasing`              |
+| A rule takes effect at midnight during a finish            | The analysis status hashes the rules in force, so the finish either sees the new rule set and an out-of-date run, or the old one   |
 | A code change is drafted while a profile change is pending | The one-pending index makes the draft wait. Deciding the pending change re-enqueues the draft against the version then current      |
 | The same code document is fetched twice                    | Checks of one source run in series on `code-source:<id>`, and unique (source, content hash, embedding model) stores a document once |
 | Two model jobs start at once                               | Both are on the `rag` queue, so the second waits for the first                                                                      |
@@ -366,19 +367,19 @@ Race conditions are prevented by design, not by timing:
 
 ## Security and access
 
-- **Sign-in:** everyone registers and signs in with an email address and a password through Supabase Auth, called only from the server. Registering grants no access: only a membership or a `staff_member` row does. Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` in production.
+- **Sign-in:** everyone registers and signs in with an email address and a password through Supabase Auth, called only from the server. Registering grants no staff rights: only a `staff_member` row does, and there is no membership. Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` in production.
 - **Personal data outside the VM.** The one exception to keeping personal data on the VM (D14): Supabase holds each person's email, name, and password hash. No decision, applicant, or evidence data goes to it.
-- **Authorization lives in modules.** Module functions take the signed-in actor and check membership for the jurisdiction involved. `src/proxy.ts` only redirects signed-out page visits, because the Next.js docs warn that a matcher change can silently remove Proxy coverage.
+- **Authorization lives in modules.** Module functions take the signed-in actor. A project function checks that the actor created the project, inside the query itself; a staff function checks `staff_member`. `src/proxy.ts` only redirects signed-out page visits, because the Next.js docs warn that a matcher change can silently remove Proxy coverage.
 - **Roles:**
-  - _Planner:_ builds decisions, proposes profile changes, releases reports.
-  - _Reviewer:_ approves profile changes, and signs off reports once F12 ships.
-  - _UPlan staff:_ sets up jurisdictions and datasets, confirms code-change drafts, and operates the VM.
-- **Every query of city data is scoped** to a jurisdiction the actor belongs to.
+  - _Planner:_ every signed-in person: builds projects, works through their phases, proposes profile changes, and publishes document versions.
+  - _UPlan staff:_ approves profile changes (never their own), sets up jurisdictions and datasets, installs sample evidence, exports records, confirms code-change drafts, and operates the VM.
+  - _Reviewer:_ returns with F12, with a per-project grant.
+- **Every query of a project is scoped to its owner.** A project that isn't the actor's, is deleted, or is absent reads as "not found".
 - **Network:** the VM's security list allows inbound TCP 80 and 443 and UDP 443 from the internet, and SSH only from the Bastion. Only `caddy` publishes ports. `web`, `worker`, `postgres`, and `models` are reachable only on the Compose network.
 - **Uploads:** `.xlsx` only, at most 5 MB, parsed with row limits.
 - **Immutability is enforced in two places.**
-  - In the database, the application's role can't update or delete immutable tables, and triggers block changes to finished runs, released reports, ready dataset versions, indexed documents, and finished drafts.
-  - In Object Storage, the application's credentials can create and read objects but never overwrite or delete them. The `reports` bucket also has a retention rule that blocks overwriting and deleting for everyone until an administrator removes the rule.
+  - In the database, the application's role can't update or delete immutable tables, and triggers block changes to finished runs, published documents (and every delete of one), phase reviews, source resolutions, ready dataset versions, indexed documents, and finished drafts.
+  - In Object Storage, the application's credentials can create and read objects but never overwrite or delete them. Published documents are not in Object Storage since 2026-09-27; they are in the database, behind the trigger above.
 - **Secrets** live in two root-only files on the VM, one for the application containers and one for `postgres` and its backups, never in the repository, images, or logs.
 - **Models run on the VM** and receive only public code text. No UPlan data goes to an external AI API.
 - **Content Security Policy** allows MapLibre's blob workers and nothing broader.
@@ -475,7 +476,8 @@ The heartbeat writes every 5 minutes, which also keeps WAL moving, so a stale ar
 | ----------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Arm compute             | 2 OCPUs and 12 GB                              | The one VM                                                                                                       |
 | Block storage           | 200 GB                                         | One boot volume: OS, images, database, model files, and the basemap file                                         |
-| Object Storage          | 20 GB                                          | Backups first, then raw data, reports, and exports                                                               |
+| Object Storage          | 20 GB                                          | Backups first, then raw data and exports                                                                         |
+| Database size           | Within the 200 GB boot volume                  | Published documents add a few hundred kilobytes each (`report.pdf`); the list queries never read them           |
 | Object Storage requests | 50,000 a month                                 | Mostly WAL archiving: at most 96 forced segments a day, plus backups, application objects, and development tests |
 | Outbound data           | 10 TB a month                                  | Pages, tiles, and downloads                                                                                      |
 | Synthetic monitor runs  | 10 an hour                                     | 6                                                                                                                |
@@ -488,11 +490,11 @@ A change that raises use of an allowance updates this table in the same change.
 ## Release 1 in this architecture
 
 - **Release 1** deploys `caddy`, `web`, `worker`, `postgres`, and `migrate`, and builds these modules:
-  - `accounts`: planners, plus reviewers for profile approvals under the assumption above, and UPlan staff.
+  - `accounts`: planners (everyone signed in) and UPlan staff, who approve profile changes.
   - `profiles`, `provenance`, `evidence`, `decisions`, `records`, and `operations`.
   - `analysis`: evidence base, screening and study flags, impact, and the source resolutions.
-  - `workflow`: the stage rail and Overview read model.
-  - `reports`: release without sign-off.
+  - `workflow`: phases, drafted outputs and reviews, the stage rail, Overview, dashboard summaries, finishing and research changes.
+  - `reports`: the document, its versions, and storage in the database, without sign-off.
   - The map workspace UI.
 - **Later in v1:** `code-tracking` with the `models` container and the retrieval index, sign-off in `reports`, `conditions`, and the phone look-up views.
 

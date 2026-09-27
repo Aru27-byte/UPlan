@@ -29,10 +29,20 @@ export class NotFoundError extends Error {
   }
 }
 
-export function isUniqueViolation(err: unknown): boolean {
-  // node-postgres surfaces PostgreSQL's SQLSTATE on the error object; 23505 is unique_violation.
-  // Drizzle wraps a failed query in its own error and keeps the driver's error as `cause`.
+// node-postgres surfaces PostgreSQL's SQLSTATE on the error object. Drizzle wraps a failed query in
+// its own error and keeps the driver's error as `cause`, so the code is looked for down the chain.
+function hasSqlState(err: unknown, code: string): boolean {
   if (typeof err !== "object" || err === null) return false;
-  if ("code" in err && err.code === "23505") return true;
-  return "cause" in err && isUniqueViolation(err.cause);
+  if ("code" in err && err.code === code) return true;
+  return "cause" in err && hasSqlState(err.cause, code);
+}
+
+/** 23505 unique_violation. */
+export function isUniqueViolation(err: unknown): boolean {
+  return hasSqlState(err, "23505");
+}
+
+/** 23503 foreign_key_violation. */
+export function isForeignKeyViolation(err: unknown): boolean {
+  return hasSqlState(err, "23503");
 }

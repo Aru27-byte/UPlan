@@ -11,7 +11,7 @@
 
 ```
 src/modules/analysis/
-  index.ts          public API: getRun, getLatestRun
+  index.ts          public API: getRun, getRunDatasetVersionIds, getLatestSucceededRun, readRunResults, getAnalysisSnapshot
   tables.ts           analysis_run, analysis_run_dataset
   pin-inputs.ts         pinInputs: the one read of a run's inputs, shared with status.ts (F18)
   status.ts             getAnalysisStatus — see decision-overview.md
@@ -91,7 +91,7 @@ export async function runAnalysis(
 }
 ```
 
-- **R5:** `pinInputs` reads the study area, footprint, profile, rule dates, and dataset versions once, then hashes them into `inputSha256` before the run is inserted with its `analysis_run_dataset` rows — nothing later in this function re-queries "the current version" of anything (`conventions.md`: "Never read 'current' twice within one computation"). The read lives in `pin-inputs.ts` and `getAnalysisStatus` (F18) calls the same function, so a page and a run can't disagree about what "current" was. It returns `null` only when there is no study area. For a vesting rule set with no filing date it throws `ValidationError` before any run row exists, so the job ends with that error, is not retried (a validation error can't succeed on a second attempt), and writes no run. `getAnalysisStatus` calls the same function and shows the planner the same message. Nothing defaults a date.
+- **R5:** `pinInputs` reads the study area, footprint, profile, rule dates, and dataset versions once, then hashes them into `inputSha256` before the run is inserted with its `analysis_run_dataset` rows — nothing later in this function re-queries "the current version" of anything (`conventions.md`: "Never read 'current' twice within one computation"). The read lives in `pin-inputs.ts` and `getAnalysisStatus` (F18) calls the same function, so a page and a run can't disagree about what "current" was. It returns `null` only when there is no study area. The hash it computes carries `resultsVersion`, the revisions, the profile version, the sorted keys of the rules in force, and the sorted dataset version ids. It carries the rules in force rather than the date they were resolved for, so a run doesn't go out of date at midnight (`decision-overview.md`, _Pinned inputs_). For a vesting rule set with no filing date it throws `ValidationError` before any run row exists, so the job ends with that error, is not retried (a validation error can't succeed on a second attempt), and writes no run. `getAnalysisStatus` calls the same function and shows the planner the same message. Nothing defaults a date.
 - **R8:** `findRunByInputHash` (backed by `unique (decision_id, purpose, input_sha256)`) makes a rerun of identical inputs a no-op read, and `results` is built by pure functions over the pinned geometry and rule sets, with deterministic ordering (see `results.ts` below) — the same inputs produce the same JSON every time, which the golden-fixture tests assert byte-for-byte.
 
 ## Building the evidence base (R1, R2, R3, R4, R6, R7)

@@ -47,7 +47,7 @@ Arm capacity is sometimes exhausted in a region. If the create fails with "out o
 
 ### A3. Object Storage
 
-1. Create two buckets in the home region: `uplan-objects` and `uplan-reports`. (Demo only. The pilot adds `backups` and the `reports` retention rule; see B2.)
+1. Create two buckets in the home region: `uplan-objects` and `uplan-reports`. Published documents are in the database since 2026-09-27, so `uplan-reports` holds nothing, but `OCI_BUCKET_REPORTS` is still a required variable until a later deploy removes it, so create it or point the variable at any existing bucket. (Demo only. The pilot adds `backups`; see B2.)
 2. Create an IAM user `uplan-app` and a group with a policy that lets it **create and read** objects in those two buckets, and not overwrite or delete them. The exact verbs are in Oracle's Object Storage policy reference; the design (_Security and access_) requires create-and-read only.
 3. On the user, generate a **Customer Secret Key**. Copy the secret when it's shown; it can't be shown again.
 4. The S3 endpoint is `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`. The namespace is on the tenancy details page. The app addresses buckets by path, which this endpoint supports.
@@ -158,15 +158,15 @@ Every later deploy is only `deploy/deploy.sh <tag>`. After that, `restart: unles
    sudo docker build --target build -t uplan-tools /opt/uplan
    sudo docker run --rm --network deploy_default --env-file /etc/uplan/app.env uplan-tools npx tsx scripts/seed-local.ts <the email you registered with>
    ```
-3. The seed grants that email UPlan-staff and planner access to a "Sammamish" jurisdiction. It also creates an approved profile, eight illustrative evidence datasets, and one decision with a computed analysis run. It's safe to run again.
+3. The seed makes that email UPlan staff, creates a "Sammamish" jurisdiction, an approved illustrative profile, and the illustrative sample evidence datasets (F23). It is safe to run again. It creates no project: sign in and choose **Start with sample data** on the dashboard to get one, or sign in as staff and use the "Sample evidence" panel on the City profile page to install the datasets without the script.
 
-The demo decision's report stays a draft. Releasing it renders a PDF in the worker, which the `worker` container does.
+Finishing a project's research renders its PDF in the worker, which the `worker` container does, and stores it in the database. The `worker` must be running for the analysis to complete and for a document to be produced.
 
 ### A11. Check it
 
 - `https://<hostname>` shows the landing page over HTTPS.
 - Registering, or signing in, returns to the app. If it doesn't, check A4's site URL and redirect list.
-- Open the demo decision: the map draws its basemap and the evidence layers.
+- Start a project with sample data: the analysis finishes within a minute, the Site page's map draws its basemap and the evidence layers, and every phase has a drafted output to review.
 - `curl https://<hostname>/api/health` returns `{"ok":false,"failing":["backup_freshness"]}` with status 503, plus `worker_heartbeat` for the first five minutes.
 - `sudo docker compose -f /opt/uplan/deploy/compose.yaml ps` shows `caddy`, `web`, `worker`, and `postgres` running.
 
@@ -185,12 +185,13 @@ The demo decision's report stays a draft. Releasing it renders a PDF in the work
 | `web` restarts in a loop, and its logs list Zod errors               | A variable in `/etc/uplan/app.env` is missing or malformed. The logs name it                               |
 | The sign-in page says it can't reach the sign-in service             | `SUPABASE_URL` is wrong, or the free Supabase project is paused (A4)                                       |
 | The map is grey                                                      | `deploy/basemap/basemap.pmtiles` is missing (A8)                                                           |
-| Profile upload or report release fails                               | The Object Storage credentials, endpoint, or bucket names are wrong (A3), or the user can't create objects |
+| Profile upload fails                                                 | The Object Storage credentials, endpoint, or bucket names are wrong (A3), or the user can't create objects |
+| A project stays on "Generating document" or its analysis never ends  | `worker` isn't running (see `/api/health`'s `worker_heartbeat`), or its image lacks Chromium (documents) |
 | `/api/health` names `worker_heartbeat` for more than 15 minutes      | `worker` isn't running or can't reach the database; read its logs                                          |
 
 ### A14. Moving a database that already has data to Supabase Auth
 
-For a database that was used before sign-in moved to Supabase Auth: people, memberships, decisions, and reports already exist, keyed by Better Auth's ids. Nothing is re-keyed. Each person keeps their `app_user.id`, and a new `auth_id` column ties them to their Supabase login.
+For a database that was used before sign-in moved to Supabase Auth: people, decisions, and reports already exist, keyed by Better Auth's ids. Nothing is re-keyed. Each person keeps their `app_user.id`, and a new `auth_id` column ties them to their Supabase login.
 
 1. **Back up first.** Supabase dashboard → Database → Backups, or `pg_dump`. Migration `0001` drops Better Auth's `session`, `account`, `verification`, and `sso_provider` tables, which can't be undone.
 2. **Apply the migrations:** `npm run db:migrate`. `0001` drops those tables and three unused `app_user` columns; `0002` adds `app_user.auth_id`. Existing people get a null `auth_id`, and nothing else changes.
@@ -210,8 +211,22 @@ For a database that was used before sign-in moved to Supabase Auth: people, memb
    where lower(u.email) = lower(a.email) and a.auth_id is null;
    ```
    To link one person, add `and lower(a.email) = 'them@example.org'`.
-5. **They reload** and are signed in as the same person, with the same memberships and history.
+5. **They reload** and are signed in as the same person, with the same staff rights, projects, and history.
 6. A row with no matching Supabase user, such as the seed's `uplan-review-bot@uplan.local`, keeps a null `auth_id`, and nobody can sign in as it. That is intended.
+
+### A15. Upgrading to projects, research phases, and document versions
+
+This upgrade (migration `0003`) removes jurisdiction membership, adds the phase review, sample-data, and delete-from-view columns, and stores final documents in the database. Read all of it before running the migration.
+
+1. **Back up first.** The migration drops the `membership` table, which can't be undone.
+2. **Check what will be lost or fail, and decide before you run it:**
+   - **Membership.** Nothing reads it any more. A project is visible only to its creator (`decision.created_by`). Work that several members of a city could see is visible to its creator alone. To see who created what: `select d.title, u.email from decision d join app_user u on u.id = d.created_by;`.
+   - **Existing reports.** The migration stops with an error if any `report` row exists, because those PDFs are in Object Storage and there is nothing to copy into the new column. Before the first real application (F16: retention starts then), these are test documents, and `delete from report;` clears them, which is allowed only because the immutability trigger arrives with `0003` itself. Once a real application has been published, this migration must not be run without a plan to move those files into the database first.
+   - **Datasets.** The migration sets `authority` and `spatial_precision` on the seeded illustrative datasets (`sammamish-%-illustrative`) and stops if any other dataset exists without them. A real dataset needs its reviewed values added to the migration's list first.
+3. **Stop `worker`, apply the migration, then start the new `worker` and `web`:** `npm run db:migrate`, then `deploy.sh <tag>` as usual. The analysis engine now records screening and study flags, so every open project recomputes once. The `worker` must be running for that.
+4. **The `worker` image needs Chromium** to print documents. It already carried it for the first report design. Nothing else changes in `compose.yaml`.
+5. **Optional cleanup.** `OCI_BUCKET_REPORTS` and the `uplan-reports` bucket are unused. Remove them in a later deploy, after `src/platform/env.ts` stops requiring the variable.
+6. **Sign in and check:** the dashboard lists the projects you created; the City profile page is one click away; a project opens on its Overview with the stage rail.
 
 ## Part B — Pilot
 
@@ -241,7 +256,7 @@ The pilot is Sammamish's planners using UPlan on real applications. That is a di
 
 **2. Backups.** `deploy/` contains the timer and service units and the `pgbackrest` package is in the image. Nothing else is connected.
 
-- **A `backups` bucket** and a **third IAM user** whose policy reaches only that bucket, as the architecture requires. Also give `reports` its retention rule now (Oracle: Object Storage retention rules).
+- **A `backups` bucket** and a **third IAM user** whose policy reaches only that bucket, as the architecture requires. The `reports` bucket no longer holds documents (D23), so it needs no retention rule.
 - **Configure pgBackRest with environment variables**, in `postgres.env`, so there is no config file to keep: `PGBACKREST_STANZA=uplan`, `PGBACKREST_PG1_PATH=/var/lib/postgresql/18/docker`, `PGBACKREST_REPO1_TYPE=s3`, `PGBACKREST_REPO1_S3_ENDPOINT`, `PGBACKREST_REPO1_S3_BUCKET`, `PGBACKREST_REPO1_S3_REGION`, `PGBACKREST_REPO1_S3_KEY`, `PGBACKREST_REPO1_S3_KEY_SECRET`, `PGBACKREST_REPO1_S3_URI_STYLE=path`, `PGBACKREST_REPO1_PATH=/uplan`, `PGBACKREST_REPO1_CIPHER_TYPE=aes-256-cbc`, `PGBACKREST_REPO1_CIPHER_PASS`, and `PGBACKREST_REPO1_RETENTION_FULL=2`. Check the option names against the pgBackRest version the image installs.
 - **Turn on WAL archiving** by passing settings to Postgres in the `postgres` service's `command`: `archive_mode=on`, `archive_command='pgbackrest --stanza=uplan archive-push %p'`, and `archive_timeout=15min`.
 - **Create the stanza once**, after first start: `docker compose exec -u postgres postgres pgbackrest --stanza=uplan stanza-create`.
@@ -254,10 +269,10 @@ The pilot is Sammamish's planners using UPlan on real applications. That is a di
 - **Keep the cipher passphrase somewhere outside the VM** (a password manager the UPlan staff share). Backups can't be read without it, and a lost VM loses `postgres.env` too.
 - Test: after a backup, `backup_run` has a `succeeded` row and `/api/health` no longer names `backup_freshness` or `wal_archiving`. Stop the archive destination and confirm `wal_archiving` fails.
 
-**3. A way to onboard a city and its people.** The seed is the only entry point that creates a jurisdiction and grants access. `createJurisdiction` and `grantMembership` already exist as module functions and already require a staff actor.
+**3. A way to onboard a city and its staff.** The seed is the only entry point that creates a jurisdiction and a staff member. `createJurisdiction` already exists as a module function and already requires a staff actor. There is no membership to grant: a planner is anyone who registers.
 
-- Recommended: a staff-run script that calls them, run from the same `build` image as A10, with no user interface. It is less code than a page, and only UPlan staff need it.
-- The first staff member has to exist before staff can grant anything, so the script also covers that one case: it inserts a `staff_member` row for an email that has registered and signed in.
+- Recommended: a staff-run script that calls it, run from the same `build` image as A10, with no user interface. It is less code than a page, and only UPlan staff need it.
+- The first staff member has to exist before staff can do anything, so the script also covers that one case: it inserts a `staff_member` row for an email that has registered and signed in.
 - The decision to make: a script for the pilot, or a staff page. Either needs its own section in `accounts-roles.md` first.
 
 **4. Verified email addresses.** Registration proves nothing about who owns an address while "Confirm email" is off, and `grantMembership` matches people by address (`accounts-roles.md`). Before real planners register, choose an email sender that fits the zero-cost rule, write its decision record (a new external service), configure it under Supabase's Authentication → SMTP Settings, and turn on **Confirm email**. The register page already handles that setting: it tells the person to check their inbox, and `/auth/callback` finishes the sign-in. Then check that a new address gets its email, that a person with no membership sees no city data, and that a planner lands in the right jurisdiction once granted.
@@ -295,8 +310,8 @@ Do not open the pilot to planners until every line is true:
 - [ ] One restore rehearsal has passed (B3).
 - [ ] An alarm has been triggered deliberately, and the email arrived.
 - [ ] The end-to-end suite passes on the tagged commit, including axe checks and a phone-width viewport.
-- [ ] The database rejects an `update` to a released report when connected as `uplan_app`.
-- [ ] A planner from the city has registered with a confirmed email address, and a person with no membership sees no city data.
+- [ ] The database rejects an `update` and a `delete` of a published document when connected as `uplan_app`.
+- [ ] A planner from the city has registered with a confirmed email address, and a second registered person sees none of the first person's projects.
 - [ ] The cipher passphrase and every secret in `/etc/uplan/` exist in a password manager, not only on the VM.
 - [ ] No seeded row exists in the pilot database.
 

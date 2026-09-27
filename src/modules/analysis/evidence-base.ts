@@ -4,6 +4,7 @@ import type { JurisdictionDatasetMapping } from "@/modules/evidence";
 import { db } from "@/platform/db";
 import type { ResourceType } from "@/modules/profiles";
 
+import { coverageReachesStudyArea } from "./coverage";
 import type { Disagreement, Gap, Limit } from "./results";
 
 // TechDesign/evidence-base.md — buildEvidenceBase. R1: every resource type in the resolved
@@ -39,17 +40,10 @@ export async function buildEvidenceBase(
     }
 
     const coverageChecks = await Promise.all(
-      mapped.map(async (m) => {
-        const [row] = await db
-          .execute<{ intersects: boolean }>(
-            sql`select ST_Intersects(
-              ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(m.dataset.coverage)}), 4326),
-              ST_SetSRID(ST_GeomFromGeoJSON(${studyAreaJson}), 4326)
-            ) as intersects`,
-          )
-          .then((r) => r.rows);
-        return { mapping: m, intersects: row?.intersects ?? false };
-      }),
+      mapped.map(async (m) => ({
+        mapping: m,
+        intersects: await coverageReachesStudyArea(m.dataset.coverage, studyAreaGeom),
+      })),
     );
     const inCoverage = coverageChecks.filter((c) => c.intersects).map((c) => c.mapping);
     if (inCoverage.length === 0) {
@@ -94,17 +88,29 @@ export async function buildEvidenceBase(
   return { disagreements, gaps };
 }
 
-/** R7 of evidence-base.md: surfaces what F3 already recorded — never invents a new limit. */
+/**
+ * R7 of evidence-base.md: surfaces what is already recorded — never invents a new limit. Three facts,
+ * each keyed and worded later by limit-text.ts: the charter's significant-trees limit, each resource
+ * type the profile marks approximate (a site study sets its boundary), and each mapped dataset's own
+ * recorded limitation (F3 R10).
+ */
 export function collectLimits(
   mappings: JurisdictionDatasetMapping[],
   resourceTypes: ResourceType[],
 ): Limit[] {
   const limits: Limit[] = [];
-  const treeCanopyType = resourceTypes.find((r) => r.key === "forest-canopy");
-  if (treeCanopyType) limits.push({ key: "significant-trees-not-countable", resourceType: "forest-canopy" }); // R5 of impact-analysis.md
+  if (resourceTypes.some((r) => r.key === "forest-canopy")) {
+    limits.push({ key: "significant-trees-not-countable", resourceType: "forest-canopy", datasetVersionId: null }); // R5 of impact-analysis.md
+  }
+  for (const resourceType of resourceTypes) {
+    if (resourceType.mapStatus === "approximate") {
+      limits.push({ key: "boundary-set-by-site-study", resourceType: resourceType.key, datasetVersionId: null });
+    }
+  }
   for (const m of mappings) {
-    if (m.dataset.knownLimitation)
-      limits.push({ key: "boundary-set-by-site-study", resourceType: m.resourceTypeKey });
+    if (m.dataset.knownLimitation && m.dataset.currentVersionId) {
+      limits.push({ key: "dataset-limitation", resourceType: m.resourceTypeKey, datasetVersionId: m.dataset.currentVersionId });
+    }
   }
   return limits;
 }

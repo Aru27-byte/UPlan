@@ -1,7 +1,7 @@
 # UPlan — Feature List
 
-**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26
-**Last updated:** 2026-09-26
+**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27
+**Last updated:** 2026-09-27
 **Derived from:** [charter.md](charter.md), [intents.md](intents.md), review rounds 1–9
 **Next:** Requirements and TechDesign pairs, starting with release 1
 
@@ -11,16 +11,18 @@ Each feature becomes a pair of docs sharing one kebab-case basename: `Requiremen
 
 Features describe capabilities, not screens. UI design and technical design both start from this list.
 
+**Words used in the product** *(2026-09-27)*. The charter's core object is a **decision**; the app calls it a **project**, and the work a planner does on it **research**. They are one thing. A project's research moves through **phases** — Site, Evidence, Screening, Studies, Footprint, Impact — and ends in a **final document**, of which each **research change** produces a new version. Code, tables, and this list keep the name `decision`; screens say project and research.
+
 ## Releases
 
 v1 ships in stages *(round 8)*. Release 1 proves the pilot's edge: a planner takes a real application from evidence (I2) to impact (I3) to a released report (I6). Until sign-off ships, review happens outside UPlan.
 
 | Release | Intents | Features |
 | --- | --- | --- |
-| **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F19 |
+| **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F23 |
 | **Later in v1** — order not set | I5, I8, phone look-up | F11 reviewer role, F12, F13, F15 |
 
-Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well.
+Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well. On 2026-09-27 it grew again, by request: a dashboard that opens on sign-in (F20), phases whose drafted output a planner reviews and iterates on (F21), research changes that produce new document versions (F22), and sample data for every phase (F23). Jurisdiction membership was removed at the same time (F11).
 
 ## At a glance
 
@@ -45,6 +47,10 @@ Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the
 | F17 | Profile upload and editing | `profile-upload-edit` | I9 | 1 |
 | F18 | Decision overview and stage rail | `decision-overview` | All | 1 *(added 2026-09-26)* |
 | F19 | Evidence review | `evidence-review` | I2, I6 | 1 *(added 2026-09-26)* |
+| F20 | Project dashboard | `project-dashboard` | All | 1 *(added 2026-09-27)* |
+| F21 | Research phases and review | `research-phases` | I1–I3, I6 | 1 *(added 2026-09-27)* |
+| F22 | Research changes and document versions | `research-changes` | I6 | 1 *(added 2026-09-27)* |
+| F23 | Sample data | `sample-data` | All | 1 *(added 2026-09-27)* |
 
 ## Release 1 — foundations
 
@@ -108,6 +114,9 @@ The core object: a decision about one application, anchored to a study area the 
 - A decision shows where it stands — for example, in progress or report released.
 - A decision records its project details: parcel or address, applicant, project manager, and target decision date. None is required to start one.
 - A decision in progress shows what changed when the rules change (F2).
+- A decision belongs to the person who created it, and only they see or change it *(2026-09-27, replacing jurisdiction membership — F11)*.
+- A decision can be deleted from view. Deleting hides it and keeps every record, because working data may be public record (F16).
+- A decision that has a released document is *completed*. Changing anything about a completed decision is a research change (F22).
 
 ### F6. Map workspace — `map-workspace`
 
@@ -211,15 +220,61 @@ Breaks each evidence item's confidence label into the facts behind it, and lets 
 - A resolution applies only to the exact data it was recorded against.
 - Recorded resolutions appear in the report.
 
+### F20. Project dashboard — `project-dashboard`
+
+**Serves:** every intent · **Release:** 1 *(added 2026-09-27)*
+
+The page a planner lands on after signing in. It shows their current research and completed research, starts new research, and keeps the city's profile one click away.
+
+- Shows the planner's own projects, each with where its research stands and what to do next, and a **New research** button.
+- Each project offers the actions that fit its state: **Resume research**, **Re-research**, **Delete research**. **New research** is always available.
+- Shows the city's profile — its name, current version, and when it last changed — with a link to the full profile, which is also in the navigation on every page.
+- A professional, quiet visual style across the whole signed-in app. Counts and lists only: no completeness percentage, risk rating, or ranking (F18).
+
+### F21. Research phases and review — `research-phases`
+
+**Serves:** I1, I2, I3, I6 · **Release:** 1 *(added 2026-09-27)*
+
+Each project's research moves through phases. In each, UPlan drafts an output from the phase's inputs, the planner reviews it, and if it needs work the planner changes the inputs and reviews the new output.
+
+- The phases are the stage rail's (F18): Site, Evidence, Screening, Studies, Footprint, Impact. Overview and Report frame them.
+- **The drafting is UPlan's analysis engine, not a language model** *(decided 2026-09-26)*. Measurements come from PostGIS. Each phase's summary is written from fixed sentence templates over those measurements.
+- A review is the planner's own record: reviewed, or revision requested with a note. It is not sign-off (F12) and says nothing about the development.
+- A review is tied to the exact output it was made on. When inputs change and the output changes, the phase asks for review again and shows what changed since the last review.
+- A planner can upload a boundary file for the site or the footprint, or load sample data (F23), in place of drawing.
+
+### F22. Research changes and document versions — `research-changes`
+
+**Serves:** I6 · **Release:** 1 *(added 2026-09-27)*
+
+A completed project can still change. New data, a corrected boundary, or a changed requirement starts a research change; the planner reviews what it affected and publishes a new version of the final document.
+
+- Finishing research produces one final document, stored by UPlan and downloadable (F10). Every later research change produces a new version. Earlier versions are never altered.
+- Starting a research change is explicit, and says which document version it changes.
+- After the change, UPlan lists the phases whose output differs from the last version and asks for their review. Phases whose output is the same stay reviewed.
+- A version history lists every version with when it was published, the reason given, and which phases changed.
+
+### F23. Sample data — `sample-data`
+
+**Serves:** every intent · **Release:** 1 *(added 2026-09-27)*
+
+Sample data for every phase, so the whole workflow can be used and shown without a real application. The analysis runs on it exactly as it would on real data.
+
+- A **Start with sample data** option creates a project with every phase's input filled in. Each phase can also load its own sample input.
+- Sample data is labeled as sample everywhere it appears, including the final document. It is never presented as a real site or a real source (P1).
+- The sample evidence datasets are illustrative and staff-seeded; they are marked so in their provenance.
+
 ## Release 1 — accounts, records, and profile upkeep
 
 ### F11. Accounts and roles — `accounts-roles`
 
 **Serves:** every intent; I8 · **Release:** 1 for planners; the reviewer role ships with F12
 
-People register and sign in with an email address and a password, and each person is a planner or a reviewer once UPlan staff grant it.
+People register and sign in with an email address and a password. Everyone who signs in is a planner and works on the projects they create. UPlan staff keep the rights that need a second pair of eyes: approving profile changes and exporting records.
 
 **Decided:** sign-in is handled by Supabase Auth (D14), not by the city's own accounts.
+
+**Decided 2026-09-27:** jurisdiction membership is removed. There is no per-city grant, no membership table, and no reviewer membership. A project is visible to the person who created it. The reviewer role returns with F12, which will decide how a reviewer is given one project.
 
 ### F16. Records retention and export — `records-export`
 
@@ -281,12 +336,12 @@ A planner opens a decision's map and report on a phone, on a site visit or in a 
 
 | Intent | Delivered by | Built on |
 | --- | --- | --- |
-| I1. Scope the studies a site owes | F14 | F1–F6, F18 |
-| I2. Assemble an independent evidence base | F7, F19 | F1–F6 |
-| I3. See the proposal's impact | F8, F9 | F1–F6, F18 |
+| I1. Scope the studies a site owes | F14, F21 | F1–F6, F18, F20 |
+| I2. Assemble an independent evidence base | F7, F19, F21 | F1–F6 |
+| I3. See the proposal's impact | F8, F9, F21 | F1–F6, F18 |
 | I4. Know what the applicant's studies should address | F14 | F1–F6 |
 | I5. Trace conditions of approval | F13 | F5, F9 |
-| I6. Produce a report that holds up | F10 | F4, F5, F7, F9 |
+| I6. Produce a report that holds up | F10, F22 | F4, F5, F7, F9, F21 |
 | I8. Review and sign off before the report goes out | F12 | F5, F11 |
 | I9. Maintain the city's profile | F17 | F1, F2 |
 
@@ -304,13 +359,9 @@ Every intent is covered. F16 serves the public records constraint rather than an
 **For the feature docs:**
 
 - **F1:** how much of the code can be held as configuration (TechDesign).
-- **F8:** whether planners can start from a site plan file instead of tracing (UI design).
-<<<<<<< HEAD
-=======
-- **F11:** how city staff sign in (TechDesign).
+- **F8:** whether planners can start from a site plan file instead of tracing. *Partly answered 2026-09-27:* a planner can upload a GeoJSON boundary for the study area or the footprint (F21). A CAD or PDF site plan is still open.
 - **F14:** whether a city sets a data-age threshold in its profile settings, beyond which a dataset's age is called out.
->>>>>>> worktree-ux-workflow-specs
-- **F12:** whether a reviewer can sign off from a phone.
+- **F12:** whether a reviewer can sign off from a phone, and how a reviewer is given access to one project now that jurisdiction membership is gone (F11).
 - **F17:** how planner edits and automatic updates combine for the same city (TechDesign).
 
 Sources: [City of Sammamish: regulations, ordinances, agreements, and codes](https://www.sammamish.us/i-want-to/regulations/)

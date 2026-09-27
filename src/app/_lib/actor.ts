@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { getActor, provisionUser, type Actor } from "@/modules/accounts";
 import { getSessionUser } from "@/platform/auth";
 import { db } from "@/platform/db";
@@ -15,10 +17,10 @@ import { ForbiddenError } from "@/platform/errors";
 // app_user row before anything references it (accounts-roles.md, R2).
 export type SessionActor = { actor: Actor; name: string; email: string };
 
-export async function requireActor(): Promise<SessionActor> {
+export const requireActor = cache(async (): Promise<SessionActor> => {
   const user = await getSessionUser();
   if (!user) throw new ForbiddenError("sign-in required");
   const userId = await provisionUser(db, user);
   const actor = await getActor(db, userId);
   return { actor, name: user.name, email: user.email };
-}
+});

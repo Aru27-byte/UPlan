@@ -1,7 +1,7 @@
 # Requirements — Decision Overview and Stage Rail
 
-**Feature:** F18 · `workflow` (a read-only module) + the Overview page and the stage rail
-**Status:** Draft
+**Feature:** F18 · `workflow` + the Overview page and the stage rail
+**Status:** Draft — revised 2026-09-27: the rail now shows F21's review states, and routes say "project"
 **Serves:** every intent · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Spine_, _Posture_, P1–P3), [features.md](features.md) (F18), [intents.md](intents.md) (_Across all intents_)
 **Related design doc:** [TechDesign/decision-overview.md](../TechDesign/decision-overview.md)
@@ -17,7 +17,7 @@ It structures the work. It never decides anything: no score, no verdict, and no 
 
 **R1. Every decision page shows a stage rail: Overview, Site, Evidence, Screening, Studies, Footprint, Impact, Report, grouped as Set up, Assemble, Analyze, Report.** The rail marks the page the planner is on.
 
-**R2. Each stage shows one of three states, derived only from the decision's own records:** _To do_ (nothing recorded for it), _Needs attention_ (something recorded needs the planner's eye, with a count), or _Recorded_ (its inputs or results exist). _Recorded_ never means approved, verified, or clear.
+**R2. Each stage shows a state, derived only from the decision's own records.** For the six phases (F21 R5) it is _To do_, _Updating_, _Needs review_, _Reviewed_, or _Revision requested_. For Overview it is _Needs attention_ (a filing date that a vesting rule set needs is missing) or _Recorded_. For Report it is _Not ready_, _Ready to finish_, _Generating_, or _Version N published_ (F22). A phase whose analysis failed shows _Needs attention_ with the error's presence stated. None of these words means approved, verified, or clear, and a review is the planner's own record, not sign-off (F21 R6). The state is words plus a shape, never color alone (R12).
 
 **R3. The rail orders the work but doesn't block it.** A planner can open any stage at any time. The one gate that exists stays: the Footprint stage needs a study area first (F8), and it says so.
 
@@ -33,17 +33,17 @@ It structures the work. It never decides anything: no score, no verdict, and no 
 
 **R6. Next actions come from a fixed, ordered rule table over the decision's records and name a workflow step, never a judgment.** Examples: draw the study area, record the filing date, review the failed analysis, review N source disagreements, review N flagged studies, trace the footprint, review the impact, release the report. Each links to its stage. No action proposes approving, denying, conditioning, or clearing land, and none is generated text.
 
-**R7. The Overview and the rail show the analysis status: current, running, out of date, failed, or none.** When it is out of date, it says what changed since the last run: the study area, the footprint, the profile version, a rule's effective date, or a dataset version. A failed run shows its error.
+**R7. The Overview and the rail show the analysis status: current, running, out of date, failed, or none.** When it is out of date, it says what changed since the last run: the study area, the footprint, the profile version, the set of rules in force (a rule took effect or was repealed), or a dataset version. A failed run shows its error. The passing of a day alone never makes an analysis out of date.
 
 **R8. The Overview lists the rules that apply to this decision, as resolved for it:** each resource type with its map status, its buffers and study triggers, and how the profile treats vesting for the decision. Each rule cites its code section and effective date (P1), and the list links to the city's profile.
 
 **R9. The Overview lists the assumptions the analysis made,** so none is buried in a run: the date each rule set was resolved for and why (vesting or today), resource types treated as approximate, and that no footprint has been traced when none has.
 
-**R10. The Overview is where a planner records and edits the decision's project details** (F5 R10–R12): parcel or address, applicant, project manager, filing date, and target decision date. A detail not yet recorded shows as "Not yet recorded". An edit that is based on an out-of-date view is rejected with a conflict, never overwritten.
+**R10. The Overview is where a planner records and edits the decision's project details** (F5 R10–R12): title, parcel or address, applicant, project manager, filing date, and target decision date. A detail not yet recorded shows as "Not yet recorded". An edit that is based on an out-of-date view is rejected with a conflict, never overwritten. A completed decision's details are read-only until a research change starts.
 
-**R11. A released decision's Overview shows its latest released report** (sequence number and release date, with a link) and that the analysis it was released against is fixed.
+**R11. A completed decision's Overview shows its latest document version** (number and publication date, with a link to download it) and that the analysis it was published against is fixed. It offers **Start a research change** (F22), and for an open research change it shows what changed so far.
 
-**R12. The status of a decision (in progress, report released) and the analysis status are told apart by text and shape, not by color alone.**
+**R12. The status of a decision (in progress, generating a document, completed) and the analysis status are told apart by text and shape, not by color alone.**
 
 **R13. The rail and the Overview meet WCAG 2.1 AA and work at phone width for looking up.** Editing project details on a phone is not required in release 1 (F15).
 

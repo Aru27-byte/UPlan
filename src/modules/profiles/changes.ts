@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { and, desc, eq, sql } from "drizzle-orm";
 
-import { requireMembership, requirePlanner, requireReviewer, type Actor } from "@/modules/accounts";
+import { requireStaff, type Actor } from "@/modules/accounts";
 import { listOpenDecisions } from "@/modules/decisions";
 import { getMappedResourceTypeKeys } from "@/modules/evidence";
 import { db, type DbOrTx } from "@/platform/db";
@@ -26,8 +26,7 @@ export async function getProfileChange(changeId: string): Promise<ProfileChange>
 }
 
 /** For the Profile page's change history (UIDesign/City_Profile.png): every change, newest first. */
-export async function listProfileChanges(actor: Actor, jurisdictionId: string): Promise<ProfileChange[]> {
-  requireMembership(actor, jurisdictionId);
+export async function listProfileChanges(jurisdictionId: string): Promise<ProfileChange[]> {
   return db
     .select()
     .from(profileChange)
@@ -95,7 +94,7 @@ export async function proposeUpload(
   fileBuffer: Buffer,
   reason: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
+  // Any signed-in person may propose a change (accounts-roles.md R2); only staff decide one (R7).
   const fileSha256 = sha256(fileBuffer);
   const objectKey = `profile-uploads/${jurisdictionId}/${fileSha256}.xlsx`;
   await putIfAbsent("objects", objectKey, fileBuffer, {
@@ -138,7 +137,6 @@ export async function proposeEdit(
   editedDocument: unknown,
   reason: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
   const document = ProfileDocumentSchema.parse(editedDocument);
   return db.transaction((tx) =>
     insertPendingChange(tx, {
@@ -161,7 +159,7 @@ export async function decideChange(
   await db.transaction(async (tx) => {
     const [change] = await tx.select().from(profileChange).where(eq(profileChange.id, changeId));
     if (!change) throw new NotFoundError("profile change");
-    requireReviewer(actor, change.jurisdictionId); // assumed per round 10 — profile-upload-edit.md's Open items
+    requireStaff(actor); // assumed per round 10, changed 2026-09-27 — profile-upload-edit.md's Open items
     if (actor.userId === change.proposedBy)
       throw new ForbiddenError("cannot approve or reject your own change");
 
