@@ -31,31 +31,37 @@
 
   --shadow-sticker: 4px 4px 0 0 var(--color-ink);
 
-  /* The signed-in app's own visual system (TechDesign/project-dashboard.md, "The visual system"). The
-     public landing, sign-in, and register pages keep the tokens above. Every text/fill pair below is
-     checked for at least 4.5:1 contrast by src/ui/tokens.test.ts, which reads these values. */
-  --color-canvas: #f5f6f8;
+  /* The signed-in app uses the landing and sign-in pages' own palette and "sticker" treatment
+     (TechDesign/project-dashboard.md, "The visual system"): the ink page, cream text on it, white cards with
+     a cream edge and a flat green offset shadow (the sign-in card's), gold primary actions. `page*` is what
+     sits directly on the ink page; every other token is for what sits on a white or cream surface. Every
+     text/fill pair below is checked for at least 4.5:1 contrast by src/ui/tokens.test.ts. */
+  --color-page: #211c14;
+  --color-page-text: #f2ecd8;
+  --color-page-muted: #cdc4a8;
+  --color-canvas: #f2ecd8;
   --color-surface: #ffffff;
-  --color-line: #dfe3e8;
-  --color-text: #16202a;
-  --color-muted: #556270;
-  --color-nav: #12202b;
-  --color-nav-line: #24384b;
-  --color-nav-text: #e8edf2;
-  --color-nav-muted: #a9b6c3;
-  --color-brand: #1b6a4b;
-  --color-brand-strong: #14523a;
-  --color-brand-soft: #e6f2ec;
-  --color-info: #1d4ed8;
-  --color-info-soft: #e8eefc;
-  --color-warn: #8a4b06;
-  --color-warn-soft: #fbf0df;
-  --color-danger: #b42318;
-  --color-danger-soft: #fdecea;
-  --color-ok: #1b6a4b;
-  --color-ok-soft: #e6f2ec;
+  --color-line: #d8cfb3;
+  --color-text: #211c14;
+  --color-muted: #5b5340;
+  --color-nav: #332c1a;
+  --color-nav-line: #4a4128;
+  --color-nav-text: #f2ecd8;
+  --color-nav-muted: #cdc4a8;
+  --color-brand: #3c6317;
+  --color-brand-strong: #2d4a11;
+  --color-brand-soft: #e4efd0;
+  --color-info: #0f3f8a;
+  --color-info-soft: #b6dde3;
+  --color-warn: #5e3a00;
+  --color-warn-soft: #ecdf9a;
+  --color-danger: #8a1a10;
+  --color-danger-soft: #f4c7c0;
+  --color-ok: #1f4d0f;
+  --color-ok-soft: #a9cf78;
 
-  --shadow-panel: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
+  --shadow-panel: 5px 5px 0 0 rgb(139 195 74 / 0.4);
+  --shadow-button: 3px 3px 0 0 var(--color-ink);
 }
 
 body {
@@ -63,21 +69,23 @@ body {
   color: var(--color-ink);
 }
 
-/* The signed-in app. Every interactive element shows a 2px brand outline offset by 2px, and it is never
+/* The signed-in app. Every interactive element shows a 3px outline offset by 2px, and it is never
    removed. Color changes ease over 150ms, and not at all for anyone who asks for reduced motion. */
 [data-app] {
-  background-color: var(--color-canvas);
+  background-color: var(--color-page);
   color: var(--color-text);
   font-size: 0.9375rem;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
 [data-app] :focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 3px solid var(--color-ink);
   outline-offset: 2px;
 }
-[data-app] [data-nav] :focus-visible {
-  outline-color: var(--color-nav-text);
+/* On the ink page and the dark navigation an ink outline vanishes, so those areas draw it in gold. */
+[data-app] [data-nav] :focus-visible,
+[data-app] [data-on-dark] :focus-visible {
+  outline-color: var(--color-accent-gold);
 }
 @media (prefers-reduced-motion: no-preference) {
   [data-app] a,

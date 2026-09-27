@@ -43,25 +43,34 @@ function Contours({ centerX, centerY, className, seed }: { centerX: number; cent
   );
 }
 
+// The slowly moving contour lines and glows behind the sign-in card. The signed-in app draws the same backdrop
+// behind its pages (`className="fixed"`), so the two read as one place. Decorative: hidden from assistive
+// technology and never in the way of a click.
+export function Backdrop({ className }: { className: string }) {
+  return (
+    <div aria-hidden className={`pointer-events-none inset-0 -z-10 ${className}`}>
+      <div className="auth-glow auth-glow-green" />
+      <div className="auth-glow auth-glow-gold" />
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 1200 800"
+        preserveAspectRatio="xMidYMid slice"
+        fill="none"
+        stroke="var(--color-cream)"
+        strokeOpacity={0.09}
+        strokeWidth={1.25}
+      >
+        <Contours centerX={260} centerY={230} className="auth-contour-a" seed={0.4} />
+        <Contours centerX={960} centerY={600} className="auth-contour-b" seed={2.1} />
+      </svg>
+    </div>
+  );
+}
+
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <main className="bg-ink text-cream relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10 sm:px-8">
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="auth-glow auth-glow-green" />
-        <div className="auth-glow auth-glow-gold" />
-        <svg
-          className="absolute inset-0 h-full w-full"
-          viewBox="0 0 1200 800"
-          preserveAspectRatio="xMidYMid slice"
-          fill="none"
-          stroke="var(--color-cream)"
-          strokeOpacity={0.09}
-          strokeWidth={1.25}
-        >
-          <Contours centerX={260} centerY={230} className="auth-contour-a" seed={0.4} />
-          <Contours centerX={960} centerY={600} className="auth-contour-b" seed={2.1} />
-        </svg>
-      </div>
+      <Backdrop className="absolute" />
 
       <div className="w-full max-w-xl rounded-xl border-2 border-cream/70 bg-white p-8 text-ink shadow-[10px_10px_0_0_rgb(139_195_74/0.4)] sm:p-12">
         <Link href="/" className="mb-8 flex items-center gap-2">

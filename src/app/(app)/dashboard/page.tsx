@@ -109,7 +109,7 @@ export default async function DashboardPage() {
           <ProjectSection title="Current research" empty="Nothing in progress." projects={current} timeZone={city.timeZone} />
           <ProjectSection title="Completed research" empty="Nothing completed yet." projects={completed} timeZone={city.timeZone} />
           {summaries.length >= LIST_LIMIT ? (
-            <p className="text-sm text-muted">
+            <p className="text-sm text-page-muted">
               Showing your {LIST_LIMIT} most recent projects. Older ones are kept but not listed here.
             </p>
           ) : null}
