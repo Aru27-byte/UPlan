@@ -2,9 +2,10 @@ import type { MultiPolygon } from "geojson";
 
 import type { Actor } from "@/modules/accounts";
 import { db } from "@/platform/db";
+import { ConflictError, ValidationError } from "@/platform/errors";
 import { enqueueAnalysisRun } from "@/platform/jobs";
 
-import { insertDecision, updateDecisionDetails, type Decision } from "./decisions";
+import { getDecision, insertDecision, updateDecisionDetails, type Decision } from "./decisions";
 import { insertGeometryRevision, saveGeometry, type GeometryKind } from "./geometry";
 
 // TechDesign/sample-data.md (F23). Sample inputs are ordinary inputs: the study area and footprint are
@@ -102,8 +103,28 @@ export function loadSampleGeometry(actor: Actor, decisionId: string, kind: Geome
   return saveGeometry(actor, decisionId, kind, sample.geom, sample.note, expectedRevision);
 }
 
-/** R2: the sample details — everything except the title and the application type, which a project always has. */
-export function loadSampleDetails(actor: Actor, decisionId: string, expectedRowVersion: number) {
+/**
+ * R2: the sample details — everything except the title and the application type, which a project always has.
+ * They fill a project whose optional details are all still blank, and never overwrite a real applicant, address,
+ * or filing date: the filing date is an analysis input for a vesting rule set, so replacing a real one would
+ * quietly change which rules apply. The compare-and-set on the row version makes the blank check and the write
+ * one decision.
+ */
+export async function loadSampleDetails(actor: Actor, decisionId: string, expectedRowVersion: number) {
+  const current = await getDecision(actor, decisionId);
+  if (current.rowVersion !== expectedRowVersion) {
+    throw new ConflictError("This project changed since you loaded it. Reload and try again.");
+  }
+  const alreadyRecorded = [
+    current.parcelOrAddress,
+    current.applicant,
+    current.projectManager,
+    current.targetDecisionOn,
+    current.applicationFiledOn,
+  ].some((value) => value !== null);
+  if (alreadyRecorded) {
+    throw new ValidationError("Sample details fill a project whose details are still blank. Clear them first, or edit them by hand.");
+  }
   return updateDecisionDetails(
     actor,
     decisionId,

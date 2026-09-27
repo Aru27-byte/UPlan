@@ -77,10 +77,10 @@ describe("F21 R1–R5: every phase has a drafted output and a derived review sta
     await runAnalysis(bare.id, "current");
     const w = await getWorkflow(owner.actor, bare.id);
     const byPhase = Object.fromEntries(w.phases.map((p) => [p.phase, p]));
-    expect(byPhase["footprint"]?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
-    expect(byPhase["impact"]?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
-    expect(byPhase["screening"]?.output).not.toBeNull(); // F14 R11: screening needs no footprint
-    expect(byPhase["studies"]?.output).not.toBeNull();
+    expect(byPhase.footprint?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
+    expect(byPhase.impact?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
+    expect(byPhase.screening?.output).not.toBeNull(); // F14 R11: screening needs no footprint
+    expect(byPhase.studies?.output).not.toBeNull();
   });
 
   it("R2/R3: the drafted output is deterministic, and never renders a verdict-shaped word", async () => {

@@ -114,7 +114,9 @@ describe("F18 R7: the analysis status for the current inputs", () => {
     // the sample carries a filing date; clear it the way a person would, then check the message
     const noDate = await createDecision(planner.actor, { jurisdictionId: vestingCity.id, title: "No date", applicationType: "subdivision" });
     await saveGeometry(planner.actor, noDate.id, "study_area", square(-122.03), "v1", 1);
-    expect(await getAnalysisStatus(planner.actor, noDate.id)).toMatchObject({ kind: "blocked", reason: expect.stringContaining("no application_filed_on") });
+    const noDateStatus = await getAnalysisStatus(planner.actor, noDate.id);
+    expect(noDateStatus.kind).toBe("blocked");
+    if (noDateStatus.kind === "blocked") expect(noDateStatus.reason).toContain("no application_filed_on");
     // The job's own pinInputs throws the same ValidationError: the run fails visibly, and no run row is written.
     await expect(runAnalysis(noDate.id, "current")).rejects.toBeInstanceOf(ValidationError);
     expect(await runCount(noDate.id)).toBe(0);

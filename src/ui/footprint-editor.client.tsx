@@ -18,8 +18,9 @@ import type { MultiPolygon, Polygon, Position } from "geojson";
 // imports @/modules runtime code (file-structure-and-imports.md).
 import type { GeometryKind } from "@/modules/decisions";
 
+import type { ActionState } from "./action-state";
+import { actionClassName } from "./action-styles";
 import { basemapStyle } from "./basemap-style.client";
-import { buttonClassName } from "./button-styles";
 import { closeRing, toMultiPolygon } from "./footprint-geometry";
 import type { LngLatBounds } from "./geo-bounds";
 import { ReferenceOverlay } from "./reference-overlay.client";
@@ -38,7 +39,8 @@ export type GeometryEditorProps = {
   /** The latest saved revision of `kind`, if any — the starting shape for further editing. */
   initialGeoJson: MultiPolygon | null;
   currentRevision: number; // 0 when nothing has been saved yet
-  onSave: (geojson: MultiPolygon, sourceNote: string, expectedRevision: number) => Promise<void>;
+  /** Returns an error the person can act on rather than throwing: a thrown message doesn't reach the browser in production. */
+  onSave: (geojson: MultiPolygon, sourceNote: string, expectedRevision: number) => Promise<ActionState>;
   /**
    * Where to point the camera on first load. Without this, MapLibre defaults to `[0, 0]` at zoom
    * 0 — nowhere near any real jurisdiction — and tracing a shape there would be invisible.
@@ -274,10 +276,15 @@ export function GeometryEditor({
         kind === "footprint"
           ? "Traced by the planner in the map workspace."
           : "Drawn by the planner in the map workspace.";
-      await onSave(multiPolygon, sourceNote, savedRevision + 1);
-      setSavedRevision((r) => r + 1);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Save failed.");
+      const result = await onSave(multiPolygon, sourceNote, savedRevision + 1);
+      if (result.error) {
+        setSaveError(result.error);
+      } else {
+        setSavedRevision((r) => r + 1);
+      }
+    } catch {
+      // The request itself failed (no response at all): say so, so the person can try again.
+      setSaveError("The save didn't reach the server. Check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -317,7 +324,7 @@ export function GeometryEditor({
       </div>
 
       {keyboardFocused ? (
-        <div className="card-sticker bg-cream flex flex-wrap items-center gap-2 p-3 text-sm">
+        <div className="rounded-lg border border-line bg-canvas flex flex-wrap items-center gap-2 p-3 text-sm">
           <span>
             Keyboard tracing: arrow keys move the crosshair (Shift for 10px), Enter places a vertex
             {keyboardPoints.length > 0 ? ` (${keyboardPoints.length} placed)` : ""}, Backspace removes the
@@ -325,13 +332,13 @@ export function GeometryEditor({
           </span>
           <button
             type="button"
-            className={buttonClassName("secondary", "px-3 py-1.5 text-xs text-ink")}
+            className={actionClassName("secondary", "min-h-8 px-3 py-1 text-xs")}
             onClick={finishKeyboardShape}
           >
             Finish shape
           </button>
           {keyboardMessage ? (
-            <span className="text-xs font-medium text-red-700">{keyboardMessage}</span>
+            <span className="text-xs font-medium text-danger">{keyboardMessage}</span>
           ) : null}
         </div>
       ) : null}
@@ -341,7 +348,7 @@ export function GeometryEditor({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          className={buttonClassName("primary", "px-4 py-2 text-ink")}
+          className={actionClassName("primary")}
           disabled={saveDisabled}
           onClick={() => void handleSave()}
         >
@@ -349,20 +356,20 @@ export function GeometryEditor({
         </button>
         <button
           type="button"
-          className={buttonClassName("outline", "px-3 py-1.5 text-xs text-ink")}
+          className={actionClassName("secondary", "min-h-8 px-3 py-1 text-xs")}
           onClick={startOver}
         >
           Start over
         </button>
-        {referenceLabel ? <span className="text-ink/60 text-xs">Dashed line: {referenceLabel}</span> : null}
+        {referenceLabel ? <span className="text-muted text-xs">Dashed line: {referenceLabel}</span> : null}
       </div>
       {validity?.valid === false ? (
-        <p className="text-sm font-medium text-red-700" role="alert">
+        <p className="text-sm font-medium text-danger" role="alert">
           {validity.reason ?? "This shape isn't valid."}
         </p>
       ) : null}
       {saveError ? (
-        <p className="text-sm font-medium text-red-700" role="alert">
+        <p className="text-sm font-medium text-danger" role="alert">
           {saveError}
         </p>
       ) : null}

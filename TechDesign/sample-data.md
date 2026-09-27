@@ -30,7 +30,7 @@ src/modules/decisions/sample-data.ts
 
 - The sample details are: title "Sammamish Ridge Estates (sample)", type subdivision, parcel or address "Sample parcel — not a real address", applicant "Sample applicant (fictional)", project manager "Sample project manager (fictional)", target decision date and filing date fixed dates. No value is a real person or company (R7).
 - The study area and footprint are the rectangles the local seed already used, in the pilot city's area, and each geometry's `source_note` is `"Sample data — illustrative study area, not a real parcel."` or the footprint equivalent (R6).
-- `loadSampleGeometry` is `saveGeometry` with the fixture. `loadSampleDetails` is `updateDecisionDetails` with the fixture. Neither has a path of its own, so the lock, the revision guard, and the analysis enqueue all apply (R8).
+- `loadSampleGeometry` is `saveGeometry` with the fixture. `loadSampleDetails` is `updateDecisionDetails` with the fixture, refused with a `ValidationError` unless every optional detail is blank (the read and the write are one decision through the row-version compare-and-set), so a real filing date is never replaced. Neither has a path of its own, so the lock, the revision guard, and the analysis enqueue all apply (R8).
 - `createSampleProject` does what creating a project and loading all three inputs would, in **one transaction**, so a failure part-way leaves nothing behind. It calls the internal helpers `insertDecision`, `insertGeometryRevision`, and `enqueueAnalysisRun(…, tx)` that `createDecision` and `saveGeometry` are built from, rather than duplicating them.
 - **R8:** all of it goes through `lockEditableDecision`, so a completed project refuses it.
 

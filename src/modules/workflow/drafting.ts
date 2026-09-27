@@ -117,7 +117,14 @@ export function draftStudies(c: DraftContext): Draft {
   for (const study of named) {
     const flags = results.studyFlags.filter((f) => f.study === study);
     if (flags.length === 0) {
-      lines.push(`${STUDY_LABEL[study]}: ${STUDY_NOT_FLAGGED}`);
+      // P2: where the triggering resource has no usable dataset, "not flagged" must say the data can't speak.
+      const gapped = new Set(results.evidenceBase.gaps.map((g) => g.resourceType));
+      const noData = [...new Set(rules.studyTriggers.filter((t) => t.study === study && gapped.has(t.resourceType)).map((t) => labelOf(rules, t.resourceType)))];
+      lines.push(
+        `${STUDY_LABEL[study]}: ${STUDY_NOT_FLAGGED}${
+          noData.length > 0 ? ` No dataset covers ${noData.join(", ")}, so mapped data can't flag it there.` : ""
+        }`,
+      );
       continue;
     }
     flaggedCount += 1;

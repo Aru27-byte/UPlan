@@ -15,6 +15,7 @@ export {
   listOpenDecisions,
   listOpenDecisionsIntersecting,
   DecisionStatusSchema,
+  ApplicationTypeSchema,
   LIST_LIMIT,
 } from "./decisions";
 export type { Decision, DecisionStatus, DecisionDetailsPatch, NewDecision, ApplicationType } from "./decisions";

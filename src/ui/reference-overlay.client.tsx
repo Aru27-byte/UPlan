@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 
-import { buttonClassName } from "./button-styles";
+import { actionClassName } from "./action-styles";
 import { computeImageOverlayCorners } from "./footprint-geometry";
 
 // TechDesign/proposal-footprint.md (R1) — a planner's own site-plan image, used only as an
@@ -90,8 +90,8 @@ export function ReferenceOverlay({ map }: { map: MapLibreMap | null }) {
   useEffect(() => () => reset(), []);
 
   return (
-    <div className="card-sticker bg-cream flex flex-col gap-2 p-3 text-sm">
-      <p className="text-ink/70 text-xs">
+    <div className="rounded-lg border border-line bg-canvas flex flex-col gap-2 p-3 text-sm">
+      <p className="text-muted text-xs">
         Optional: load an image of the site plan as a tracing aid. It stays in this browser tab only — never
         uploaded, stored, or read as data (R1).
       </p>
@@ -109,7 +109,7 @@ export function ReferenceOverlay({ map }: { map: MapLibreMap | null }) {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={buttonClassName("outline", "px-3 py-1.5 text-xs text-ink")}
+            className={actionClassName("secondary", "min-h-8 px-3 py-1 text-xs")}
             aria-pressed={placing === "A"}
             onClick={() => setPlacing(placing === "A" ? null : "A")}
           >
@@ -121,7 +121,7 @@ export function ReferenceOverlay({ map }: { map: MapLibreMap | null }) {
           </button>
           <button
             type="button"
-            className={buttonClassName("outline", "px-3 py-1.5 text-xs text-ink")}
+            className={actionClassName("secondary", "min-h-8 px-3 py-1 text-xs")}
             aria-pressed={placing === "B"}
             onClick={() => setPlacing(placing === "B" ? null : "B")}
           >
@@ -133,7 +133,7 @@ export function ReferenceOverlay({ map }: { map: MapLibreMap | null }) {
           </button>
           <button
             type="button"
-            className={buttonClassName("outline", "px-3 py-1.5 text-xs text-ink")}
+            className={actionClassName("secondary", "min-h-8 px-3 py-1 text-xs")}
             onClick={reset}
           >
             Remove reference image

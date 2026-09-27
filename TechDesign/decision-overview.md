@@ -60,7 +60,8 @@ export async function pinInputs(
 ```ts
 // analysis/status.ts
 export type AnalysisStatus =
-  | { kind: "none" } // no study area yet, so there is nothing to analyze
+  | { kind: "none"; reason: "no-study-area" | "no-profile" } // there is nothing to analyze yet
+  | { kind: "blocked"; reason: string } // the inputs can't be pinned: a vesting rule set with no filing date. Stated, never swallowed, and it names where to fix it
   | { kind: "current"; runId: string }
   | { kind: "running"; runId: string }
   | { kind: "failed"; runId: string; errorDetail: string }
@@ -70,6 +71,7 @@ export type InputChange =
   | { kind: "study-area"; from: number | null; to: number }
   | { kind: "footprint"; from: number | null; to: number } // from is null when this is the first footprint
   | { kind: "profile-version" }
+  | { kind: "rules-in-force" } // a rule took effect or was repealed; the passing of a day alone never makes an analysis out of date
   | { kind: "rules-in-force" } // a rule took effect or was repealed, so the set of rules in force differs
   | { kind: "dataset-version"; datasetKey: string };
 

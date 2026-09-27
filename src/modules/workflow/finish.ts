@@ -97,7 +97,7 @@ export async function finishResearch(actor: Actor, decisionId: string, input: Fi
           note: review.note,
           reviewedAt: review.reviewedAt.toISOString(),
           reviewedByName: review.reviewedByName,
-          changed: !before || before.contentSha256 !== view.output.contentSha256,
+          changed: before?.contentSha256 !== view.output.contentSha256,
           summary: { templateVersion: review.summary.templateVersion, headline: view.output.headline, lines: view.output.lines },
         };
       }),

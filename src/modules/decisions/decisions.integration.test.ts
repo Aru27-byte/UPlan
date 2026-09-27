@@ -17,7 +17,8 @@ import {
   reopen,
   updateDecisionDetails,
 } from "./decisions";
-import { getLatestGeometry, saveGeometry } from "./geometry";
+import { getGeometrySummaryInternal, getLatestGeometry, saveGeometry } from "./geometry";
+import { loadSampleDetails } from "./sample-data";
 
 // TechDesign/decisions.md — integration tests against the real PostgreSQL with PostGIS that
 // tests/setup/integration-db.ts starts, with every migration applied (never a mocked database). Requires
@@ -159,7 +160,43 @@ describe("R10–R12: project details are one compare-and-set, and only the filin
   });
 });
 
+describe("F23 R2: sample details fill a blank project and never overwrite real ones", () => {
+  it("F23 R2: fills a project whose optional details are blank", async () => {
+    const owner = await createPerson();
+    const project = await newProject(owner);
+    const filled = await loadSampleDetails(owner.actor, project.id, project.rowVersion);
+    expect(filled.applicant).toMatch(/^Sample /);
+    expect(filled.applicationFiledOn).not.toBeNull();
+  });
+
+  it("F23 R2: refuses when a real filing date is already recorded, and leaves it alone", async () => {
+    const owner = await createPerson();
+    const project = await newProject(owner);
+    const recorded = await updateDecisionDetails(owner.actor, project.id, { applicationFiledOn: "2025-03-14" }, project.rowVersion);
+    await expect(loadSampleDetails(owner.actor, project.id, recorded.rowVersion)).rejects.toBeInstanceOf(ValidationError);
+    expect((await getDecision(owner.actor, project.id)).applicationFiledOn).toBe("2025-03-14");
+  });
+
+  it("F23 R2: a stale row version is a ConflictError", async () => {
+    const owner = await createPerson();
+    const project = await newProject(owner);
+    await updateDecisionDetails(owner.actor, project.id, { applicant: "Real Applicant LLC" }, project.rowVersion);
+    await expect(loadSampleDetails(owner.actor, project.id, project.rowVersion)).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
 describe("R5–R7: geometry revisions", () => {
+  it("R5: a geometry's timestamps come back as Dates from the raw-SQL readers", async () => {
+    const owner = await createPerson();
+    const project = await newProject(owner);
+    await saveGeometry(owner.actor, project.id, "study_area", square(-122.03), "timestamps", 1);
+    const latest = await getLatestGeometry(owner.actor, project.id, "study_area");
+    expect(latest?.createdAt).toBeInstanceOf(Date);
+    const summary = await getGeometrySummaryInternal(project.id, "study_area", 2926);
+    expect(summary?.createdAt).toBeInstanceOf(Date);
+    expect(summary?.createdAt.getTime()).toBe(latest?.createdAt.getTime());
+  });
+
   it("R7: rejects a self-intersecting drawing with the specific reason, never repairing it", async () => {
     const owner = await createPerson();
     const project = await newProject(owner);

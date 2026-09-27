@@ -38,7 +38,7 @@ export const RegisterFormSchema = z
     message: "The passwords don't match.",
   });
 
-export const DEFAULT_LANDING_PATH = "/decisions";
+export const DEFAULT_LANDING_PATH = "/dashboard";
 
 /**
  * R10: where to send a person after signing in. Only a path on this site: anything that parses to

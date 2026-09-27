@@ -132,7 +132,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["@/modules/*/*", "!@/modules/reports/render-and-store"],
+              group: ["@/modules/*/*", "!@/modules/reports/render-and-store", "!@/modules/reports/render"],
               message: "Import only a module's index.ts — its public API — from outside the module.",
             },
           ],

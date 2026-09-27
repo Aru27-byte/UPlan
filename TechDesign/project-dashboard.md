@@ -22,10 +22,11 @@ The `decisions` route folder is renamed `projects`, and every page moves with it
 src/app/(app)/
   layout.tsx                         requireActor, the city, and the AppShell
   dashboard/page.tsx                 F20: the landing page
-  dashboard/actions.ts               deleteProject, startResearchChange (Server Functions)
+  projects/page.tsx                  redirects to /dashboard (the one place research is listed)
+  projects/actions.ts                createProject, createSampleProject, deleteProject, startResearchChange (Server Functions)
   projects/new/page.tsx              F20 R9: the new-research form
-  projects/new/actions.ts            createProject, createSampleProject
   projects/[projectId]/layout.tsx    header, stage rail, analysis banner (F18)
+  projects/[projectId]/actions.ts    review, details, boundary, resolution, finish, cancel (Server Functions bound to the project)
   projects/[projectId]/overview/…    F18
   projects/[projectId]/site/…        F5/F6/F8: study area, map
   projects/[projectId]/evidence/…    F7/F19
@@ -35,8 +36,10 @@ src/app/(app)/
   projects/[projectId]/impact/…      F9
   projects/[projectId]/report/…      F10/F22
   profile/page.tsx                   F1/F17: the city profile
+  profile/actions.ts                 upload a workbook, decide a change (staff), install sample evidence (staff)
   help/page.tsx
 src/app/api/projects/[projectId]/documents/[versionNumber]/route.ts    download a document version
+src/app/api/profile/template/route.ts                                  download the Excel template (F17 R1)
 ```
 
 `DEFAULT_LANDING_PATH` in `src/app/_lib/auth-form.ts` becomes `/dashboard`. Sign-in, the emailed-link callback, and a completed registration all send a person there (R1). `safeNextPath` is unchanged: it still returns only a path on this site.
@@ -65,8 +68,9 @@ export type ProjectSummary = {
   latestVersion: number | null;        // the highest released document version
   phasesReviewed: number;              // of PHASES.length, at each phase's current output
   phasesTotal: number;
-  nextStep: { step: StepKey; key: NextActionKey } | null; // from deriveNextActions (F18 R6)
+  nextAction: NextAction | null;       // the first of deriveNextActions (F18 R6)
   hasPhaseAwaitingReview: boolean;
+  usesSampleData: boolean;             // F23: shown as a label on the row
   lastActivityAt: Date;
 };
 export async function listProjectSummaries(actor: Actor): Promise<ProjectSummary[]>;
@@ -185,3 +189,18 @@ An empty list renders an empty state with the two ways to begin (R1).
 ## Open questions
 
 - None. Restoring a deleted project is in the Requirements' open items.
+
+## As built: page plumbing
+
+Shared by the pages above, so each page stays a thin read and a render:
+
+- **`src/app/_lib/project.ts` — `loadProject(projectId)`.** Validates the id, calls `requireActor`, then `getWorkflow`, and turns `NotFoundError` into the framework's 404. It is wrapped in React's per-request `cache`, so the layout and the page share one read, and the next request reads afresh. That is a per-request memo, not Next.js data caching, which stays forbidden for decisions.
+- **`src/app/_lib/action-state.ts` — `runAction`.** The one Server Function boundary: it turns `ValidationError`, `ConflictError`, `ForbiddenError`, and `NotFoundError` into a message the person can act on, refreshes the page after success, and rethrows everything else (including `redirect()`, which works by throwing).
+- **`src/app/_lib/workflow-labels.ts` and `phase-model.ts`.** The words for every state, in one place, so the rail, the Overview, the dashboard, and each phase page say the same thing; `phaseModel` builds the plain view model a phase page renders. None of the words means done, complete, clear, safe, or approved.
+- **`_components/boundary-panel.tsx`.** One panel for both boundaries: draw on the map, upload GeoJSON, or load the sample. The map editor's save returns `{ error }` instead of throwing, because a thrown message doesn't reach the browser in production.
+- **`src/ui/`** holds server-safe presentational pieces (`Panel`, `StatusLabel`, `Metric`, `DataTable`, `PageHeader`, the phase page parts) and small client pieces (`ActionForm`, `SubmitButton`, `ConfirmDialog`, `AutoRefresh`, `StageRail`). None imports runtime code from `@/modules` or `@/platform`. `AutoRefresh` re-reads the page every three seconds while an analysis or a document is being produced, and not while the tab is hidden.
+- **Raw SQL readers return timestamps as text.** Drizzle's `execute` hands `timestamptz` back as the driver's text whatever the row type says, so `decisions/geometry.ts` converts with `toDate`; a regression test asserts `Date`s. The column readers (`select()`) are unaffected.
+- **`ActionForm` submits through `onSubmit`, not through the form's `action`.** React 19 resets an uncontrolled form after any function action, even one that returned an error, which would empty a required reason the person had just typed. So the form calls `startTransition(() => formAction(new FormData(form, submitter)))` itself: the fields keep what was typed when the action returns an error, and are cleared only after a success. `SubmitButton` reads the form's pending state from a context, because `useFormStatus` only sees the form's own `action`. Verified in a browser: an error keeps the typed reason, and a success clears the note.
+- **Polling is bounded.** `AutoRefresh` stops after 100 refreshes (five minutes) so a stopped worker doesn't make an open tab re-read the project forever; a reload starts it again. The dashboard refreshes while any project is generating its document.
+- **The map is built once per change.** `MapWorkspace` rebuilds only when a layer, or the content of a boundary, changes (stable string keys), not on every refresh, and reapplies the layer toggles after a rebuild.
+- **Every Server Function authenticates inside `runAction`,** so an expired session is a message, and hidden-field ids are checked as UUIDs (`requiredUuid`) before they reach the database. `requireActor` is memoized per request, so the session is read once however many components ask.

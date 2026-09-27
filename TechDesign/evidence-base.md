@@ -11,7 +11,7 @@
 
 ```
 src/modules/analysis/
-  index.ts          public API: getRun, getLatestRun
+  index.ts          public API: getRun, getRunDatasetVersionIds, getLatestSucceededRun, readRunResults, getAnalysisSnapshot
   tables.ts           analysis_run, analysis_run_dataset
   pin-inputs.ts         pinInputs: the one read of a run's inputs, shared with status.ts (F18)
   status.ts             getAnalysisStatus — see decision-overview.md

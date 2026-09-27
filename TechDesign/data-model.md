@@ -598,8 +598,9 @@ export type Gap = {
 };
 
 export type Limit = {
-  key: "significant-trees-not-countable" | "boundary-set-by-site-study";
+  key: "significant-trees-not-countable" | "boundary-set-by-site-study" | "dataset-limitation";
   resourceType: string | null;
+  datasetVersionId: string | null; // set for "dataset-limitation": the version whose recorded limitation (F3 R10) is stated
 };
 
 // One row per resource type and mapped dataset whose coverage includes the study area.

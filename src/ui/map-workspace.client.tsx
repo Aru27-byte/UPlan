@@ -10,6 +10,7 @@ import { Switch } from "react-aria-components";
 import { basemapStyle } from "./basemap-style.client";
 import type { LngLatBounds } from "./geo-bounds";
 import { darken, layerColor, paintFor, type MapStatus } from "./map-styles";
+import { StatusLabel } from "./status-label";
 
 // TechDesign/map-workspace.md — R1/R4/R5/R6: evidence tiles, study area/footprint, the basemap,
 // and everything the map shows also available as text, all in one workspace. This file imports no
@@ -40,11 +41,13 @@ export type MapWorkspaceProps = {
    * visible viewport, which looks exactly like a blank map.
    */
   initialBounds: LngLatBounds;
+  /** When set, only this evidence layer starts visible (the Evidence page's "Show on map"). */
+  focusLayerId?: string | null;
 };
 
 const STUDY_AREA_ID = "study-area";
 const FOOTPRINT_ID = "footprint";
-const STUDY_AREA_COLOR = "#211c14"; // --color-ink (globals.css) — the drawn boundary, not a data layer
+const STUDY_AREA_COLOR = "#16202a"; // --color-text (globals.css) — the drawn boundary, not a data layer
 const FOOTPRINT_COLOR = "#dc2626";
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -92,13 +95,14 @@ export function MapWorkspace({
   studyAreaGeoJson,
   footprintGeoJson,
   initialBounds,
+  focusLayerId = null,
 }: MapWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [layersReady, setLayersReady] = useState(false);
   const [visible, setVisible] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    for (const l of layers) initial[l.datasetVersionId] = true;
+    for (const l of layers) initial[l.datasetVersionId] = focusLayerId === null || l.datasetVersionId === focusLayerId;
     if (studyAreaGeoJson) initial[STUDY_AREA_ID] = true;
     if (footprintGeoJson) initial[FOOTPRINT_ID] = true;
     return initial;
@@ -112,8 +116,15 @@ export function MapWorkspace({
     return assigned;
   }, [layers]);
 
+  const layersKey = layers.map((l) => l.datasetVersionId).join(",");
+  const studyAreaKey = JSON.stringify(studyAreaGeoJson);
+  const footprintKey = JSON.stringify(footprintGeoJson);
+
   useEffect(() => {
     if (!containerRef.current) return;
+    // A rebuilt map has none of its layers yet: the visibility effect below must apply the toggles again once
+    // it has loaded, so a layer switched off stays off.
+    setLayersReady(false);
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: basemapStyle(basemapUrl),
@@ -220,7 +231,10 @@ export function MapWorkspace({
     return () => map.remove();
     // Intentionally excludes initialBounds: it's the map's one-time initial camera position, not
     // something a later render should re-fit to (a planner may have panned/zoomed since).
-  }, [basemapUrl, layers, studyAreaGeoJson, footprintGeoJson, colorFor]);
+    // The dependencies are stable keys, not the props themselves: the page re-renders on a refresh (every few
+    // seconds while an analysis runs), and each render hands over fresh objects with the same content, which
+    // must not tear the map down. It rebuilds only when a layer, or a boundary's content, actually changes.
+  }, [basemapUrl, layersKey, studyAreaKey, footprintKey]);
 
   // Real-time layer toggling: flips visibility on the already-loaded map the instant a switch in
   // the table below changes, without touching the map's camera or re-fetching any tile.
@@ -240,10 +254,10 @@ export function MapWorkspace({
     <div className="flex flex-col gap-4">
       <div
         ref={containerRef}
-        style={{ width: "100%", height: "600px" }}
-        className="card-sticker overflow-hidden"
-        role="img"
-        aria-label="Map workspace showing the study area, footprint, and evidence layers"
+        style={{ width: "100%", height: "520px" }}
+        className="overflow-hidden rounded-xl border border-line"
+        role="region"
+        aria-label="Map workspace showing the study area, footprint, and evidence layers. The same information is listed as text below the map."
       />
       <LayersPanel
         layers={layers}
@@ -338,9 +352,9 @@ function LayerToggle({
       <span className="sr-only">{label}</span>
       <span
         aria-hidden="true"
-        className="h-5 w-9 shrink-0 rounded-full border-2 border-ink bg-white transition-colors group-data-[selected]:bg-accent-green-deep group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-offset-1 group-data-[focus-visible]:ring-ink"
+        className="h-5 w-9 shrink-0 rounded-full border-2 border-muted bg-surface transition-colors group-data-[selected]:border-brand group-data-[selected]:bg-brand group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-offset-1 group-data-[focus-visible]:ring-brand"
       >
-        <span className="block h-3 w-3 translate-x-0.5 translate-y-0.5 rounded-full bg-ink transition-transform group-data-[selected]:translate-x-4 group-data-[selected]:bg-white" />
+        <span className="block h-3 w-3 translate-x-0.5 translate-y-0.5 rounded-full bg-muted transition-transform group-data-[selected]:translate-x-4 group-data-[selected]:bg-white" />
       </span>
     </Switch>
   );
@@ -369,7 +383,7 @@ function LayersPanel({
   return (
     <section aria-label="Map layers">
       {studyAreaGeoJson || footprintGeoJson ? (
-        <div className="border-ink/20 mb-3 flex flex-wrap gap-4 border-b pb-3">
+        <div className="mb-3 flex flex-wrap gap-4 border-b border-line pb-3">
           {/* A plain wrapper, not a <label>: LayerToggle already renders its own (via RAC's
               Switch), and a <label> can't nest inside another. */}
           {studyAreaGeoJson ? (
@@ -397,11 +411,11 @@ function LayersPanel({
         </div>
       ) : null}
 
-      <h2 className="eyebrow text-ink/70 mb-2">Evidence layers</h2>
+      <h3 className="mb-2 text-sm font-semibold text-text">Evidence layers</h3>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-ink/20 border-b">
+            <tr className="border-b border-line">
               <th scope="col" className="py-2 pr-3 font-semibold">
                 Layer
               </th>
@@ -426,7 +440,7 @@ function LayersPanel({
                 <tr
                   key={l.datasetVersionId}
                   id={`layer-${l.datasetVersionId}`}
-                  className="border-ink/10 border-b"
+                  className="border-b border-line"
                 >
                   <th scope="row" className="py-2.5 pr-3 font-medium">
                     <span className="flex items-center gap-2">
@@ -437,17 +451,19 @@ function LayersPanel({
                   <td className="px-3 py-2.5">
                     <div className="flex flex-col gap-1">
                       {/* Status is a legal distinction shared across layers (R2), never colored by
-                          the layer's own identity color — the swatch already carries that, and a
-                          badge tinted with a light palette color (e.g. yellow) would leave its
-                          cream text unreadable. */}
-                      <span className="badge">{MAP_STATUS_LABEL[l.mapStatus]}</span>
+                          the layer's own identity color — the swatch already carries that. */}
+                      <span>
+                        <StatusLabel tone={l.mapStatus === "approximate" ? "warn" : "neutral"}>
+                          {MAP_STATUS_LABEL[l.mapStatus]}
+                        </StatusLabel>
+                      </span>
                       {l.provenance.confidenceLine ? (
-                        <span className="text-ink/70 text-xs">{l.provenance.confidenceLine}</span>
+                        <span className="text-xs text-muted">{l.provenance.confidenceLine}</span>
                       ) : null}
                     </div>
                   </td>
-                  <td className="text-ink/80 px-3 py-2.5">{l.provenance.sourceLine}</td>
-                  <td className="text-ink/80 px-3 py-2.5">{l.provenance.retrievedLine}</td>
+                  <td className="px-3 py-2.5 text-text">{l.provenance.sourceLine}</td>
+                  <td className="px-3 py-2.5 text-text">{l.provenance.retrievedLine}</td>
                   <td className="py-2.5 pl-3">
                     <LayerToggle
                       isSelected={visible[l.datasetVersionId] ?? true}

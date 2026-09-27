@@ -10,6 +10,14 @@ import { enqueueAnalysisRun } from "@/platform/jobs";
 import { getDecision, lockEditableDecision } from "./decisions";
 import { decisionGeometry } from "./tables";
 
+// drizzle's `execute` hands timestamps back as the driver's text, whatever the row type says, so a raw query
+// converts them itself; the column readers (`select()`) already return Dates.
+function toDate(value: Date | string): Date {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`not a timestamp: ${String(value)}`);
+  return date;
+}
+
 export type GeometryKind = "study_area" | "footprint";
 
 export type DecisionGeometry = {
@@ -35,7 +43,7 @@ const RingSchema = z
     (ring) => {
       const first = ring[0];
       const last = ring[ring.length - 1];
-      return first !== undefined && last !== undefined && first[0] === last[0] && first[1] === last[1];
+      return first?.[0] !== undefined && first[0] === last?.[0] && first[1] === last?.[1];
     },
     { message: "A polygon ring must end where it starts." },
   );
@@ -148,7 +156,7 @@ async function readLatest(
       geom_geojson: string;
       source_note: string;
       created_by: string;
-      created_at: Date;
+      created_at: Date | string;
     }>(
       sql`
         select decision_id, kind, revision, ST_AsGeoJSON(geom) as geom_geojson, source_note, created_by, created_at
@@ -168,7 +176,7 @@ async function readLatest(
     geom: JSON.parse(row.geom_geojson) as Geometry,
     sourceNote: row.source_note,
     createdBy: row.created_by,
-    createdAt: row.created_at,
+    createdAt: toDate(row.created_at),
   };
 }
 
@@ -257,7 +265,7 @@ export async function getGeometrySummaryInternal(
   revision?: number, // a pinned revision, for the document; the latest when omitted
 ): Promise<GeometrySummary | null> {
   const [row] = await tx
-    .execute<{ revision: number; acres: number; source_note: string; created_at: Date }>(
+    .execute<{ revision: number; acres: number; source_note: string; created_at: Date | string }>(
       sql`
         -- ::int: ST_Transform also has a (geometry, text) overload (a raw proj4/WKT string, not an SRID)
         -- that an untyped bound parameter can resolve to instead — see impact.ts's note.
@@ -270,5 +278,5 @@ export async function getGeometrySummaryInternal(
       `,
     )
     .then((r) => r.rows);
-  return row ? { revision: row.revision, areaAcres: row.acres, sourceNote: row.source_note, createdAt: row.created_at } : null;
+  return row ? { revision: row.revision, areaAcres: row.acres, sourceNote: row.source_note, createdAt: toDate(row.created_at) } : null;
 }

@@ -70,8 +70,10 @@ export const ReportSnapshotSchema = z.object({
   phases: z.array(z.object({
     phase: z.enum(PHASE_KEYS), contentSha256: z.string(), verdict: z.literal("reviewed"),
     note: z.string().nullable(), reviewedAt: z.iso.datetime(), reviewedByName: z.string(),
-    changed: z.boolean(),                        // differs from the previous version's fingerprint
+    changed: z.boolean(),                        // differs from the previous version's fingerprint (always true for version 1)
+    summary: z.object({ templateVersion, headline: z.string(), lines: z.array(z.string()) }), // the drafted output as it was reviewed
   })).length(6),
+  resolutions: z.array(z.object({ resourceType, mappedBy, notMappedBy, revision })), // the recorded reasoning that applied (F19 R12)
   previousVersion: z.number().int().positive().nullable(),
   detailsChanged: z.boolean(),
 });

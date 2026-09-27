@@ -69,7 +69,10 @@ export async function loadPhaseFacts(decision: Decision, clock?: Clock): Promise
       footprint,
       status,
       run,
-      rules: run && pinned ? pinned.rules : null,
+      // The rules the pinned inputs resolved, whether or not a run has finished: the Overview lists them (F18 R8).
+      // Phase outputs still need the run as well (missingReason).
+      rules: pinned ? pinned.rules : null,
+      resolvedFor: pinned ? pinned.resolvedFor : null,
       datasetTitles,
       datasetLimitations,
       resolutions: latestResolutions(await listResolutionsInternal(decision.id)),

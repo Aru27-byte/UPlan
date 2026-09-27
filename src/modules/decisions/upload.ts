@@ -26,10 +26,10 @@ function isObject(value: unknown): value is Json {
 }
 
 function crsName(document: Json): string | null {
-  const crs = document["crs"];
+  const crs = document.crs;
   if (crs === undefined) return null;
-  if (isObject(crs) && isObject(crs["properties"]) && typeof crs["properties"]["name"] === "string") {
-    return crs["properties"]["name"];
+  if (isObject(crs) && isObject(crs.properties) && typeof crs.properties.name === "string") {
+    return crs.properties.name;
   }
   return "an unrecognized coordinate system";
 }
@@ -52,7 +52,7 @@ export function parseBoundaryUpload(text: string): MultiPolygon {
     if (err instanceof SyntaxError) throw new ValidationError("That file isn't valid JSON. Upload a GeoJSON file.");
     throw err;
   }
-  if (!isObject(document) || typeof document["type"] !== "string") {
+  if (!isObject(document) || typeof document.type !== "string") {
     throw new ValidationError("That file isn't GeoJSON. It needs a top-level \"type\".");
   }
 
@@ -63,19 +63,19 @@ export function parseBoundaryUpload(text: string): MultiPolygon {
 
   // Unwrap a Feature, or a FeatureCollection holding exactly one feature, to its geometry.
   let geometry: unknown = document;
-  if (document["type"] === "FeatureCollection") {
-    const features = document["features"];
+  if (document.type === "FeatureCollection") {
+    const features = document.features;
     if (!Array.isArray(features) || features.length !== 1) {
       throw new ValidationError("The file must hold exactly one boundary. It holds a different number of features.");
     }
     geometry = features[0];
   }
-  if (isObject(geometry) && geometry["type"] === "Feature") geometry = geometry["geometry"];
-  if (!isObject(geometry) || typeof geometry["type"] !== "string") {
+  if (isObject(geometry) && geometry.type === "Feature") geometry = geometry.geometry;
+  if (!isObject(geometry) || typeof geometry.type !== "string") {
     throw new ValidationError("That file has no geometry.");
   }
 
-  const type = geometry["type"];
+  const type = geometry.type;
   if (type !== "Polygon" && type !== "MultiPolygon") {
     throw new ValidationError(`The file holds a ${type}. A boundary must be a Polygon or a MultiPolygon.`);
   }
@@ -83,7 +83,7 @@ export function parseBoundaryUpload(text: string): MultiPolygon {
   // A projected file with a "GeoJSON" name is the common mistake: its coordinates are in feet or
   // meters, far outside the range of longitude and latitude.
   let outOfRange = false;
-  forEachPosition(geometry["coordinates"], (lon, lat) => {
+  forEachPosition(geometry.coordinates, (lon, lat) => {
     if (Math.abs(lon) > 180 || Math.abs(lat) > 90) outOfRange = true;
   });
   if (outOfRange) {
@@ -93,8 +93,8 @@ export function parseBoundaryUpload(text: string): MultiPolygon {
   }
 
   // A Polygon becomes a one-part MultiPolygon, which changes no coordinate.
-  const multi = type === "Polygon" ? { type: "MultiPolygon", coordinates: [geometry["coordinates"]] } : geometry;
-  const parsed = MultiPolygonSchema.safeParse({ type: "MultiPolygon", coordinates: multi["coordinates"] });
+  const multi = type === "Polygon" ? { type: "MultiPolygon", coordinates: [geometry.coordinates] } : geometry;
+  const parsed = MultiPolygonSchema.safeParse({ type: "MultiPolygon", coordinates: multi.coordinates });
   if (!parsed.success) {
     throw new ValidationError(`The boundary isn't a valid polygon: ${parsed.error.issues[0]?.message ?? "unrecognized shape"}`);
   }

@@ -15,7 +15,7 @@ const validInput: NewDataset = {
   sourceUrl: "https://www.fws.gov/wetlands/",
   authority: "federal",
   spatialPrecision: "regional",
-  coverage: { type: "MultiPolygon", coordinates: [] } as GeoJSON.Geometry,
+  coverage: { type: "MultiPolygon", coordinates: [] },
   knownLimitation: null,
   confidenceDefault: "low" as const,
   confidenceRationaleDefault: "National-scale remote sensing, not field-verified.",
@@ -35,7 +35,7 @@ describe("R1: a dataset is only ingested from a free public source", () => {
 
 describe("R12: authority and spatial precision are required, and only from the allowed lists", () => {
   it("R12: a dataset without an authority is rejected before any write", async () => {
-    const { authority: _omitted, ...withoutAuthority } = validInput;
+    const withoutAuthority = Object.fromEntries(Object.entries(validInput).filter(([key]) => key !== "authority"));
     await expect(createDataset(staffActor, withoutAuthority as NewDataset)).rejects.toThrow(/authority/);
   });
 

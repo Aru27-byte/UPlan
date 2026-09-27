@@ -30,11 +30,63 @@
   --color-status-approximate: #b45309;
 
   --shadow-sticker: 4px 4px 0 0 var(--color-ink);
+
+  /* The signed-in app's own visual system (TechDesign/project-dashboard.md, "The visual system"). The
+     public landing, sign-in, and register pages keep the tokens above. Every text/fill pair below is
+     checked for at least 4.5:1 contrast by src/ui/tokens.test.ts, which reads these values. */
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #dfe3e8;
+  --color-text: #16202a;
+  --color-muted: #556270;
+  --color-nav: #12202b;
+  --color-nav-line: #24384b;
+  --color-nav-text: #e8edf2;
+  --color-nav-muted: #a9b6c3;
+  --color-brand: #1b6a4b;
+  --color-brand-strong: #14523a;
+  --color-brand-soft: #e6f2ec;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e8eefc;
+  --color-warn: #8a4b06;
+  --color-warn-soft: #fbf0df;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-ok: #1b6a4b;
+  --color-ok-soft: #e6f2ec;
+
+  --shadow-panel: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
 }
 
 body {
   background-color: var(--color-cream);
   color: var(--color-ink);
+}
+
+/* The signed-in app. Every interactive element shows a 2px brand outline offset by 2px, and it is never
+   removed. Color changes ease over 150ms, and not at all for anyone who asks for reduced motion. */
+[data-app] {
+  background-color: var(--color-canvas);
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+[data-app] :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+[data-app] [data-nav] :focus-visible {
+  outline-color: var(--color-nav-text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-app] a,
+  [data-app] button {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease;
+  }
 }
 
 @layer components {

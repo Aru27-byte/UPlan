@@ -42,7 +42,7 @@ export function summarizeChanges(
     const before = base.snapshot.phases.find((p) => p.phase === view.phase);
     return {
       phase: view.phase,
-      changed: !view.output || !before || view.output.contentSha256 !== before.contentSha256,
+      changed: !view.output || view.output.contentSha256 !== before?.contentSha256,
       reviewedAtCurrentOutput: view.state.kind === "reviewed",
     };
   });

@@ -1,60 +1,38 @@
 import type { ReactNode } from "react";
 
-import { SidebarNav, type NavItem } from "./sidebar-nav.client";
+import { AppNav, type NavItem } from "./app-nav.client";
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/decisions", label: "Current Research" },
-  { href: "/profile", label: "Profile" },
-  { href: "/help", label: "Help" },
-];
-
-// UIDesign/Dashboard.png — the dark sidebar (logo, nav, city chip, user chip) beside a cream
-// content area. Server Component: userName/cityName are already-resolved plain strings from the
-// caller (src/app/(app)/layout.tsx), never fetched here — this file holds no data access of its own.
+// The signed-in app's frame: the navigation rail and the content column. A Server Component: userName,
+// userEmail, and cityName are already-resolved plain strings from the caller (src/app/(app)/layout.tsx),
+// never fetched here — this file holds no data access of its own. The city profile is in the navigation on
+// every page, with the city's name beneath it, so it reads as a place and not a setting (F20 R6).
 export function AppShell({
   userName,
+  userEmail,
   cityName,
   children,
 }: {
   userName: string;
+  userEmail: string;
   cityName: string;
   children: ReactNode;
 }) {
+  const items: NavItem[] = [
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard", matchPrefixes: ["/dashboard", "/projects"] },
+    { href: "/profile", label: "City profile", detail: cityName, icon: "city", matchPrefixes: ["/profile"] },
+    { href: "/help", label: "Help", icon: "help", matchPrefixes: ["/help"] },
+  ];
   return (
-    <div className="flex min-h-screen">
-      <aside className="bg-sidebar text-sidebar-foreground flex w-64 shrink-0 flex-col justify-between p-6">
-        <div>
-          <div className="mb-8 flex items-center gap-2">
-            <span aria-hidden className="text-2xl">
-              🌰
-            </span>
-            <span className="font-serif text-xl font-bold">UPlan</span>
-          </div>
-          <SidebarNav items={NAV_ITEMS} />
-        </div>
-        <div className="flex flex-col gap-3">
-          <div className="card-sticker bg-accent-green/90 px-4 py-2 text-center text-sm font-medium text-ink">
-            {cityName}
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="bg-accent-green flex h-8 w-8 items-center justify-center rounded-full font-semibold text-ink">
-              {initials(userName)}
-            </span>
-            <span>{userName}</span>
-          </div>
-        </div>
-      </aside>
-      <main className="flex-1 p-8">{children}</main>
+    <div data-app className="min-h-screen">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-brand focus:shadow-panel"
+      >
+        Skip to content
+      </a>
+      <AppNav items={items} userName={userName} userEmail={userEmail}>
+        {children}
+      </AppNav>
     </div>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts
-    .map((p) => p[0])
-    .filter((c): c is string => Boolean(c))
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }

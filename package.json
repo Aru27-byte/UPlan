@@ -15,6 +15,7 @@
     "start": "next start",
     "worker:build": "esbuild src/worker/main.ts --bundle --platform=node --format=esm --outfile=dist/worker/main.js --packages=external",
     "worker:start": "node --env-file=.env dist/worker/main.js",
+    "worker:dev": "npm run worker:build && npm run worker:start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

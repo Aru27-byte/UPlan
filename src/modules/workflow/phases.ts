@@ -49,7 +49,8 @@ export type PhaseFacts = {
     profileVersionNumber: number;
     datasetVersionIds: string[];
   } | null;
-  rules: InForceRules | null; // the rules that run used, for labels and named studies
+  rules: InForceRules | null; // the rules the pinned inputs resolved, for labels, named studies, and the Overview
+  resolvedFor: Record<string, string> | null; // the date each rule set was resolved for (F18 R9)
   datasetTitles: Map<string, string>; // by dataset version id, for the versions the run pinned
   datasetLimitations: Map<string, string>;
   resolutions: EvidenceResolution[]; // the latest revision of each, F19
@@ -253,7 +254,10 @@ export function buildPhaseViews(facts: PhaseFacts, reviews: PhaseReview[]): Phas
       output,
       state: { kind: "needs-review", changedSince },
       history,
-      changes: changedSince ? diffLines(changedSince.summary.lines, output.lines) : null,
+      // R10: the headline is part of what was said, so a changed area or count shows in the comparison.
+      changes: changedSince
+        ? diffLines([changedSince.summary.headline, ...changedSince.summary.lines], [output.headline, ...output.lines])
+        : null,
     };
   });
 }

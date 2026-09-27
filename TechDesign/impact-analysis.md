@@ -123,7 +123,7 @@ async function computeBufferImpacts(
 
 ## Showing an impact (R10, R11, R12)
 
-`impact/page.tsx` stays a Server Component and calls `getLatestRun` and `getAnalysisStatus` (see `decision-overview.md`). Each impact card is built from data the run already stores:
+`impact/page.tsx` stays a Server Component and reads the run for the project's current inputs from `getWorkflow` (`facts.run`, present only when the analysis status is current; see `decision-overview.md` and `research-phases.md`), so it never shows results for inputs the project no longer holds. Each impact card is built from data the run already stores:
 
 - **R10:** `ruleKeys` resolve against the profile version the run pinned, so the card lists each rule's code section and effective date through the provenance formatter, even if the profile has changed since. `evidence` resolves through `formatDerivedProvenance` (F4) to the datasets and the feature ids behind the number. Both lists sit under the quantity on the card, collapsed by default, and are also present as text for a screen reader. Nothing new is stored.
 - **R11:** `describeImpact(impact, footprintRevision)` in `analysis` is a fixed template with numbers passed through the display formatter: "Footprint revision {n} overlaps {quantity} of {resource}." A range reads "between {min} and {max}, depending on {attribute}". The function's input type has no free text, and a denylist test covers its output like the report's (R6).

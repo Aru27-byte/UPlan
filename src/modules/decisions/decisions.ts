@@ -21,7 +21,7 @@ export type DecisionStatus = z.infer<typeof DecisionStatusSchema>;
 /** The dashboard lists at most this many of a person's projects, and says so when it reaches it (project-dashboard.md). */
 export const LIST_LIMIT = 100;
 
-const ApplicationTypeSchema = z.enum(["subdivision", "short_subdivision", "clearing_grading"]);
+export const ApplicationTypeSchema = z.enum(["subdivision", "short_subdivision", "clearing_grading"]);
 export type ApplicationType = z.infer<typeof ApplicationTypeSchema>;
 
 // A blank form field arrives as "" and means "not recorded": null, never a placeholder (F5 R10).

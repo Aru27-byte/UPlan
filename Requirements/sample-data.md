@@ -15,7 +15,7 @@ The whole workflow — from a site to a published document — has to be usable,
 
 **R1. A planner can start a project with sample data.** One action creates a project whose details, study area, and footprint are all filled in from a fixed sample, and starts its analysis. From there the planner works through every phase as with any project.
 
-**R2. Each input a phase accepts can be loaded from sample data on its own.** The project details form can be filled with sample details. The Site phase can load a sample study area. The Footprint phase can load a sample footprint. Each saves a new numbered revision like any other input (F5 R5, R6).
+**R2. Each input a phase accepts can be loaded from sample data on its own.** The project details form can be filled with sample details, but only while its optional details are still blank: sample details never overwrite a real applicant, address, or filing date. The Site phase can load a sample study area. The Footprint phase can load a sample footprint. Each saves a new numbered revision like any other input (F5 R5, R6).
 
 **R3. The phases that have no input of their own run on sample evidence.** Evidence, Screening, Studies, and Impact draw on the city's evidence datasets. Where a city has none mapped, those phases say so as gaps (F7 R4), never as an empty success. UPlan staff can install the illustrative evidence datasets for the city, and doing so is safe to repeat.
 
