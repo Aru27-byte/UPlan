@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { requirePlanner, type Actor } from "@/modules/accounts";
-import { getCurrentProfileForAnalysis, ProfileDocumentSchema } from "@/modules/profiles";
+import { requireStaff, type Actor } from "@/modules/accounts";
+import { getCurrentProfile, ProfileDocumentSchema } from "@/modules/profiles";
 import { db } from "@/platform/db";
 import { ValidationError } from "@/platform/errors";
 import { addJob } from "@/platform/jobs";
@@ -23,8 +23,8 @@ export async function requestExport(
   scope: ExportScope,
   format: string,
 ) {
-  requirePlanner(actor, jurisdictionId);
-  const profile = await getCurrentProfileForAnalysis(jurisdictionId);
+  requireStaff(actor); // an export spans every person's records in the city, so it is a records-officer action, not a planner's (changed 2026-09-27)
+  const profile = await getCurrentProfile(jurisdictionId);
   // Re-validate rather than `as`-cast: profile.document is untyped jsonb (conventions.md: "no
   // `as` casts on data from outside the process"), even though it was validated before storage.
   const document = profile ? ProfileDocumentSchema.parse(profile.document) : null;

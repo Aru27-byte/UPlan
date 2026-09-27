@@ -1,0 +1,2 @@
+ALTER TABLE "analysis_run" DROP CONSTRAINT "analysis_run_one_per_input";--> statement-breakpoint
+CREATE UNIQUE INDEX "analysis_run_one_per_input" ON "analysis_run" USING btree ("decision_id","purpose","input_sha256") WHERE "analysis_run"."status" <> 'failed';

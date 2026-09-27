@@ -36,12 +36,16 @@ export default defineConfig({
           name: "integration",
           environment: "node",
           include: ["src/**/*.integration.test.ts"],
-          testTimeout: 60_000, // container startup
-          hookTimeout: 60_000,
-          // A test's own beforeAll overwrites DATABASE_URL with the started container's
-          // connection string before any query runs; every other var still needs a placeholder
-          // here, since module import (and env.ts's validation) happens before that beforeAll.
+          testTimeout: 60_000,
+          hookTimeout: 120_000, // the container starts and every migration runs in globalSetup
+          // The global setup starts one PostGIS container, applies every migration, and sets
+          // DATABASE_URL before any worker starts. Every OTHER variable env.ts requires still needs a
+          // placeholder, since module import (and env.ts's validation) happens at import time.
+          globalSetup: ["./tests/setup/integration-db.ts"],
           setupFiles: ["./tests/setup/dummy-env.ts"],
+          // One process at a time: race tests open their own connections, and a single Node process
+          // sharing one pool per file keeps the container's connection count predictable.
+          fileParallelism: false,
         },
       },
     ],

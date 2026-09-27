@@ -2,57 +2,81 @@ import { createHash } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { getDecisionForAnalysis, markReportReleased } from "@/modules/decisions";
+import { markFinishFailed, markReportReleased } from "@/modules/decisions";
 import { db } from "@/platform/db";
-import { headIfExists, putIfAbsent } from "@/platform/object-storage";
+import { ConflictError } from "@/platform/errors";
 
 import { renderReportHtml } from "./render";
+import { ReportSnapshotSchema } from "./snapshot";
 import { report } from "./tables";
 
 // Deliberately its own file, never re-exported by index.ts: render.ts (imported below) pulls in
 // `react-dom/server`, and Next.js 16 refuses to let that be reachable — even via a dynamic
-// `import()` — from anything the app router's build graph can reach, route handlers included. This
-// function only ever runs as a worker job (src/worker/tasks.ts imports it with a deep import,
-// bypassing index.ts on purpose — see that file's comment), so it must stay out of every path a
-// Next.js page or route handler's import graph could touch, including release.ts (which pages do
-// import, for `releaseReport`).
+// `import()` — from anything the app router's build graph can reach, route handlers included. These
+// functions only ever run as a worker job (src/worker/tasks.ts imports them with a deep import,
+// bypassing index.ts on purpose — see that file's comment), so they must stay out of every path a
+// Next.js page or route handler's import graph could touch.
 
 function sha256(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex");
 }
 
-/** The release_report job body. */
+/**
+ * The release_report job body (TechDesign/research-changes.md, "The document job"). Two steps:
+ * rendering, which has no side effect, and storing, which is one transaction that compare-and-sets the
+ * row from `releasing` to `released`. So two attempts of one finish can't both store, and a retry
+ * after success finds the row already released and does nothing (F10 R11).
+ */
 export async function renderAndStoreReport(reportId: string): Promise<void> {
   const [row] = await db.select().from(report).where(eq(report.id, reportId));
   if (!row) throw new Error(`report ${reportId} not found`);
-
-  const decision = await getDecisionForAnalysis(row.decisionId);
-  const objectKey = `${decision.jurisdictionId}/${row.decisionId}/${row.id}.pdf`; // matches data-model.md's key pattern
-  const already = await headIfExists("reports", objectKey);
-  if (already?.metadata.sha256) {
-    await finalizeReleased(reportId, row.decisionId, objectKey, already.metadata.sha256); // R11: idempotent retry, never re-renders
-    return;
-  }
+  if (row.status !== "releasing") return; // already released, or already failed: nothing left to do
 
   const html = await renderReportHtml(reportId);
-  const pdf = await printToPdf(html); // Playwright, tagged + outline — see render.ts
+  const pdf = await printToPdf(html); // Playwright, tagged + outline — F10 R8
   const pdfSha256 = sha256(pdf);
-  await putIfAbsent("reports", objectKey, pdf, { metadata: { sha256: pdfSha256 } });
-  await finalizeReleased(reportId, row.decisionId, objectKey, pdfSha256);
+  const snapshot = ReportSnapshotSchema.parse(row.snapshot);
+  const expectedVersion = (snapshot.previousVersion ?? 0) + 1; // what the document printed
+
+  await db.transaction(async (tx) => {
+    const released = await tx
+      .update(report)
+      .set({
+        status: "released",
+        pdf,
+        pdfSha256,
+        releasedAt: sql`now()`,
+        // Assigned only here, inside the one-in-flight window, so version numbers have no gaps; the
+        // partial unique index on (decision_id, version_number) is the last guard (F22 R2).
+        versionNumber: sql`(select coalesce(max(version_number), 0) + 1 from report where decision_id = ${row.decisionId})`,
+      })
+      .where(and(eq(report.id, reportId), eq(report.status, "releasing")))
+      .returning({ versionNumber: report.versionNumber });
+    const [stored] = released;
+    if (!stored) throw new ConflictError("This document was already finished.");
+    if (stored.versionNumber !== expectedVersion) {
+      // The printed number and the stored number must be one number; rolling back leaves the row `releasing`.
+      throw new Error(`report ${reportId} printed version ${expectedVersion} but would be stored as version ${String(stored.versionNumber)}`);
+    }
+    await markReportReleased(row.decisionId, tx); // finishing -> report_released, exactly one row
+  });
 }
 
-async function finalizeReleased(
-  reportId: string,
-  decisionId: string,
-  objectKey: string,
-  pdfSha256: string,
-): Promise<void> {
-  const updated = await db
-    .update(report)
-    .set({ status: "released", objectKey, pdfSha256, releasedAt: sql`now()` })
-    .where(and(eq(report.id, reportId), eq(report.status, "releasing"))) // compare-and-set; report_final trigger blocks any further change
-    .returning({ id: report.id });
-  if (updated.length > 0) await markReportReleased(decisionId); // the one place decision.status reaches 'report_released'
+/**
+ * After the job's last retry (src/worker/tasks.ts): the failure is recorded and shown, the project
+ * returns to in progress, and no version number is used (F22 R8). One transaction.
+ */
+export async function markReportFailed(reportId: string, message: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const failed = await tx
+      .update(report)
+      .set({ status: "failed", errorDetail: message })
+      .where(and(eq(report.id, reportId), eq(report.status, "releasing")))
+      .returning({ decisionId: report.decisionId });
+    const [row] = failed;
+    if (!row) return; // it was released or failed already: nothing to record
+    await markFinishFailed(row.decisionId, tx);
+  });
 }
 
 async function printToPdf(html: string): Promise<Buffer> {

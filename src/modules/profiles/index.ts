@@ -21,19 +21,17 @@ export {
   createJurisdiction,
   getJurisdiction,
   getJurisdictionBoundary,
-  getJurisdictionForAnalysis,
+  getProfileOverview,
   listJurisdictionIds,
+  listJurisdictions,
 } from "./jurisdiction";
-export type { NewJurisdiction } from "./jurisdiction";
+export type { NewJurisdiction, ProfileOverview } from "./jurisdiction";
 
-export {
-  getCurrentProfile,
-  getCurrentProfileForAnalysis,
-  getProfileVersion,
-  assertNoOrphanedDatasetMapping,
-} from "./versions";
+export { getCurrentProfile, getProfileVersion, assertNoOrphanedDatasetMapping } from "./versions";
 
 export { findRuleCitation } from "./citations";
+
+export { buildSampleProfileDocument, SAMPLE_PROFILE_REASON } from "./sample-profile";
 
 export { generateTemplate } from "./template";
 export { parseUpload } from "./upload";

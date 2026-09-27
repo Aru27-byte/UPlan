@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Task } from "graphile-worker";
+import type { JobHelpers, Task } from "graphile-worker";
 
 import { applyEffectiveDates, listJurisdictionIds, runPreview } from "@/modules/profiles";
 import { ingestDataset } from "@/modules/evidence";
@@ -9,7 +9,7 @@ import { runAnalysis } from "@/modules/analysis";
 // build graph — see reports/index.ts's and render-and-store.ts's comments. The worker is a
 // separate esbuild bundle Next never traces into, so this is safe here specifically; eslint.config.js
 // has a matching, narrowly-scoped exception for this one file and this one deep-import path.
-import { renderAndStoreReport } from "@/modules/reports/render-and-store";
+import { markReportFailed, renderAndStoreReport } from "@/modules/reports/render-and-store";
 import { buildExport, flagRetention } from "@/modules/records";
 import { recordHeartbeat } from "@/modules/operations";
 
@@ -35,9 +35,23 @@ async function dailyJurisdictionMaintenance(): Promise<void> {
 // `Task`'s default, under which `payload` is `unknown`, exactly what schema.parse expects.
 function task<Schema extends z.ZodType>(
   schema: Schema,
-  handler: (payload: z.infer<Schema>) => Promise<void>,
+  handler: (payload: z.infer<Schema>, helpers: JobHelpers) => Promise<void>,
 ): Task {
-  return (rawPayload) => handler(schema.parse(rawPayload));
+  return (rawPayload, helpers) => handler(schema.parse(rawPayload), helpers);
+}
+
+// F22 R8: the document job retries up to its max_attempts. On the last attempt the failure is recorded on
+// the report and the project returns to in progress, so it is shown to the planner; the error is then
+// rethrown so the job still fails and the health check and alarm see it (no fallback).
+async function releaseReport(reportId: string, helpers: JobHelpers): Promise<void> {
+  try {
+    await renderAndStoreReport(reportId);
+  } catch (err) {
+    if (helpers.job.attempts >= helpers.job.max_attempts) {
+      await markReportFailed(reportId, err instanceof Error ? err.message : String(err));
+    }
+    throw err;
+  }
 }
 
 const PreviewProfileChangePayload = z.object({ changeId: z.string() });
@@ -54,7 +68,7 @@ export const taskList = {
   preview_profile_change: task(PreviewProfileChangePayload, (p) => runPreview(p.changeId)),
   run_analysis: task(RunAnalysisPayload, (p) => runAnalysis(p.decisionId, p.purpose, p.profileChangeId)),
   ingest_dataset: task(IngestDatasetPayload, (p) => ingestDataset(p.datasetId)),
-  release_report: task(ReleaseReportPayload, (p) => renderAndStoreReport(p.reportId)),
+  release_report: task(ReleaseReportPayload, (p, helpers) => releaseReport(p.reportId, helpers)),
   build_records_export: task(BuildRecordsExportPayload, (p) => buildExport(p.exportId)),
   record_heartbeat: () => recordHeartbeat(),
   daily_jurisdiction_maintenance: () => dailyJurisdictionMaintenance(),

@@ -2,16 +2,30 @@
 export {
   ConfidenceLevelSchema,
   EvidenceProvenanceSchema,
+  EvidenceAttributesSchema,
   RuleProvenanceSchema,
   DerivedProvenanceSchema,
 } from "./types";
-export type { ConfidenceLevel, EvidenceProvenance, RuleProvenance, DerivedProvenance } from "./types";
+export type {
+  ConfidenceLevel,
+  EvidenceProvenance,
+  EvidenceAttributes,
+  RuleProvenance,
+  DerivedProvenance,
+} from "./types";
 
 export {
   formatEvidenceProvenance,
   formatRuleProvenance,
   formatDerivedProvenance,
+  formatEvidenceAttributes,
+  formatAcres,
+  formatSqFt,
+  formatFeet,
+  formatCount,
+  formatTimestamp,
   CONFIDENCE_DESCRIPTIONS,
   CONFIDENCE_NOT_APPLICABLE,
+  SAMPLE_SOURCE_PREFIX,
 } from "./format";
-export type { FormattedProvenance } from "./format";
+export type { FormattedProvenance, AttributeLine, EvidenceConsistency } from "./format";

@@ -1,7 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-import { requireReviewer, type Actor } from "@/modules/accounts";
-import { getCurrentProfileForAnalysis, ProfileDocumentSchema } from "@/modules/profiles";
+import { requireStaff, type Actor } from "@/modules/accounts";
+import { getCurrentProfile, ProfileDocumentSchema } from "@/modules/profiles";
 import { db } from "@/platform/db";
 import { ConflictError } from "@/platform/errors";
 
@@ -47,7 +47,7 @@ export async function flagRetention(jurisdictionId: string): Promise<void> {
   const hasRealApplication = await anyDecisionWithFilingDate(jurisdictionId);
   if (!hasRealApplication) return; // R2: nothing to flag until a real application exists
 
-  const profile = await getCurrentProfileForAnalysis(jurisdictionId);
+  const profile = await getCurrentProfile(jurisdictionId);
   if (!profile) return;
   // Re-validate rather than `as`-cast: profile.document is untyped jsonb (conventions.md: "no
   // `as` casts on data from outside the process"), even though it was validated before storage.
@@ -73,11 +73,10 @@ export async function flagRetention(jurisdictionId: string): Promise<void> {
 
 export async function reviewFlag(
   actor: Actor,
-  jurisdictionId: string,
   flagId: string,
   outcome: "keep" | "dispose",
 ) {
-  requireReviewer(actor, jurisdictionId); // a compliance judgment, not a routine planner action
+  requireStaff(actor); // a compliance judgment, not a routine planner action (changed 2026-09-27: there are no reviewer memberships)
   const updated = await db
     .update(retentionFlag)
     .set({ reviewedBy: actor.userId, reviewedAt: sql`now()`, outcome })
