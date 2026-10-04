@@ -34,13 +34,19 @@ src/modules/reports/
 
 `render.ts` and `render-and-store.ts` import `react-dom/server`, which Next.js refuses in anything the app router can reach, so they are kept out of `index.ts` and reached by the worker with the one sanctioned deep import (`eslint.config.js`). That is unchanged.
 
+## Sections (R18)
+
+The document is stitched from per-step sections, each a Server Component over resolved data in `sections.tsx`: `DetailsSection` and `RulesSection` (Overview), `SiteSection`, `FootprintSection`, `EvidenceSection`, `ScreeningSection`, `StudiesSection`, and `ImpactSection` (which also carries "What desk analysis can't see"). The sections that read a run take one `RunContent` (profile document, results, dataset provenance, titles and limitations, impact provenance, resolutions) plus the phase's `SectionSummary`. `document.tsx` adds only what belongs to the whole: the header, what changed since the previous version, the source register, and the review record.
+
+Two callers build that data. `render.ts` builds it from a report row's pinned records (R17). `live.ts` (`loadLiveReportContent`) builds it for a step page from the run and geometry revisions the page was handed, so a step page can show its section as it will print. Both resolve content through `run-content.ts` (`loadRunSources`, `buildImpactProvenance`, `toReportResolutions`), the one copy of that logic. The live preview stores nothing and is never published; it reads no "current" a second time, because the caller passes the run id and revisions it already pinned. The content stylesheet, `REPORT_CONTENT_STYLES`, is scoped to `.report-paper`, so the printed document and the in-app preview share one set of rules. The Site and Footprint phases each print their own map, with distinct SVG ids.
+
 ## The document (R3, R4, R5, R6, R7, R14, R15, R16)
 
 `document.tsx` is a plain React tree that takes already-resolved data and fetches nothing. Its props are built by `render.ts` from the report row (`analysisRunId`, `snapshot`) and the records it names. In order:
 
 1. **Cover.** Title, city, **version number and publication time in the city's time zone** (R16), profile version, the project details where recorded ("Not yet recorded" where not, R15), each critical area type's `mapStatus` and whether its rule set vested to the filing date or uses the resolution date (R5), and the **sample-data banner** when `snapshot.details.usesSampleData` (R16).
 2. **What changed** (version 2 and later). The reason (`change_note`), the phases and details that changed from the previous version, and its number (R16).
-3. **Study area and footprint.** Inline SVG maps with `<title>` and `<desc>` (R8), from the pinned revisions.
+3. **Site and Footprint.** One section each, with its own inline SVG map, `<title>` and `<desc>` (R8), from the pinned revisions.
 4. **Evidence base**, led by the phase's drafted summary: every resource type, its measured presence or an explicit "none mapped in the study area" (the literal fact, never "clear" or "safe", R7), disagreements and gaps stated as facts, every `Limit` (R3), and each recorded resolution with its rationale, author, and date (R14).
 5. **Screening register and study flags** (R15), rendered with `describeScreeningRow` (F14), each row with its provenance, opening with F14's fixed statements. Every study named in the profile without a flag prints "not flagged by mapped data" and the P2 sentence.
 6. **Impact**, led by the drafted summary: one row per `Impact` through `formatDerivedProvenance` (F4), ranges exactly as computed, never collapsed (R4).
@@ -127,6 +133,7 @@ Its keys are a literal union with fixed labels in the route, so there is no free
 | R12 | `finishResearch` gains a precondition; a status and a blocking key | No change of shape |
 | R13 | `getFinishReadiness` | Advisory list, authoritative transaction |
 | R14, R15 | Document sections 4, 5, 7 | |
+| R18 | `sections.tsx`, `run-content.ts`, `live.ts`; `ReportDocument` stitches them | One component per section, shared with the step pages |
 | R16 | Cover, What changed, Review record; `ReportSnapshot` | Sample banner from `usesSampleData` |
 | R17 | `renderReportHtml(row)` reads only the row, the run, the run's recorded revisions, and the pinned profile version | |
 
