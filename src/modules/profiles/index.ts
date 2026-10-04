@@ -37,9 +37,10 @@ export { generateTemplate } from "./template";
 export { parseUpload } from "./upload";
 export type { UploadResult } from "./upload";
 
-export { proposeUpload, proposeEdit, decideChange, getProfileChange, listProfileChanges } from "./changes";
+export { applyProfileDocument, applyUpload, editSettings, getProfileChange } from "./changes";
 export type { ProfileChange } from "./changes";
 
-export { runPreview } from "./preview";
+export { addUrlSource, listSources, removeSource, updateSource } from "./sources";
+export type { ProfileSource } from "./sources";
 
 export { applyEffectiveDates } from "./effective-dates";

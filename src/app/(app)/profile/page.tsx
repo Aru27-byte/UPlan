@@ -5,112 +5,147 @@ import {
   ProfileDocumentSchema,
   getCurrentProfile,
   getProfileOverview,
-  listProfileChanges,
-  type ProfileChange,
+  listSources,
+  type Citation,
   type ProfileDocument,
 } from "@/modules/profiles";
 import { formatFeet, formatRuleProvenance, formatTimestamp } from "@/modules/provenance";
 import { ActionForm } from "@/ui/action-form.client";
-import { actionClassName, inputClassName } from "@/ui/action-styles";
-import { Icon } from "@/ui/icons";
-import { Metric } from "@/ui/metric";
 import { PageHeader } from "@/ui/page-header";
 import { Panel } from "@/ui/panel";
-import { StatusLabel, type StatusTone } from "@/ui/status-label";
 import { SubmitButton } from "@/ui/submit-button.client";
 
-import { decideProfileChangeAction, installSampleEvidenceAction, uploadProfileAction } from "./actions";
+import { installSampleEvidenceAction } from "./actions";
+import { ProfileFlyout } from "./profile-flyout.client";
+import { ResourceTypePanel, type ResourceTypeItem, type ResourceTypeRule } from "./resource-type-panel.client";
+import { SettingsForm } from "./settings-form";
+import { SourcesView } from "./sources-view";
 
 const RULE_SET_LABEL = { "critical-areas": "Critical area rules", trees: "Tree rules" } as const;
-const CHANGE_TONE: Record<string, StatusTone> = { pending: "warn", approved: "ok", rejected: "danger" };
-const SOURCE_LABEL: Record<string, string> = { upload: "Excel upload", edit: "Edit in UPlan", code_change: "Code change" };
 
-// The column has a check constraint, so an unknown source is a bug to surface, not a value to display as-is.
-function sourceLabel(source: string): string {
-  const label = SOURCE_LABEL[source];
-  if (label === undefined) throw new Error(`profile change has an unknown source: ${source}`);
-  return label;
+// P1: every rule is shown with its code section and the date it took effect, through the one provenance formatter.
+function citationLine(rule: { citation: Citation; effectiveOn: string }): string {
+  const [line] = formatRuleProvenance({ ...rule.citation, effectiveOn: rule.effectiveOn }).citations;
+  if (line === undefined) throw new Error("the provenance formatter returned no citation for a rule");
+  return line;
+}
+
+// The profile's regulations, grouped under the resource type each applies to and worded for display. Tree rules
+// carry no resource type of their own, so they belong to the resource types of the tree rule set.
+function toResourceTypeItems(profile: ProfileDocument): ResourceTypeItem[] {
+  return profile.resourceTypes.map((rt) => {
+    const rules: ResourceTypeRule[] = [];
+    for (const b of profile.bufferRules.filter((r) => r.resourceType === rt.key)) {
+      rules.push({
+        key: b.key,
+        kind: "Buffer",
+        summary: `${formatFeet(b.widthFt)} buffer${b.appliesWhen ? ` where ${b.appliesWhen.attribute} is ${b.appliesWhen.equals}` : ""}`,
+        citation: citationLine(b),
+      });
+    }
+    for (const t of profile.studyTriggers.filter((r) => r.resourceType === rt.key)) {
+      rules.push({
+        key: t.key,
+        kind: "Study trigger",
+        summary: `${STUDY_LABEL[t.study]} within ${formatFeet(t.withinFt)}`,
+        citation: citationLine(t),
+      });
+    }
+    if (rt.ruleSet === "trees") {
+      for (const t of profile.treeRules) {
+        rules.push({
+          key: t.key,
+          kind: t.kind === "significant-tree" ? "Significant tree" : "Removal cap",
+          summary:
+            t.kind === "significant-tree"
+              ? `${t.group === "conifer" ? "Conifers" : "Deciduous trees"} of ${t.minDbhIn} inches DBH or larger`
+              : `Removals capped at ${t.maxCount} per ${t.periodYears} years`,
+          citation: citationLine(t),
+        });
+      }
+    }
+    return {
+      key: rt.key,
+      label: rt.label,
+      ruleSetLabel: RULE_SET_LABEL[rt.ruleSet],
+      isApproximate: rt.mapStatus === "approximate",
+      rules,
+    };
+  });
 }
 
 // The city profile (TechDesign/jurisdiction-profile.md, project-dashboard.md R6): the rules and settings
 // every project in the city is analyzed under, always one click from any page. Anyone signed in can read it
-// and propose a change from an Excel workbook; UPlan staff approve a change before it reaches any project.
+// and change it; a change applies at once (profile-upload-edit.md R5).
 export default async function ProfilePage() {
   const { actor } = await requireActor();
   const cityResult = await getCity();
   if (cityResult.kind !== "city") return null;
   const city = cityResult.city;
 
-  const [overview, profileVersion, changes] = await Promise.all([
+  const [overview, profileVersion, sources] = await Promise.all([
     getProfileOverview(city.id),
     getCurrentProfile(city.id),
-    listProfileChanges(city.id),
+    listSources(city.id),
   ]);
   const profile = profileVersion ? ProfileDocumentSchema.parse(profileVersion.document) : null;
 
   return (
     <>
       <PageHeader
-        title="City profile"
+        eyebrow="Jurisdiction profile"
+        title={`City of ${city.name} Profile`}
         breadcrumb={[{ href: "/dashboard", label: "Dashboard" }]}
         meta={
-          overview.versionNumber === null
-            ? `${city.name}, ${city.stateCode} — no profile has been approved yet.`
-            : `${city.name}, ${city.stateCode} — version ${overview.versionNumber}${overview.changedAt ? `, changed ${formatTimestamp(overview.changedAt, city.timeZone)}` : ""}.`
+          <span className="mt-1.5 inline-flex flex-wrap items-center gap-x-3 gap-y-2">
+            {overview.versionNumber === null ? (
+              <span className="rounded-full bg-warn-soft px-3 py-1 text-sm font-bold text-warn">No profile yet</span>
+            ) : (
+              <span className="rounded-full bg-accent-gold px-3 py-1 text-sm font-bold text-ink">Version {overview.versionNumber}</span>
+            )}
+            <span className="text-lg font-semibold text-page-text">
+              {city.name}, {city.stateCode}
+            </span>
+            <span className="text-base text-page-muted">
+              {overview.changedAt ? `Last changed ${formatTimestamp(overview.changedAt, city.timeZone)}` : "Upload the city's rules from Sources to begin"}
+            </span>
+          </span>
         }
         actions={
-          <a href="/api/profile/template" className={actionClassName("secondary")}>
-            <Icon name="download" />
-            Download Excel template
-          </a>
+          <ProfileFlyout
+            sourceCount={sources.length}
+            settings={
+              profile && profileVersion ? (
+                <SettingsForm key={profileVersion.id} jurisdictionId={city.id} versionId={profileVersion.id} profile={profile} />
+              ) : (
+                <p className="rounded-lg border-2 border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+                  Settings appear once the city has a profile. Upload a workbook from Sources to create it.
+                </p>
+              )
+            }
+            sources={
+              <SourcesView
+                key={profileVersion?.id ?? "no-profile"}
+                jurisdictionId={city.id}
+                versionId={profileVersion?.id ?? null}
+                sources={sources}
+                timeZone={city.timeZone}
+              />
+            }
+          />
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Metric label="Changes awaiting review" value={changes.filter((c) => c.status === "pending").length} />
-        <Metric label="Resource types" value={overview.resourceTypeCount} />
-        <Metric label="Rules" value={overview.ruleCount} />
-      </div>
-
-      {profile ? <ProfileRules profile={profile} /> : (
-        <Panel title="No approved profile">
+      {profile ? (
+        <ResourceTypePanel items={toResourceTypeItems(profile)} resourceTypeCount={overview.resourceTypeCount} ruleCount={overview.ruleCount} />
+      ) : (
+        <Panel title="No profile yet">
           <p className="text-sm text-text">
-            No projects can be analyzed for {city.name} until a profile is approved. Upload the city&apos;s rules from the
-            Excel template below; UPlan staff review the workbook before it applies.
+            No projects can be analyzed for {city.name} until it has a profile. Open the settings panel with the gear at the top right, choose
+            Sources, and upload the city&apos;s rules from the Excel template.
           </p>
         </Panel>
       )}
-
-      <Panel title="Change history" description="Every proposed change, newest first. Nothing reaches a project until UPlan staff approve it.">
-        {changes.length === 0 ? (
-          <p className="text-sm text-muted">No change has been proposed yet.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-line">
-            {changes.map((change) => (
-              <ChangeRow key={change.id} change={change} timeZone={city.timeZone} actorId={actor.userId} isStaff={actor.isStaff} />
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel
-        title="Propose a change from Excel"
-        description="Use this when the city's website blocks automated reading, or to correct a rule. The workbook must follow the template."
-      >
-        <ActionForm action={uploadProfileAction.bind(null, city.id)} encType="multipart/form-data" className="flex max-w-xl flex-col gap-3">
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Workbook (.xlsx)
-            <input type="file" name="file" accept=".xlsx" required className={inputClassName} />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Reason for this change
-            <textarea name="reason" required rows={3} maxLength={1000} className={inputClassName} />
-          </label>
-          <div>
-            <SubmitButton pendingLabel="Uploading…">Propose change</SubmitButton>
-          </div>
-        </ActionForm>
-      </Panel>
 
       {actor.isStaff ? (
         <Panel
@@ -127,142 +162,3 @@ export default async function ProfilePage() {
     </>
   );
 }
-
-function ProfileRules({ profile }: { profile: ProfileDocument }) {
-  return (
-    <>
-      <Panel title="Settings" description="Set by planners in the profile, not confirmed with the city for each project.">
-        <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="font-medium text-muted">Vesting</dt>
-            <dd className="mt-1 flex flex-col gap-1 text-text">
-              {profile.settings.vesting.map((v) => (
-                <span key={v.ruleSet}>
-                  {RULE_SET_LABEL[v.ruleSet]}: {v.vests ? "vest to the filing date" : "use today's rules"}
-                </span>
-              ))}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-muted">Map status</dt>
-            <dd className="mt-1 flex flex-col gap-1 text-text">
-              {profile.resourceTypes.map((r) => (
-                <span key={r.key}>
-                  {r.label}: {r.mapStatus === "regulatory" ? "regulatory" : "approximate"}
-                </span>
-              ))}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-muted">Records</dt>
-            <dd className="mt-1 flex flex-col gap-1 text-text">
-              {profile.settings.retention.map((r) => (
-                <span key={r.recordType}>
-                  {r.recordType}: kept {r.retainYears} years from {r.countFrom === "created" ? "creation" : "release"}
-                </span>
-              ))}
-              <span>Exports: {profile.settings.exportFormats.join(", ")}</span>
-            </dd>
-          </div>
-        </dl>
-      </Panel>
-
-      <Panel title="Critical areas" description="Each rule cites its code section and effective date.">
-        <div className="grid gap-4 lg:grid-cols-2">
-          {profile.resourceTypes
-            .filter((r) => r.ruleSet === "critical-areas")
-            .map((rt) => {
-              const buffers = profile.bufferRules.filter((b) => b.resourceType === rt.key);
-              const triggers = profile.studyTriggers.filter((t) => t.resourceType === rt.key);
-              return (
-                <div key={rt.key} className="rounded-lg border border-line p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-text">{rt.label}</h3>
-                    <StatusLabel tone={rt.mapStatus === "approximate" ? "warn" : "neutral"}>
-                      {rt.mapStatus === "approximate" ? "Approximate boundary" : "Regulatory boundary"}
-                    </StatusLabel>
-                  </div>
-                  {buffers.length === 0 && triggers.length === 0 ? (
-                    <p className="mt-2 text-sm text-muted">No buffer or study-trigger rule recorded.</p>
-                  ) : (
-                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-text">
-                      {buffers.map((b) => (
-                        <li key={b.key}>
-                          {formatFeet(b.widthFt)} buffer — {formatRuleProvenance({ ...b.citation, effectiveOn: b.effectiveOn }).citations[0]}
-                        </li>
-                      ))}
-                      {triggers.map((t) => (
-                        <li key={t.key}>
-                          {STUDY_LABEL[t.study]} within {formatFeet(t.withinFt)} — {formatRuleProvenance({ ...t.citation, effectiveOn: t.effectiveOn }).citations[0]}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      </Panel>
-
-      <Panel title="Significant trees" description="Trees are regulated individually. Desk analysis can't count them.">
-        {profile.treeRules.length === 0 ? (
-          <p className="text-sm text-muted">No tree rule recorded.</p>
-        ) : (
-          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-text">
-            {profile.treeRules.map((t) => (
-              <li key={t.key}>
-                {t.kind === "significant-tree"
-                  ? `${t.group === "conifer" ? "Conifers" : "Deciduous trees"} of ${t.minDbhIn} inches DBH or larger`
-                  : `Removals capped at ${t.maxCount} per ${t.periodYears} years`}{" "}
-                — {formatRuleProvenance({ ...t.citation, effectiveOn: t.effectiveOn }).citations[0]}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-    </>
-  );
-}
-
-function ChangeRow({ change, timeZone, actorId, isStaff }: { change: ProfileChange; timeZone: string; actorId: string; isStaff: boolean }) {
-  const tone = CHANGE_TONE[change.status];
-  if (tone === undefined) throw new Error(`profile change ${change.id} has an unknown status: ${change.status}`);
-  const isOwn = change.proposedBy === actorId;
-  return (
-    <li className="py-3 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusLabel tone={tone}>{change.status.charAt(0).toUpperCase()}{change.status.slice(1)}</StatusLabel>
-        <span className="text-sm font-medium text-text">{change.reason}</span>
-      </div>
-      <p className="mt-1 text-xs text-muted">
-        {sourceLabel(change.source)} · proposed {formatTimestamp(change.proposedAt, timeZone)}
-        {change.decidedAt ? ` · decided ${formatTimestamp(change.decidedAt, timeZone)}` : ""}
-        {change.decisionNote ? ` · “${change.decisionNote}”` : ""}
-      </p>
-      {change.status === "pending" ? (
-        isStaff && !isOwn ? (
-          <ActionForm action={decideProfileChangeAction} className="mt-3 flex max-w-xl flex-col gap-2">
-            <input type="hidden" name="changeId" value={change.id} />
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Note (optional)
-              <input name="note" maxLength={1000} className={inputClassName} />
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <SubmitButton name="outcome" value="approved" pendingLabel="Working…">
-                Approve
-              </SubmitButton>
-              <SubmitButton name="outcome" value="rejected" variant="danger" pendingLabel="Working…">
-                Reject
-              </SubmitButton>
-            </div>
-          </ActionForm>
-        ) : (
-          <p className="mt-2 text-sm text-muted">
-            {isStaff ? "You proposed this, so another UPlan staff member decides it." : "Waiting for UPlan staff to review it."}
-          </p>
-        )
-      ) : null}
-    </li>
-  );
-}
-

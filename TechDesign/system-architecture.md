@@ -47,8 +47,8 @@ flowchart LR
     subgraph VM["V1 · Arm VM · 2 OCPUs · 12 GB · 200 GB disk · Ubuntu 24.04 LTS · Docker Compose"]
       V2["V2 · caddy<br/>HTTPS · HTTP/3 · basemap file"]
       V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
-      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Projects: dashboard, details, study area, footprint, overview · F5 F8 F18 F20<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Phases: evidence, screening, studies, impact, review · F7 F9 F14 F19 F21<br/>W6 · Final document: finish, versions, download · F10 F22<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
-      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10 F22<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
+      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, edit settings and sources · F1 F17<br/>W3 · Projects: dashboard, details, study area, footprint, overview · F5 F8 F18 F20<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Phases: evidence, screening, studies, impact, review · F7 F9 F14 F19 F21<br/>W6 · Final document: finish, versions, download · F10 F22<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
+      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · withdrawn 2026-10-04<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10 F22<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
       V6["V6 · models · llama.cpp server · later<br/>Qwen3.5-4B drafts · Qwen3-Embedding-0.6B embeds"]
       V7["V7 · migrate · once per deploy"]
       V8["V8 · backup timer · systemd · pgBackRest"]
@@ -152,7 +152,7 @@ flowchart LR
 
 | Key | Job                                      | Features          | Queue               | What it does                                                                                      |
 | --- | ---------------------------------------- | ----------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
-| J1  | `preview_profile_change`                 | F1, F17           | `jurisdiction:<id>` | Runs a preview analysis of every open decision under a pending profile change                     |
+| J1  | _withdrawn 2026-10-04_                   | F1, F17           | —                   | Was `preview_profile_change`; a profile change now applies at once and has nothing to preview     |
 | J2  | `run_analysis`                           | F7, F9, F14       | `decision:<id>`     | Computes the evidence base, screening, study flags, and impact in PostGIS from pinned inputs      |
 | J3  | `apply_effective_dates`                  | F1, F14           | `jurisdiction:<id>` | Daily: queues runs for open decisions when a rule takes effect or is repealed, or when the latest run's results version is out of date |
 | J4  | `ingest_dataset`                         | F3                | `dataset:<id>`      | Scheduled: downloads and hashes a source, loads it with GDAL, and publishes a new dataset version |
@@ -203,16 +203,15 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 
 ### Profile upload or edit (F17, F1)
 
-1. A planner uploads the workbook through a size-limited route handler, or submits an edit in the editor with a reason.
+Changed 2026-10-04: a change applies the moment it is saved. There is no pending state, preview, or review (see `profile-upload-edit.md`).
+
+1. A planner uploads a workbook (a source) or saves the settings panel. Each form carries the profile revision its page showed.
 2. `profiles` parses the document and validates it against the profile schema and the current template version. On any error the planner gets the complete list of problems, and nothing is stored except the upload record.
-3. One transaction inserts the pending `profile_change` and enqueues `preview_profile_change`. A partial unique index allows one pending change per city, so a second proposal fails with a conflict that names the pending one.
-4. The worker runs a preview analysis of every open decision in that city under the proposed document, and stores the runs against the change.
-5. Once every preview run has finished, a reviewer sees the rule differences and the impact differences, including any failed previews, and approves or rejects.
-6. Approval is one transaction:
+3. One transaction applies the change:
    - Lock the jurisdiction row.
-   - Confirm the change's base version is still current.
-   - Insert the new `profile_version` and move the current pointer.
-   - Mark the change approved.
+   - Confirm the revision the form carried is still current, or fail with a conflict.
+   - Insert the `profile_change`, already approved by its author, and the new `profile_version`, and move the current pointer.
+   - For a workbook, record its `profile_source`.
    - Enqueue `run_analysis` for every open decision in the city.
 
 ### Analysis run (F7, F9)
@@ -291,7 +290,7 @@ flowchart TB
 
    A draft that fails is stored as failed, with every reason. It is never retried with another prompt or model.
 
-6. **Propose.** A passing draft becomes a pending `profile_change` with source `code_change`, in the transaction that finishes the draft, which also enqueues `preview_profile_change`. If the city already has a pending change, the draft waits. The transaction that decides that change enqueues `draft_code_change` again: unchanged inputs propose the waiting draft, and a new profile version produces a new draft against it.
+6. **Propose.** A passing draft becomes a pending `profile_change` with source `code_change`, in the transaction that finishes the draft. (The `preview_profile_change` job this once enqueued was withdrawn 2026-10-04; F2 decides how staff see a draft before they confirm it.) If the city already has a pending change, the draft waits. The transaction that decides that change enqueues `draft_code_change` again: unchanged inputs propose the waiting draft, and a new profile version produces a new draft against it.
 7. **Confirm.** UPlan staff read the draft beside its quoted passages and the preview results, and approve or reject it _(round 9)_. A correction is a new edit that cites the draft.
 
 Every draft records what produced it: the document hash, the profile version, the SHA-256 of each model file, the prompt version, the retrieved chunk ids and ranks, and the raw model output. Both model jobs share the `rag` queue, so only one runs at a time, and `models` has a low CPU weight, so a draft that takes minutes yields the CPU to pages and analysis runs.

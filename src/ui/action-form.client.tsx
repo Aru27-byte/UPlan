@@ -28,9 +28,12 @@ export function ActionForm({
 }) {
   const [state, formAction, isPending] = useActionState<ActionState, FormData>(action, {});
   const formRef = useRef<HTMLFormElement | null>(null);
+  const messageRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (state.notice) formRef.current?.reset();
+    // A long form can be scrolled so its message, which sits at the top, is out of view when it arrives.
+    if (state.error || state.notice) messageRef.current?.scrollIntoView({ block: "nearest" });
   }, [state]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -44,7 +47,7 @@ export function ActionForm({
 
   return (
     <form ref={formRef} onSubmit={onSubmit} className={className} encType={encType}>
-      <div aria-live="polite">
+      <div ref={messageRef} aria-live="polite">
         {state.error ? (
           <p role="alert" className="mb-3 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm font-medium text-danger">
             {state.error}

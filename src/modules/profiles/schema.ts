@@ -87,7 +87,7 @@ const TreeRuleSchema = z.discriminatedUnion("kind", [
 ]);
 export type TreeRule = z.infer<typeof TreeRuleSchema>;
 
-const SettingsSchema = z.object({
+export const SettingsSchema = z.object({
   vesting: z.array(z.object({ ruleSet: RuleSetSchema, vests: z.boolean() })),
   retention: z.array(
     z.object({

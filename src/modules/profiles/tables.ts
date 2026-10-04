@@ -75,15 +75,11 @@ export const profileChange = pgTable(
       sql`(${t.status} = 'pending') = (${t.decidedBy} is null and ${t.decidedAt} is null)`,
     ),
     check("profile_change_upload_shape", sql`(${t.source} = 'upload') = (${t.uploadId} is not null)`),
-    check(
-      "profile_change_no_self_approval",
-      sql`${t.decidedBy} is null or ${t.decidedBy} <> ${t.proposedBy}`,
-    ),
   ],
 );
-// One pending change per city (R5 of profile-upload-edit.md): partial unique index, added in a
-// hand-written migration since Drizzle's table builder has no partial-index helper pre-1.0.
-// create unique index profile_change_one_pending on profile_change (jurisdiction_id) where status = 'pending';
+// A change is applied the moment it is made (profile-upload-edit.md R5, decided 2026-10-04): the row is written
+// already approved, by the person who made it, so it is an audit record, not a request awaiting review. The
+// 'pending' and 'rejected' statuses remain in the check list only for rows written before that decision.
 
 export const profileVersion = pgTable(
   "profile_version",
@@ -104,5 +100,33 @@ export const profileVersion = pgTable(
   (t) => [
     unique("profile_version_jurisdiction_number").on(t.jurisdictionId, t.versionNumber),
     check("profile_version_number_positive", sql`${t.versionNumber} > 0`),
+  ],
+);
+
+// Where a city's rules come from (profile-upload-edit.md R12): a web page UPlan reads, or an Excel workbook a
+// planner uploaded. An editable list kept by planners, so rows are renamed and removed in place; nothing else
+// depends on one. A 'url' source has a url and no upload; an 'excel' source has the upload that supplied its
+// current rules and no url.
+export const profileSource = pgTable(
+  "profile_source",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jurisdictionId: uuid("jurisdiction_id")
+      .notNull()
+      .references(() => jurisdiction.id),
+    kind: text("kind").notNull(),
+    label: text("label").notNull(),
+    url: text("url"),
+    uploadId: uuid("upload_id").references(() => profileUpload.id),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("profile_source_kind_check", sql`${t.kind} in ('url', 'excel')`),
+    check("profile_source_label_not_empty", sql`length(btrim(${t.label})) > 0`),
+    check("profile_source_url_shape", sql`(${t.kind} = 'url') = (${t.url} is not null)`),
+    check("profile_source_upload_shape", sql`(${t.kind} = 'excel') = (${t.uploadId} is not null)`),
   ],
 );

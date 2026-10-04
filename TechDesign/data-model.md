@@ -109,13 +109,11 @@ create table profile_change (
   decided_at        timestamptz,
   decision_note     text,
   check ((status = 'pending') = (decided_by is null and decided_at is null)),
-  check ((source = 'upload') = (upload_id is not null)),
-  check (decided_by is null or decided_by <> proposed_by)   -- proposed: nobody approves their own change
+  check ((source = 'upload') = (upload_id is not null))
 );
-
--- One pending change per city: the second proposal fails instead of racing the first.
-create unique index profile_change_one_pending
-  on profile_change (jurisdiction_id) where status = 'pending';
+-- Changed 2026-10-04: a planner's change applies at once, so it is written already 'approved' with
+-- decided_by = proposed_by; the no-self-approval check is dropped (migration 0007). 'pending' and
+-- 'rejected' remain for F2's staff-confirmed drafts (profile-upload-edit.md, Out of scope).
 
 create table profile_version (
   id              uuid primary key default gen_random_uuid(),
@@ -134,8 +132,24 @@ alter table jurisdiction
   add foreign key (current_profile_version_id) references profile_version (id);
 ```
 
-- Preview results for a pending change are `analysis_run` rows with `purpose = 'preview'`, which reuses the engine and the table.
-- Approving a change fails with a `ValidationError` if the new document drops a resource type that a `jurisdiction_dataset` row still maps to.
+- A change that would drop a resource type that a `jurisdiction_dataset` row still maps to fails with a `ValidationError`.
+- `analysis_run` rows with `purpose = 'preview'` have no producer since 2026-10-04 (profile-upload-edit.md R6 withdrawn).
+
+```sql
+-- Where a city's rules come from (F17 R12): an editable list, not a record anything depends on.
+create table profile_source (
+  id              uuid primary key default gen_random_uuid(),
+  jurisdiction_id uuid not null references jurisdiction (id),
+  kind            text not null check (kind in ('url', 'excel')),
+  label           text not null check (length(btrim(label)) > 0),
+  url             text,                          -- kind = 'url' only (http or https)
+  upload_id       uuid references profile_upload (id),   -- kind = 'excel' only: the workbook behind it
+  created_by      text not null references app_user (id),
+  created_at      timestamptz not null default now(),
+  check ((kind = 'url') = (url is not null)),
+  check ((kind = 'excel') = (upload_id is not null))
+);
+```
 
 ## Evidence (F3, F4)
 
