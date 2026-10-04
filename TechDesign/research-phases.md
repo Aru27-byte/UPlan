@@ -216,6 +216,35 @@ export async function saveGeometryFromUpload(actor, decisionId, kind, file: { na
 
 `parseBoundaryUpload` parses the JSON, unwraps a `Feature` or a one-feature `FeatureCollection`, and requires a `Polygon` or `MultiPolygon` (a `Polygon` is wrapped as a one-part `MultiPolygon`, which changes no coordinate). A `crs` member is rejected unless it names WGS 84 (`urn:ogc:def:crs:OGC:1.3:CRS84` or `EPSG:4326`). Every coordinate must fall within longitude ±180 and latitude ±90, which catches the common mistake of uploading a projected file with a "GeoJSON" name, with a message that says so. Zod validates the shape. It then calls `saveGeometry`, whose `ST_IsValid` check rejects a bad ring with PostGIS's reason, and never repairs it (F5 R7). The Server Function limits the file to 2 MB and to `.geojson` or `.json`, and stores the file's name in the revision's `source_note` ("Uploaded file: {name}").
 
+## Report-section feedback, accordions, and the rail (R15, R16, R17)
+
+**Which section a step feeds** is a constant in `src/app/_lib/report-sections.ts`, keyed by step, naming the `<h2>` headings in `reports/document.tsx` (Rules and boundaries this document uses; Site and footprint; Evidence base and Source register; Screening register; Studies; Impact and What desk analysis can't see) with a one-sentence description. It is the one place the step-to-heading mapping lives.
+
+```ts
+// tables.ts
+export const reportSectionFeedback = pgTable("report_section_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  decisionId: uuid("decision_id").notNull().references(() => decision.id),
+  step: text("step").notNull(),             // 'overview' | the six phases
+  note: text("note").notNull(),             // trimmed, 1 to 2,000 characters
+  createdBy: text("created_by").notNull().references(() => appUser.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check("report_section_feedback_step_check", sql`${t.step} in ('overview','site','evidence','screening','studies','footprint','impact')`),
+  check("report_section_feedback_note_shape", sql`length(btrim(${t.note})) between 1 and 2000`),
+  index("report_section_feedback_by_step").on(t.decisionId, t.step, t.createdAt),
+]);
+// Append-only: a trigger raises on UPDATE and DELETE (migration 0007).
+```
+
+`feedback.ts` exports `recordSectionFeedback(actor, decisionId, { step, note })`, which takes `lockEditableDecision` (R12) and inserts one row, and `listSectionFeedback(actor, decisionId, step)`, newest first. Nothing reads the notes back into a drafted output, so feedback can't change a figure or a sentence (R2).
+
+**The block** is `src/ui/phase/report-section-panel.client.tsx`: on the left a card tinted with the step's group color naming the section and what it contains, on the right an `ActionForm` with a labelled textarea and `SubmitButton`; the earlier notes sit in a `<details>` below. It stacks on a phone. `PhasePage` and the Overview render it first.
+
+**Accordions** are `src/ui/accordion.tsx`: a native `<details>` with a styled `<summary>` (title, one-line summary, status, a chevron), closed by default, so it needs no script and works by keyboard. `PhasePage` wraps the inputs, the drafted output, the page's detail, and the history in it. The editors (`BoundaryPanel`) and the `MapWorkspace` panel stay `Panel`s (R16 exceptions).
+
+**The rail** keeps `StageRail`'s props and adds each group's color from `src/ui/phase/group-tones.ts`, shared with the report-section block so a group has one color everywhere. Groups are outlined segments of numbered stages joined by arrows (a right arrow on wide screens, down on phones).
+
 ## Requirement coverage
 
 | Req | Satisfied by | Notes |
@@ -234,6 +263,9 @@ export async function saveGeometryFromUpload(actor, decisionId, kind, file: { na
 | R12 | `lockEditableDecision` | Also disables the panel |
 | R13 | `describeLimit`, the provenance formatter | One copy of each limit sentence |
 | R14 | Responsive `PhasePage`; editors stay browser-only | Phone: read and review |
+| R15 | `report-sections.ts`, `report_section_feedback`, `recordSectionFeedback`, `ReportSectionPanel` | A note, never an edit |
+| R16 | `Accordion`; map and editors stay `Panel`s | Native `<details>`, closed |
+| R17 | `StageRail`, `group-tones.ts` | Words and shapes as well as color |
 
 ## Risks and tradeoffs
 
@@ -246,6 +278,7 @@ export async function saveGeometryFromUpload(actor, decisionId, kind, file: { na
 
 - Vitest unit tests: `derivePhaseOutputs` over a table of `PhaseFacts` (each phase present and absent per R4); fingerprint stability (same facts, same hash; each measured number changes it; reordering keys doesn't); the R3 denylist over every template with populated, empty, and gap-only fixtures; `diffLines` (added, removed, unchanged, duplicates); `parseBoundaryUpload` accepts a Polygon, a MultiPolygon, a Feature, and a one-feature collection, and rejects two features, a Point, a projected-coordinate file, a `crs` other than WGS 84, and non-JSON (R11).
 - Testcontainers integration tests: `recordReview` stores the fingerprint and summary; a revision request without a note fails at Zod and, bypassing Zod, at the `check` (R6); a review with a stale fingerprint fails with `ConflictError` (R7); a review on a completed project fails with `ConflictError` (R12); updating and deleting a `phase_review` row fails (R8); the state moves _needs review → reviewed → needs review (changed)_ across a study-area change with a new run (R5, R10); **a race test** fires `recordReview` and `saveGeometry` at once on separate connections and asserts the review either matches the output it saw or fails with `ConflictError`, never a review of an output that is gone (R7).
+- Testcontainers: `recordSectionFeedback` stores a note and `listSectionFeedback` returns it newest first; an empty note, a 2,001-character note, and an unknown step fail; updating and deleting a row fails; a completed project fails with `ConflictError` (R15).
 - Playwright: draw or load a sample site, watch the analysis finish, review each phase, request a revision with a note, change the input, and see the phase ask again with the changes listed; axe at desktop and phone widths (R1–R10, R14).
 
 ## Open questions

@@ -54,9 +54,16 @@ Until then the phase says exactly what is missing or that the analysis is runnin
 
 **R14. Each phase page works on a phone for looking things up,** and building a footprint or drawing a site stays a browser task (charter).
 
+**R15. Every step page except Report opens with the section of the final document that step feeds, beside a box for feedback on that section.** The opening block names the section (Overview feeds the rules and boundaries section; Site and Footprint share the site and footprint section; Evidence, Screening, Studies, and Impact each feed their own) and says in a sentence what it contains. The box takes free text (1 to 2,000 characters) about the section's format or information. Feedback is recorded with who wrote it and when, is never edited or deleted, and is listed under the box. It is a note: it changes no output and no document, because the sentences are fixed templates (R2). The box is read-only when the research is not in progress (R12).
+
+**R16. Below that block, a step page's data is in accordion sections that are closed when the page loads and open on click.** Each section's heading carries a one-line summary and any status, so the page can be read closed. Irregular data is an exception and stays open: the map workspace and the drawing and upload editors. The review form is a control, not data, and stays open.
+
+**R17. The stage rail shows the research as one linear process.** Stages are numbered in order, grouped as Set up, Assemble, Analyze, and Report, each group in its own color, with an arrow between stages and between groups showing the direction of the work. Each stage still shows its state as words and a shape, never by color alone (F18 R12).
+
 ## Out of scope for this feature
 
 - Sign-off by a second person, and comments from reviewers (F12).
+- Feedback that rewrites a section automatically. R15 records the feedback; a person acts on it.
 - Editing a drafted summary. The summary is derived, so an edit would be a claim that isn't backed by a measurement. A planner who disagrees requests a revision and changes an input, or records the reasoning in a note.
 - Drafting with a language model, in any phase.
 - Conditions of approval (F13).

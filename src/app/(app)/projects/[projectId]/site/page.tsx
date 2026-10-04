@@ -13,6 +13,7 @@ import { PhasePage } from "@/ui/phase/phase-page";
 
 import { recordReviewAction } from "../actions";
 import { BASEMAP_URL, BoundaryPanel } from "../_components/boundary-panel";
+import { StepIntro } from "../_components/step-intro";
 
 // Phase 1 of the research (TechDesign/research-phases.md): the study area, the map, and the drafted
 // description of the boundary. Every layer's provenance is resolved here and passed to the client map as
@@ -67,6 +68,7 @@ export default async function SitePage({
     <PhasePage
       model={phaseModel(w, projectId, "site")}
       reviewAction={recordReviewAction.bind(null, projectId)}
+      intro={<StepIntro projectId={projectId} step="site" />}
       editor={
         <BoundaryPanel
           projectId={projectId}

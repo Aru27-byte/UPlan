@@ -1,5 +1,7 @@
 import type { StatusTone } from "../status-label";
 
+import type { StepGroup } from "./group-tones";
+
 // The plain shape a phase page renders (TechDesign/research-phases.md, "Pages"). The route builds it from
 // workflow's PhaseView and formats every date and label there, because src/ui imports no runtime code from
 // @/modules — these components receive strings and booleans and nothing else.
@@ -20,6 +22,7 @@ export type HistoryEntryModel = {
 export type PhaseViewModel = {
   phase: string;
   title: string;
+  group: StepGroup;
   state: { kind: ReviewKind; text: string; tone: StatusTone };
   /** The drafted output, or null with `emptyReason` saying exactly what is missing (R4). */
   output: { headline: string; lines: string[]; contentSha256: string } | null;

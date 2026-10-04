@@ -1,14 +1,23 @@
 import Link from "next/link";
 
-import { Panel } from "../panel";
+import { Accordion } from "../accordion";
 
 import type { PhaseViewModel } from "./types";
 
 // "Drafted from" (research-phases.md R1, R9): what this output was drafted from, and where each input is
-// changed. Iterating on an output means changing one of these and reading the new draft.
+// changed. Iterating on an output means changing one of these and reading the new draft. A closed accordion
+// (R16), whose summary counts the inputs.
 export function InputsBlock({ model }: { model: PhaseViewModel }) {
   return (
-    <Panel title="Drafted from" description="Change an input and UPlan drafts this phase again.">
+    <Accordion
+      group={model.group}
+      title="Drafted from"
+      summary={
+        model.inputs.length > 0
+          ? `${model.inputs.length} ${model.inputs.length === 1 ? "input" : "inputs"}. Change one and UPlan drafts this phase again.`
+          : "Nothing is recorded for this phase yet."
+      }
+    >
       <div className="grid gap-6 sm:grid-cols-2">
         {model.inputs.length > 0 ? (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
@@ -32,6 +41,6 @@ export function InputsBlock({ model }: { model: PhaseViewModel }) {
           ))}
         </ul>
       </div>
-    </Panel>
+    </Accordion>
   );
 }

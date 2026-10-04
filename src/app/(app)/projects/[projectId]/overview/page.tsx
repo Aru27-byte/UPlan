@@ -4,6 +4,7 @@ import { loadProject } from "@/app/_lib/project";
 import {
   NEXT_ACTION_TEXT,
   PHASE_TITLE,
+  STEP_GROUP,
   analysisStatusText,
   projectHref,
   publishedVersion,
@@ -14,11 +15,13 @@ import { formatFeet, formatRuleProvenance, formatTimestamp } from "@/modules/pro
 import { actionClassName } from "@/ui/action-styles";
 import { ConfirmDialog } from "@/ui/confirm-dialog.client";
 import { Icon } from "@/ui/icons";
+import { Accordion } from "@/ui/accordion";
 import { Panel } from "@/ui/panel";
 import { StatusLabel } from "@/ui/status-label";
 
 import { cancelResearchChangeAction } from "../actions";
 import { DetailsPanel } from "../_components/details-form";
+import { StepIntro } from "../_components/step-intro";
 
 const RULE_SET_LABEL: Record<RuleSet, string> = { "critical-areas": "Critical area rules", trees: "Tree rules" };
 const RULE_SETS = ["critical-areas", "trees"] as const satisfies readonly RuleSet[];
@@ -33,6 +36,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
   const d = w.decision;
   const { run, rules, status } = w.facts;
   const analysis = analysisStatusText(status);
+  const group = STEP_GROUP.overview;
 
   const labelOf = (key: string): string => {
     const found = rules?.resourceTypes.find((r) => r.key === key);
@@ -64,7 +68,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
     : [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
+      <StepIntro projectId={projectId} step="overview" />
+
       <Panel title="What next?" description="From the project's records, in order. Each step names a place to work, never a judgment about the development.">
         {w.nextActions.length === 0 ? (
           <p className="text-sm text-text">Nothing is waiting on you.</p>
@@ -90,8 +96,13 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
         )}
       </Panel>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel headingLevel={3} title="What do we know?" description="Resource types with mapped evidence over the study area.">
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Accordion
+          group={group}
+          headingLevel={3}
+          title="What do we know?"
+          summary={run ? `${known.length} resource ${known.length === 1 ? "type has" : "types have"} mapped evidence.` : "Resource types with mapped evidence over the study area."}
+        >
           {!run ? (
             <p className="text-sm text-muted">{analysis.text}. {analysis.detail}</p>
           ) : known.length === 0 ? (
@@ -106,9 +117,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
               ))}
             </ul>
           )}
-        </Panel>
+        </Accordion>
 
-        <Panel headingLevel={3} title="What don't we know?" description="Gaps, open disagreements, and what desk analysis can't see.">
+        <Accordion
+          group={group}
+          headingLevel={3}
+          title="What don't we know?"
+          summary={run ? `${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}, ${unresolved} open ${unresolved === 1 ? "disagreement" : "disagreements"}, and what desk analysis can't see.` : "Gaps, open disagreements, and what desk analysis can't see."}
+        >
           {!run ? (
             <p className="text-sm text-muted">{analysis.text}. {analysis.detail}</p>
           ) : (
@@ -137,9 +153,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
               ))}
             </ul>
           )}
-        </Panel>
+        </Accordion>
 
-        <Panel headingLevel={3} title="What could delay this?" description="Things that stand between the project and its document.">
+        <Accordion
+          group={group}
+          headingLevel={3}
+          title="What could delay this?"
+          summary="Things that stand between the project and its document."
+        >
           <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-text">
             {status.kind !== "current" && !(status.kind === "none" && status.reason === "no-study-area") ? (
               <li>
@@ -155,9 +176,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
               <li>{w.latestVersion === null ? "The final document isn't published yet." : "The next version isn't published yet."}</li>
             )}
           </ul>
-        </Panel>
+        </Accordion>
 
-        <Panel headingLevel={3} title="What can desk analysis not settle?" description="A screen can add a study, and never removes one.">
+        <Accordion
+          group={group}
+          headingLevel={3}
+          title="What can desk analysis not settle?"
+          summary="A screen can add a study, and never removes one."
+        >
           {!run ? (
             <p className="text-sm text-muted">{analysis.text}. {analysis.detail}</p>
           ) : run.results.studyFlags.length === 0 && approximateNonzero.length === 0 ? (
@@ -180,18 +206,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
               ))}
             </ul>
           )}
-        </Panel>
+        </Accordion>
       </div>
 
       {w.versions.length > 0 ? (
-        <Panel
+        <Accordion
+          group={group}
           title="Document versions"
-          description="Every published version is kept, unchanged."
-          actions={
-            <Link href={projectHref(projectId, "report")} className={actionClassName("secondary")}>
-              Version history
-            </Link>
-          }
+          summary={`${w.versions.length} published ${w.versions.length === 1 ? "version" : "versions"}. Every published version is kept, unchanged.`}
         >
           {w.versions[0] ? (
             <p className="text-sm text-text">
@@ -207,27 +229,21 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
               </a>
             </p>
           ) : null}
-        </Panel>
+          <p className="mt-3">
+            <Link href={projectHref(projectId, "report")} className={actionClassName("secondary")}>
+              Version history
+            </Link>
+          </p>
+        </Accordion>
       ) : null}
 
       {w.change ? (
-        <Panel
+        <Accordion
+          group={group}
           title={`Research change from version ${w.change.baseVersion}`}
-          description="What differs from the last published version. A phase whose output is unchanged keeps its review and needs none."
-          actions={
-            w.decisionStatus === "in_progress" && !w.change.hasChanges ? (
-              <ConfirmDialog
-                triggerLabel="Cancel research change"
-                triggerVariant="secondary"
-                title="Cancel this research change?"
-                confirmLabel="Cancel research change"
-                pendingLabel="Cancelling…"
-                action={cancelResearchChangeAction.bind(null, projectId)}
-                fields={{ rowVersion: String(d.rowVersion) }}
-              >
-                Nothing has changed, so version {w.change.baseVersion} becomes the current version again.
-              </ConfirmDialog>
-            ) : null
+          summary="What differs from the last published version. A phase whose output is unchanged keeps its review and needs none."
+          status={
+            w.change.hasChanges ? <StatusLabel tone="warn">Changed</StatusLabel> : <StatusLabel tone="neutral">Nothing changed yet</StatusLabel>
           }
         >
           <ul className="flex flex-col divide-y divide-line text-sm">
@@ -254,19 +270,30 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
             </li>
           </ul>
           {!w.change.hasChanges ? <p className="mt-3 text-sm text-muted">Nothing has changed yet.</p> : null}
-        </Panel>
+          {w.decisionStatus === "in_progress" && !w.change.hasChanges ? (
+            <div className="mt-3">
+              <ConfirmDialog
+                triggerLabel="Cancel research change"
+                triggerVariant="secondary"
+                title="Cancel this research change?"
+                confirmLabel="Cancel research change"
+                pendingLabel="Cancelling…"
+                action={cancelResearchChangeAction.bind(null, projectId)}
+                fields={{ rowVersion: String(d.rowVersion) }}
+              >
+                Nothing has changed, so version {w.change.baseVersion} becomes the current version again.
+              </ConfirmDialog>
+            </div>
+          ) : null}
+        </Accordion>
       ) : null}
 
       <DetailsPanel projectId={projectId} decision={d} readOnly={w.decisionStatus !== "in_progress"} />
 
-      <Panel
+      <Accordion
+        group={group}
         title="Rules that apply"
-        description={`As resolved for this project from ${w.cityName}'s profile. Each cites its code section and effective date.`}
-        actions={
-          <Link href="/profile" className={actionClassName("secondary")}>
-            City profile
-          </Link>
-        }
+        summary={`As resolved for this project from ${w.cityName}'s profile. Each cites its code section and effective date.`}
       >
         {!rules ? (
           <p className="text-sm text-muted">{analysis.text}. {analysis.detail}</p>
@@ -319,9 +346,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
             ) : null}
           </div>
         )}
-      </Panel>
+        <p className="mt-5">
+          <Link href="/profile" className={actionClassName("secondary")}>
+            City profile
+          </Link>
+        </p>
+      </Accordion>
 
-      <Panel title="Assumptions the analysis made" description="So none is buried in a run.">
+      <Accordion group={group} title="Assumptions the analysis made" summary="So none is buried in a run.">
         {!rules || !w.facts.resolvedFor ? (
           <p className="text-sm text-muted">{analysis.text}. {analysis.detail}</p>
         ) : (
@@ -346,7 +378,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
             <li>The rules come from {w.cityName}&apos;s profile as it stands now. Whether a rule set uses the filing date is a setting on the city profile.</li>
           </ul>
         )}
-      </Panel>
+      </Accordion>
     </div>
   );
 }

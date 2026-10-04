@@ -2,11 +2,12 @@ import { phaseModel } from "@/app/_lib/phase-model";
 import { loadProject } from "@/app/_lib/project";
 import { SCREENING_CANNOT_SEE, describeScreeningGap, describeScreeningRow } from "@/modules/analysis";
 import { DataTable } from "@/ui/data-table";
-import { Panel } from "@/ui/panel";
+import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
+import { StepIntro } from "../_components/step-intro";
 
 // Phase 3 (F14): what the mapped data says is in, and near, the study area, per resource type. It is a
 // register of measurements, not a finding: an empty row is a measured zero within a stated search distance,
@@ -17,8 +18,9 @@ export default async function ScreeningPage({ params }: { params: Promise<{ proj
   const model = phaseModel(w, projectId, "screening");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
+  const intro = <StepIntro projectId={projectId} step="screening" />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -56,14 +58,15 @@ export default async function ScreeningPage({ params }: { params: Promise<{ proj
   ];
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction}>
-      <Panel
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+      <Accordion
+        group={model.group}
         title="Screening register"
-        description="Screening flags reasons to look closer. It is not a finding, and it never clears land."
+        summary={`${rows.length} ${rows.length === 1 ? "row" : "rows"}. Screening flags reasons to look closer. It is not a finding, and it never clears land.`}
       >
         <p className="mb-4 rounded-lg border border-info/25 bg-info-soft px-4 py-3 text-sm text-text">{SCREENING_CANNOT_SEE}</p>
         <DataTable caption="Screening register by resource type and dataset" columns={["Resource type", "Dataset", "What is mapped"]} rows={rows} />
-      </Panel>
+      </Accordion>
     </PhasePage>
   );
 }
