@@ -40,7 +40,7 @@ export const phaseReview = pgTable(
 );
 
 // TechDesign/research-phases.md, "Report-section feedback" (R15) — a planner's note about the section of
-// the final document a step feeds. Append-only (a trigger in migration 0007 rejects UPDATE and DELETE). It
+// the final document a step feeds. Append-only (a trigger in migration 0008 rejects UPDATE and DELETE). It
 // is a note: nothing reads it back into an output. `decision_id` references decision(id) through the
 // migration, not here, because a module's tables.ts never imports another module's tables.
 export const reportSectionFeedback = pgTable(

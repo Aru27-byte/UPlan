@@ -1,10 +1,8 @@
 // Local-dev bootstrap only — never run against a real deployment (TechDesign/sample-data.md). It sets up what a
 // fresh database needs before anyone can start a project, and nothing else:
 //   1. the one city (Sammamish), created through the real createJurisdiction
-//   2. staff access for the person named on the command line, and a synthetic UPlan-staff reviewer account
-//      (profile_change_no_self_approval forbids a person from approving their own proposed change, and only
-//      one real person signs in on a local machine)
-//   3. an approved ILLUSTRATIVE Sammamish profile, through the real proposeEdit / decideChange flow
+//   2. staff access for the person named on the command line
+//   3. an ILLUSTRATIVE Sammamish profile, applied through the real applyProfileDocument
 //   4. the illustrative sample evidence datasets, through the real installSampleEvidence
 //
 // It creates no project. A person starts one from the dashboard ("Start with sample data"), which fills in
@@ -13,8 +11,6 @@
 // Run after registering once at /register (a person must exist in app_user before they can be made staff):
 //
 //   npm run db:seed:local -- you@example.com
-import { randomUUID } from "node:crypto";
-
 import { eq } from "drizzle-orm";
 import { runMigrations } from "graphile-worker";
 
@@ -26,12 +22,11 @@ import { staffMember } from "../src/modules/accounts/tables";
 import { installSampleEvidence } from "../src/modules/evidence";
 import {
   SAMPLE_PROFILE_REASON,
+  applyProfileDocument,
   buildSampleProfileDocument,
   createJurisdiction,
-  decideChange,
   getProfileOverview,
   listJurisdictions,
-  proposeEdit,
 } from "../src/modules/profiles";
 
 const SAMMAMISH_BOUNDARY = {
@@ -52,19 +47,6 @@ const SAMMAMISH_BOUNDARY = {
 
 async function makeStaff(userId: string, grantedBy: string): Promise<void> {
   await db.insert(staffMember).values({ userId, grantedBy }).onConflictDoNothing();
-}
-
-async function ensureReviewerUser(): Promise<string> {
-  const email = "uplan-review-bot@uplan.local";
-  const [existing] = await db.select({ id: appUser.id }).from(appUser).where(eq(appUser.email, email));
-  if (existing) return existing.id;
-  const [created] = await db
-    .insert(appUser)
-    .values({ id: randomUUID(), name: "UPlan review bot (seed)", email })
-    .returning({ id: appUser.id });
-  if (!created) throw new Error("insert into app_user unexpectedly returned no row");
-  console.log(`created synthetic reviewer account ${email} (${created.id}) — approves the seeded profile only, never signs in`);
-  return created.id;
 }
 
 async function main(): Promise<void> {
@@ -115,12 +97,8 @@ async function main(): Promise<void> {
 
   const overview = await getProfileOverview(cityId);
   if (overview.versionNumber === null) {
-    const reviewerId = await ensureReviewerUser();
-    await makeStaff(reviewerId, user.id);
-    const reviewer = await getActor(db, reviewerId);
-    const change = await proposeEdit(person, cityId, buildSampleProfileDocument(), SAMPLE_PROFILE_REASON);
-    await decideChange(reviewer, change.id, "approved", "Seeded illustrative profile for local development.");
-    console.log("approved the illustrative Sammamish profile");
+    await applyProfileDocument(person, cityId, null, buildSampleProfileDocument(), SAMPLE_PROFILE_REASON);
+    console.log("applied the illustrative Sammamish profile");
   } else {
     console.log(`the city already has an approved profile (version ${overview.versionNumber}) — skipping`);
   }

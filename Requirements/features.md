@@ -293,12 +293,12 @@ What planners create in UPlan is kept, and can be exported when the city receive
 When a city's website blocks automated reading, a planner builds the city's profile by uploading an Excel file, then keeps it right by editing it in UPlan *(2026-09-12)*.
 
 - UPlan provides the Excel template: each rule with the code section it comes from and its effective date (P1), plus the profile's settings (F1).
-- *Proposed default:* UPlan checks an upload before it takes effect, and flags any rule missing its citation or effective date.
-- Planners can edit any rule or setting after upload. Every change records who made it, when, and why.
-- An upload or edit shows what it would change in open decisions before it takes effect. Released reports never change (F10).
+- UPlan checks an upload before it applies, and flags any rule missing its citation or effective date.
+- Planners can edit every setting after upload, and add, rename, and remove the sources the city's rules come from (web pages and Excel workbooks). Every change records who made it and when.
+- A change applies as soon as it is saved, with no review step *(2026-10-04)*; open decisions are re-analyzed under it. Released reports never change (F10).
 - Uploads carry rules and settings, not evidence layers; evidence stays free public data (F3).
 
-**Open — round 10:** who approves an upload or edit before it reaches any decision?
+**Open — round 10:** now that an upload or edit applies without approval, should anyone besides the person making it have to confirm it?
 
 **Open for TechDesign:** how planner edits and automatic updates (F2) combine for the same city.
 

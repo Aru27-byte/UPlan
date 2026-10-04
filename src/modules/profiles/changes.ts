@@ -1,17 +1,19 @@
 import { createHash } from "node:crypto";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
-import { requireStaff, type Actor } from "@/modules/accounts";
+import type { Actor } from "@/modules/accounts";
 import { listOpenDecisions } from "@/modules/decisions";
 import { getMappedResourceTypeKeys } from "@/modules/evidence";
 import { db, type DbOrTx } from "@/platform/db";
-import { ConflictError, ForbiddenError, NotFoundError, isUniqueViolation } from "@/platform/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/platform/errors";
 import { addJob } from "@/platform/jobs";
 import { putIfAbsent } from "@/platform/object-storage";
 
 import { jurisdictionColumnsWithoutBoundary } from "./jurisdiction";
 import { CURRENT_TEMPLATE_VERSION, ProfileDocumentSchema, type ProfileDocument } from "./schema";
+import { applySettingsEdit, SettingsEditSchema } from "./settings";
+import { saveExcelSource } from "./sources";
 import { parseUpload } from "./upload";
 import { assertNoOrphanedDatasetMapping, getMaxVersionNumber, moveCurrentPointer } from "./versions";
 import { jurisdiction, profileChange, profileUpload, profileVersion } from "./tables";
@@ -25,76 +27,140 @@ export async function getProfileChange(changeId: string): Promise<ProfileChange>
   return row;
 }
 
-/** For the Profile page's change history (UIDesign/City_Profile.png): every change, newest first. */
-export async function listProfileChanges(jurisdictionId: string): Promise<ProfileChange[]> {
-  return db
-    .select()
-    .from(profileChange)
-    .where(eq(profileChange.jurisdictionId, jurisdictionId))
-    .orderBy(desc(profileChange.proposedAt));
-}
-
 function sha256(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex");
 }
 
-async function insertPendingChange(
+// profile-upload-edit.md R5, R8: a change takes effect the moment it is made. In one transaction this locks the
+// city, checks the caller built their change on the profile that is current, writes the change as an audit row
+// (already approved, by the person who made it), creates the new version, moves the pointer, and queues every
+// open decision for re-analysis. `build` receives the current document (null before the first profile) inside the
+// lock, so a change derived from the current profile can never be derived from a stale read.
+async function applyDocument(
   tx: DbOrTx,
   input: {
+    actor: Actor;
     jurisdictionId: string;
-    proposedDocument: ProfileDocument;
+    baseVersionId: string | null; // the revision the caller's page showed; null when it showed no profile
     source: "upload" | "edit";
     uploadId: string | null;
     reason: string;
-    proposedBy: string;
+    build: (current: ProfileDocument | null) => ProfileDocument;
   },
-): Promise<ProfileChange> {
-  const [current] = await tx
+): Promise<{ versionId: string; versionNumber: number }> {
+  const [city] = await tx
     .select(jurisdictionColumnsWithoutBoundary)
     .from(jurisdiction)
-    .where(eq(jurisdiction.id, input.jurisdictionId));
-  if (!current) throw new NotFoundError("jurisdiction");
-
-  let rows: ProfileChange[];
-  try {
-    rows = await tx
-      .insert(profileChange)
-      .values({
-        jurisdictionId: input.jurisdictionId,
-        baseVersionId: current.currentProfileVersionId,
-        proposedDocument: input.proposedDocument,
-        source: input.source,
-        uploadId: input.uploadId,
-        reason: input.reason,
-        status: "pending",
-        proposedBy: input.proposedBy,
-      })
-      .returning();
-  } catch (err) {
-    // profile_change_one_pending: only one pending change per city (R5 of profile-upload-edit.md)
-    if (isUniqueViolation(err))
-      throw new ConflictError("a profile change is already pending for this jurisdiction");
-    throw err;
+    .where(eq(jurisdiction.id, input.jurisdictionId))
+    .for("update"); // locks the row for the rest of this transaction
+  if (!city) throw new NotFoundError("jurisdiction");
+  if (city.currentProfileVersionId !== input.baseVersionId) {
+    throw new ConflictError("The city's profile changed while this page was open. Reload the page and try again.");
   }
-  const [change] = rows;
+
+  let current: ProfileDocument | null = null;
+  if (city.currentProfileVersionId) {
+    const [version] = await tx
+      .select({ document: profileVersion.document })
+      .from(profileVersion)
+      .where(eq(profileVersion.id, city.currentProfileVersionId));
+    if (!version) throw new NotFoundError("profile version");
+    // Re-validate rather than `as`-cast: untyped jsonb (conventions.md).
+    current = ProfileDocumentSchema.parse(version.document);
+  }
+
+  const document = input.build(current);
+  assertNoOrphanedDatasetMapping(document, await getMappedResourceTypeKeys(tx, input.jurisdictionId)); // R9 of jurisdiction-profile.md
+
+  const [change] = await tx
+    .insert(profileChange)
+    .values({
+      jurisdictionId: input.jurisdictionId,
+      baseVersionId: city.currentProfileVersionId,
+      proposedDocument: document,
+      source: input.source,
+      uploadId: input.uploadId,
+      reason: input.reason,
+      status: "approved",
+      proposedBy: input.actor.userId,
+      decidedBy: input.actor.userId,
+      decidedAt: sql`now()`,
+    })
+    .returning();
   if (!change) throw new Error("insert into profile_change unexpectedly returned no row");
 
-  await addJob(
-    tx,
-    "preview_profile_change",
-    { changeId: change.id },
-    { queueName: `jurisdiction:${input.jurisdictionId}`, maxAttempts: 3 },
-  );
-  return change;
+  const versionNumber = (await getMaxVersionNumber(tx, input.jurisdictionId)) + 1;
+  const [version] = await tx
+    .insert(profileVersion)
+    .values({
+      jurisdictionId: input.jurisdictionId,
+      versionNumber,
+      document,
+      documentSha256: sha256(Buffer.from(JSON.stringify(document))),
+      changeId: change.id,
+    })
+    .returning();
+  if (!version) throw new Error("insert into profile_version unexpectedly returned no row");
+  await moveCurrentPointer(tx, input.jurisdictionId, version.id);
+
+  const openDecisions = await listOpenDecisions(input.jurisdictionId, tx); // R10: open only
+  for (const d of openDecisions) {
+    await addJob(
+      tx,
+      "run_analysis",
+      { decisionId: d.id, purpose: "current" },
+      { queueName: `decision:${d.id}`, maxAttempts: 3, jobKey: `run_analysis:${d.id}` },
+    );
+  }
+  return { versionId: version.id, versionNumber };
 }
 
-export async function proposeUpload(
+/** Applies a whole document as the city's next profile version (seed scripts and test fixtures; the page edits settings and uploads). */
+export async function applyProfileDocument(
   actor: Actor,
   jurisdictionId: string,
-  fileBuffer: Buffer,
+  baseVersionId: string | null,
+  document: unknown,
   reason: string,
 ) {
-  // Any signed-in person may propose a change (accounts-roles.md R2); only staff decide one (R7).
+  const parsed = ProfileDocumentSchema.parse(document); // R8 of jurisdiction-profile.md
+  return db.transaction((tx) =>
+    applyDocument(tx, { actor, jurisdictionId, baseVersionId, source: "edit", uploadId: null, reason, build: () => parsed }),
+  );
+}
+
+/** Saves the settings panel (R4): vesting, map status per resource type, retention, and export formats. */
+export async function editSettings(actor: Actor, jurisdictionId: string, baseVersionId: string | null, edit: unknown) {
+  const parsed = SettingsEditSchema.safeParse(edit);
+  if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join(" "));
+  return db.transaction((tx) =>
+    applyDocument(tx, {
+      actor,
+      jurisdictionId,
+      baseVersionId,
+      source: "edit",
+      uploadId: null,
+      reason: "Settings edited in UPlan",
+      build: (current) => {
+        if (!current) throw new ValidationError("This city has no profile yet. Upload a workbook from Sources first.");
+        return applySettingsEdit(current, parsed.data);
+      },
+    }),
+  );
+}
+
+/**
+ * Applies an Excel workbook as the city's rules and records it as a source (R1–R3, R12). A workbook that fails
+ * validation stores only the upload attempt and its error list; nothing about the profile or the source list changes.
+ * `target.sourceId` replaces the workbook behind an existing Excel source; null adds a new one.
+ */
+export async function applyUpload(
+  actor: Actor,
+  jurisdictionId: string,
+  baseVersionId: string | null,
+  fileBuffer: Buffer,
+  target: { sourceId: string | null; label: string },
+) {
   const fileSha256 = sha256(fileBuffer);
   const objectKey = `profile-uploads/${jurisdictionId}/${fileSha256}.xlsx`;
   await putIfAbsent("objects", objectKey, fileBuffer, {
@@ -117,101 +183,19 @@ export async function proposeUpload(
       .returning();
     if (!upload) throw new Error("insert into profile_upload unexpectedly returned no row");
 
-    if (!result.ok) return { upload, change: null }; // R3: nothing else is written on a failed upload
+    if (!result.ok) return { upload, versionNumber: null }; // R3: nothing else is written on a failed upload
 
-    const change = await insertPendingChange(tx, {
+    const { document } = result;
+    const applied = await applyDocument(tx, {
+      actor,
       jurisdictionId,
-      proposedDocument: result.document,
+      baseVersionId,
       source: "upload",
       uploadId: upload.id,
-      reason,
-      proposedBy: actor.userId,
+      reason: `Excel upload: ${target.label}`,
+      build: () => document,
     });
-    return { upload, change };
-  });
-}
-
-export async function proposeEdit(
-  actor: Actor,
-  jurisdictionId: string,
-  editedDocument: unknown,
-  reason: string,
-) {
-  const document = ProfileDocumentSchema.parse(editedDocument);
-  return db.transaction((tx) =>
-    insertPendingChange(tx, {
-      jurisdictionId,
-      proposedDocument: document,
-      source: "edit",
-      uploadId: null,
-      reason,
-      proposedBy: actor.userId,
-    }),
-  );
-}
-
-export async function decideChange(
-  actor: Actor,
-  changeId: string,
-  outcome: "approved" | "rejected",
-  note: string | null,
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [change] = await tx.select().from(profileChange).where(eq(profileChange.id, changeId));
-    if (!change) throw new NotFoundError("profile change");
-    requireStaff(actor); // assumed per round 10, changed 2026-09-27 — profile-upload-edit.md's Open items
-    if (actor.userId === change.proposedBy)
-      throw new ForbiddenError("cannot approve or reject your own change");
-
-    const updated = await tx
-      .update(profileChange)
-      .set({ status: outcome, decidedBy: actor.userId, decidedAt: sql`now()`, decisionNote: note })
-      .where(and(eq(profileChange.id, changeId), eq(profileChange.status, "pending")))
-      .returning();
-    if (updated.length === 0) throw new ConflictError("profile change is no longer pending");
-
-    if (outcome === "rejected") return; // R9: the row and its history stand as they are
-
-    const [current] = await tx
-      .select(jurisdictionColumnsWithoutBoundary)
-      .from(jurisdiction)
-      .where(eq(jurisdiction.id, change.jurisdictionId))
-      .for("update"); // locks the row for the rest of this transaction
-    if (!current) throw new NotFoundError("jurisdiction");
-    if (current.currentProfileVersionId !== change.baseVersionId) {
-      throw new ConflictError("jurisdiction's current profile has moved since this change was based");
-    }
-
-    // Re-validate rather than `as`-cast: proposedDocument is untyped jsonb, and a cast on data
-    // read back from the database is exactly what .claude/rules/conventions.md's "no `as` casts
-    // on data from outside the process" forbids, even though this document was already validated
-    // once before it was stored.
-    const proposedDocument = ProfileDocumentSchema.parse(change.proposedDocument);
-    const mappedKeys = await getMappedResourceTypeKeys(tx, change.jurisdictionId);
-    assertNoOrphanedDatasetMapping(proposedDocument, mappedKeys); // R9 of jurisdiction-profile.md
-
-    const nextVersionNumber = (await getMaxVersionNumber(tx, change.jurisdictionId)) + 1;
-    const [version] = await tx
-      .insert(profileVersion)
-      .values({
-        jurisdictionId: change.jurisdictionId,
-        versionNumber: nextVersionNumber,
-        document: change.proposedDocument,
-        documentSha256: sha256(Buffer.from(JSON.stringify(change.proposedDocument))),
-        changeId: change.id,
-      })
-      .returning();
-    if (!version) throw new Error("insert into profile_version unexpectedly returned no row");
-    await moveCurrentPointer(tx, change.jurisdictionId, version.id);
-
-    const openDecisions = await listOpenDecisions(change.jurisdictionId, tx);
-    for (const d of openDecisions) {
-      await addJob(
-        tx,
-        "run_analysis",
-        { decisionId: d.id, purpose: "current" },
-        { queueName: `decision:${d.id}`, maxAttempts: 3, jobKey: `run_analysis:${d.id}` },
-      );
-    }
+    await saveExcelSource(tx, actor, jurisdictionId, upload.id, target);
+    return { upload, versionNumber: applied.versionNumber };
   });
 }

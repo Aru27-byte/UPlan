@@ -9,9 +9,8 @@ import { createDataset, installSampleEvidence, mapToJurisdiction } from "@/modul
 import {
   buildSampleProfileDocument,
   SAMPLE_PROFILE_REASON,
+  applyProfileDocument,
   createJurisdiction,
-  decideChange,
-  proposeEdit,
   type ProfileDocument,
 } from "@/modules/profiles";
 import { db } from "@/platform/db";
@@ -52,19 +51,17 @@ const SQUARE = {
   ],
 };
 
-export type City = { id: string; name: string; staff: Person; approver: Person };
+export type City = { id: string; name: string; staff: Person };
 
 /**
- * A city with an approved profile (the illustrative one unless `profile` says otherwise) and, unless
+ * A city with a profile (the illustrative one unless `profile` says otherwise) and, unless
  * `sampleEvidence` is false, the illustrative evidence datasets mapped to it: what the sample project
- * needs. `profile: null` leaves the city with none. The profile goes through the real
- * propose-and-approve flow, with two people (a change can't be approved by the person who proposed it).
+ * needs. `profile: null` leaves the city with none. The profile goes through the real apply flow.
  */
 export async function createReadyCity(
   options: { profile?: ProfileDocument | null; sampleEvidence?: boolean } = {},
 ): Promise<City> {
   const staff = await createPerson({ staff: true });
-  const approver = await createPerson({ staff: true });
   const city = await createJurisdiction(staff.actor, {
     name: `Test City ${randomUUID().slice(0, 8)}`,
     stateCode: "WA",
@@ -73,16 +70,10 @@ export async function createReadyCity(
     boundary: SQUARE,
   });
   if (options.profile !== null) {
-    const change = await proposeEdit(
-      staff.actor,
-      city.id,
-      options.profile ?? buildSampleProfileDocument(),
-      SAMPLE_PROFILE_REASON,
-    );
-    await decideChange(approver.actor, change.id, "approved", "Test fixture.");
+    await applyProfileDocument(staff.actor, city.id, null, options.profile ?? buildSampleProfileDocument(), SAMPLE_PROFILE_REASON);
   }
   if (options.sampleEvidence !== false) await installSampleEvidence(staff.actor, city.id);
-  return { id: city.id, name: city.name, staff, approver };
+  return { id: city.id, name: city.name, staff };
 }
 
 /** A GeoJSON geometry from planar coordinates in the analysis projection (EPSG:2926, US survey feet), so a test can state a shape's true size. */

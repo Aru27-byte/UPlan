@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { JobHelpers, Task } from "graphile-worker";
 
-import { applyEffectiveDates, listJurisdictionIds, runPreview } from "@/modules/profiles";
+import { applyEffectiveDates, listJurisdictionIds } from "@/modules/profiles";
 import { ingestDataset } from "@/modules/evidence";
 import { runAnalysis } from "@/modules/analysis";
 // Deep import, not the module's index.ts: this function is deliberately excluded from that barrel
@@ -54,7 +54,6 @@ async function releaseReport(reportId: string, helpers: JobHelpers): Promise<voi
   }
 }
 
-const PreviewProfileChangePayload = z.object({ changeId: z.string() });
 const RunAnalysisPayload = z.object({
   decisionId: z.string(),
   purpose: z.enum(["current", "preview"]),
@@ -65,7 +64,6 @@ const ReleaseReportPayload = z.object({ reportId: z.string() });
 const BuildRecordsExportPayload = z.object({ exportId: z.string() });
 
 export const taskList = {
-  preview_profile_change: task(PreviewProfileChangePayload, (p) => runPreview(p.changeId)),
   run_analysis: task(RunAnalysisPayload, (p) => runAnalysis(p.decisionId, p.purpose, p.profileChangeId)),
   ingest_dataset: task(IngestDatasetPayload, (p) => ingestDataset(p.datasetId)),
   release_report: task(ReleaseReportPayload, (p, helpers) => releaseReport(p.reportId, helpers)),

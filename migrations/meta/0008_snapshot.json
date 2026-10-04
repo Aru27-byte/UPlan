@@ -1,6 +1,6 @@
 {
-  "id": "5eb86773-a31a-4027-a6ce-44f1c191059b",
-  "prevId": "845a41d6-7d56-4560-8b3e-6da41165b203",
+  "id": "d6a7f2ba-ee5b-432e-927d-c32108355b19",
+  "prevId": "5eb86773-a31a-4027-a6ce-44f1c191059b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2209,6 +2209,108 @@
         "phase_review_note_shape": {
           "name": "phase_review_note_shape",
           "value": "\"phase_review\".\"verdict\" <> 'revision_requested' or (\"phase_review\".\"note\" is not null and length(btrim(\"phase_review\".\"note\")) > 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.report_section_feedback": {
+      "name": "report_section_feedback",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "decision_id": {
+          "name": "decision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step": {
+          "name": "step",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "report_section_feedback_by_step": {
+          "name": "report_section_feedback_by_step",
+          "columns": [
+            {
+              "expression": "decision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "step",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "report_section_feedback_created_by_app_user_id_fk": {
+          "name": "report_section_feedback_created_by_app_user_id_fk",
+          "tableFrom": "report_section_feedback",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "report_section_feedback_step_check": {
+          "name": "report_section_feedback_step_check",
+          "value": "\"report_section_feedback\".\"step\" in ('overview', 'site', 'evidence', 'screening', 'studies', 'footprint', 'impact')"
+        },
+        "report_section_feedback_note_shape": {
+          "name": "report_section_feedback_note_shape",
+          "value": "length(btrim(\"report_section_feedback\".\"note\")) between 1 and 2000"
         }
       },
       "isRLSEnabled": false

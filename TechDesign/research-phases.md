@@ -234,7 +234,7 @@ export const reportSectionFeedback = pgTable("report_section_feedback", {
   check("report_section_feedback_note_shape", sql`length(btrim(${t.note})) between 1 and 2000`),
   index("report_section_feedback_by_step").on(t.decisionId, t.step, t.createdAt),
 ]);
-// Append-only: a trigger raises on UPDATE and DELETE (migration 0007).
+// Append-only: a trigger raises on UPDATE and DELETE (migration 0008).
 ```
 
 `feedback.ts` exports `recordSectionFeedback(actor, decisionId, { step, note })`, which takes `lockEditableDecision` (R12) and inserts one row, and `listSectionFeedback(actor, decisionId, step)`, newest first. Nothing reads the notes back into a drafted output, so feedback can't change a figure or a sentence (R2).
