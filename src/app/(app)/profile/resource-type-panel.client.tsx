@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 
 import { actionClassName } from "@/ui/action-styles";
 import { Icon } from "@/ui/icons";
+import { StatBox } from "@/ui/stat-box";
 import { StatusLabel } from "@/ui/status-label";
 
 // One regulation under a resource type, already worded and cited on the server: a client component can't
@@ -72,8 +73,8 @@ export function ResourceTypePanel({
             <p className="mt-0.5 text-sm text-muted">Each resource type opens to the regulations that apply to it, with their code citations.</p>
           </div>
           <dl className="flex gap-2">
-            <Stat label="Resource types" value={resourceTypeCount} />
-            <Stat label="Rules" value={ruleCount} />
+            <StatBox label="Resource types" value={resourceTypeCount} />
+            <StatBox label="Rules" value={ruleCount} />
           </dl>
         </div>
 
@@ -139,15 +140,6 @@ export function ResourceTypePanel({
         )}
       </div>
     </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border-2 border-ink bg-white px-4 py-1.5 text-center shadow-button">
-      <dt className="eyebrow text-muted">{label}</dt>
-      <dd className="text-2xl leading-tight font-bold text-text">{value}</dd>
-    </div>
   );
 }
 
