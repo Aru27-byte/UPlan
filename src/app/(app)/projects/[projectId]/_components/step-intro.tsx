@@ -2,7 +2,7 @@ import { loadProject } from "@/app/_lib/project";
 import { REPORT_SECTIONS } from "@/app/_lib/report-sections";
 import { STEP_GROUP, STEP_TITLE } from "@/app/_lib/workflow-labels";
 import { formatTimestamp } from "@/modules/provenance";
-import { listSectionFeedback, type FeedbackStep } from "@/modules/workflow";
+import { listSectionFeedbackInternal, type FeedbackStep } from "@/modules/workflow";
 import { ReportSectionPanel } from "@/ui/phase/report-section-panel.client";
 
 import { recordSectionFeedbackAction } from "../actions";
@@ -10,8 +10,12 @@ import { recordSectionFeedbackAction } from "../actions";
 // The top of every step page except Report (research-phases.md R15): the report section the step feeds, and
 // the box for feedback on it. It reads through loadProject, which the layout and the page already share.
 export async function StepIntro({ projectId, step }: { projectId: string; step: FeedbackStep }) {
-  const { actor, workflow: w } = await loadProject(projectId);
-  const feedback = await listSectionFeedback(actor, projectId, step);
+  // loadProject is the ownership check (a project that isn't theirs is a 404 before anything renders), so the
+  // feedback read runs beside it rather than after it: each sequential read is a full database round trip.
+  const [{ workflow: w }, feedback] = await Promise.all([
+    loadProject(projectId),
+    listSectionFeedbackInternal(projectId, step),
+  ]);
   return (
     <ReportSectionPanel
       model={{

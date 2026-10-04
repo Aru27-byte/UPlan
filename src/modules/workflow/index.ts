@@ -15,7 +15,7 @@ export type {
 export { recordReview, listReviews } from "./reviews";
 export type { RecordReviewInput } from "./reviews";
 
-export { recordSectionFeedback, listSectionFeedback, FEEDBACK_STEPS } from "./feedback";
+export { recordSectionFeedback, listSectionFeedback, listSectionFeedbackInternal, FEEDBACK_STEPS } from "./feedback";
 export type { FeedbackStep, SectionFeedback, RecordFeedbackInput } from "./feedback";
 
 export { finishResearch,cancelResearchChange } from "./finish";
