@@ -49,6 +49,8 @@ Words: the product's word for a released report is the **final document**. A pro
 
 **R17. The document is built only from pinned records:** the run, the geometry revisions the run recorded, the profile version the run used, and the snapshot taken when finishing began. It reads nothing "current" at render time (F22 R11).
 
+**R18. The document is stitched from one section per research step, and each step page shows its own section as it will print.** Overview contributes the project details and the rules and boundaries; Site, Footprint, Evidence, Screening, Studies, and Impact each contribute their own section (Impact also carries what desk analysis can't see). The Report step adds only what belongs to the whole: the cover, what changed since the previous version, the source register, and the review record. A step page renders its section from the same components, over the project's current records, so what a planner reads there is the document's own wording. It is a preview, not a record: only R17's pinned snapshot is ever published.
+
 ## Out of scope for this feature
 
 - Review and sign-off itself (F12, later in v1).

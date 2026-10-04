@@ -218,7 +218,7 @@ export async function saveGeometryFromUpload(actor, decisionId, kind, file: { na
 
 ## Report-section feedback, accordions, and the rail (R15, R16, R17)
 
-**Which section a step feeds** is a constant in `src/app/_lib/report-sections.ts`, keyed by step, naming the `<h2>` headings in `reports/document.tsx` (Rules and boundaries this document uses; Site and footprint; Evidence base and Source register; Screening register; Studies; Impact and What desk analysis can't see) with a one-sentence description. It is the one place the step-to-heading mapping lives.
+**Which section a step shows** is the report's own section component (`reports/sections.tsx`, see locked-report.md, "Sections"): `DetailsSection` and `RulesSection` for Overview, then `SiteSection`, `FootprintSection`, `EvidenceSection`, `ScreeningSection`, `StudiesSection`, and `ImpactSection`. There is no separate step-to-heading table: the step page and the document render the same component, so they can't disagree.
 
 ```ts
 // tables.ts
@@ -239,13 +239,13 @@ export const reportSectionFeedback = pgTable("report_section_feedback", {
 
 `feedback.ts` exports `recordSectionFeedback(actor, decisionId, { step, note })`, which takes `lockEditableDecision` (R12) and inserts one row, and `listSectionFeedback(actor, decisionId, step)`, newest first. Nothing reads the notes back into a drafted output, so feedback can't change a figure or a sentence (R2).
 
-**The block** is `src/ui/phase/report-section-panel.client.tsx`: on the left a card tinted with the step's group color naming the section and what it contains, on the right an `ActionForm` with a labelled textarea and `SubmitButton`; the earlier notes sit in a `<details>` below. It stacks on a phone. `PhasePage` and the Overview render it first.
+**The block** is `src/ui/phase/report-section-panel.client.tsx`. On the left, in the step's group color, the section as it will print: the route's `StepIntro` (a Server Component) loads `loadLiveReportContent` once with the run and geometry revisions the page already pinned, and `SectionPreview` renders the matching section inside a labelled, keyboard-scrollable `report-paper` region (the document's own stylesheet, `REPORT_CONTENT_STYLES`, scoped to that class). It is passed to the client panel as `children`, so the panel holds no module code. On the right, an `ActionForm` with a labelled textarea and `SubmitButton`; the earlier notes sit in a `<details>` below. When the step has no output, or no finished analysis, `SectionPreview` says which is missing and renders nothing else. The two halves sit side by side at 48rem of the block's own width (a container query), stacked below. `PhasePage` and the Overview render it first.
 
 **Accordions** are `src/ui/accordion.tsx`: a native `<details>` with a styled `<summary>` (title, one-line summary, status, a chevron), closed by default, so it needs no script and works by keyboard. `PhasePage` wraps the inputs, the drafted output, the page's detail, and the history in it. The editors (`BoundaryPanel`) and the `MapWorkspace` panel stay `Panel`s (R16 exceptions).
 
 **The Overview's "Project at a glance"** (R18) is a `Panel` in `overview/page.tsx`, read from `getWorkflow()`: the decision's recorded details, and the phases whose `reviewStateLabel` kind is not `reviewed`. It sits directly after `StepIntro` and is not an accordion, because it is the summary the accordions below hang from.
 
-**The rail** keeps `StageRail`'s props and adds each group's color from `src/ui/phase/group-tones.ts`, shared with the report-section block so a group has one color everywhere. Groups are outlined segments of numbered stages joined by arrows (a right arrow on wide screens, down on phones).
+**The rail** keeps `StageRail`'s props and takes each group's color from `src/ui/phase/group-tones.ts`, shared with the report-section block so a group has one color everywhere. It is a CSS container (`@container`), not a viewport breakpoint, because the app shell's sidebar makes the window width a poor guide to the width the rail has. Below 56rem (`@4xl`) it is one column, read top to bottom, with a down arrow between stages and groups; from 56rem the four groups are columns left to right with a right arrow between them, each a stack of its numbered stages. One breakpoint, wrapping labels (`min-w-0`, `break-words`), and no horizontal scroll at any width.
 
 ## Requirement coverage
 
@@ -265,7 +265,7 @@ export const reportSectionFeedback = pgTable("report_section_feedback", {
 | R12 | `lockEditableDecision` | Also disables the panel |
 | R13 | `describeLimit`, the provenance formatter | One copy of each limit sentence |
 | R14 | Responsive `PhasePage`; editors stay browser-only | Phone: read and review |
-| R15 | `report-sections.ts`, `report_section_feedback`, `recordSectionFeedback`, `ReportSectionPanel` | A note, never an edit |
+| R15 | `reports/sections.tsx`, `live.ts`, `SectionPreview`, `report_section_feedback`, `recordSectionFeedback`, `ReportSectionPanel` | The real section; feedback is a note, never an edit |
 | R16 | `Accordion`; map and editors stay `Panel`s | Native `<details>`, closed |
 | R17 | `StageRail`, `group-tones.ts` | Words and shapes as well as color |
 | R18 | `overview/page.tsx`, `reviewStateLabel` | Facts only; links to each phase |

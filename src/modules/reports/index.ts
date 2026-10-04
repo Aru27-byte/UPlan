@@ -6,9 +6,26 @@ export {
   getLatestReleasedSnapshot,
 } from "./versions";
 export type { DocumentVersion, DocumentAttempt } from "./versions";
-export { ReportSnapshotSchema, PHASE_KEYS } from "./snapshot";
+export { ReportSnapshotSchema, ReportDetailsSchema, PHASE_KEYS } from "./snapshot";
 export type { ReportSnapshot, ReportDetails, ReportPhase, PhaseKey } from "./snapshot";
 export { CURRENT_TEMPLATE_VERSION } from "./constants";
+
+// The per-step sections of the document and the live loader behind each step page's preview. These are
+// plain Server Components over resolved data: they don't import react-dom/server, so the app may reach them.
+export {
+  DetailsSection,
+  RulesSection,
+  SiteSection,
+  FootprintSection,
+  EvidenceSection,
+  ScreeningSection,
+  StudiesSection,
+  ImpactSection,
+  REPORT_CONTENT_STYLES,
+} from "./sections";
+export type { SectionSummary, RunContent, ReportResolution } from "./sections";
+export { loadLiveReportContent } from "./live";
+export type { LiveReportContent } from "./live";
 
 // `renderAndStoreReport` and `markReportFailed` (render-and-store.ts), and `renderReportHtml`/
 // `ReportDocument` (render.ts/document.tsx), are deliberately NOT re-exported here. They pull in

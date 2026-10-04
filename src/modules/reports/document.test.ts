@@ -1,10 +1,12 @@
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { AnalysisResults } from "@/modules/analysis";
 import type { ProfileDocument } from "@/modules/profiles";
 
-import { ReportDocument, mapViewBox, type ReportDocumentProps } from "./document";
+import { ReportDocument, type ReportDocumentProps } from "./document";
+import { FootprintSection, mapViewBox, SiteSection } from "./sections";
 import { PHASE_KEYS, type ReportPhase, type ReportSnapshot } from "./snapshot";
 
 // TechDesign/locked-report.md — R6/R7: a direct, automatable check that no rendered document ever
@@ -249,10 +251,24 @@ describe("R15/R16: the cover, the review record, and the sample label", () => {
 });
 
 describe("R8: the maps are drawn to scale with a title and a description", () => {
-  it("R8: the study area map has a <title> and a <desc>", () => {
+  it("R8: each section's map has its own <title> and <desc>", () => {
     const html = render(props());
-    expect(html).toContain('<title id="map-title">Study area and footprint</title>');
-    expect(html).toContain('<desc id="map-desc">');
+    expect(html).toContain('<title id="site-map-title">Study area</title>');
+    expect(html).toContain('<desc id="site-map-desc">');
+    expect(html).toContain('<title id="footprint-map-title">Study area and footprint</title>');
+    expect(html).toContain('<desc id="footprint-map-desc">');
+  });
+
+  it("R8: the document is stitched from one section per step, in order", () => {
+    const html = render(props());
+    const order = ["<h2>Rules and boundaries", "<h2>Site</h2>", "<h2>Footprint</h2>", "<h2>Evidence base</h2>", "<h2>Screening register</h2>", "<h2>Studies</h2>", "<h2>Impact</h2>", "<h2>Source register</h2>", "<h2>Review record</h2>"];
+    const positions = order.map((heading) => html.indexOf(heading));
+    expect(positions.every((p) => p >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("R8: the document has a title", () => {
+    expect(render(props())).toContain("<title>Test Subdivision — UPlan document, version 1</title>");
   });
 
   it("R8: the viewBox frames every boundary, with y negated the way ST_AsSVG negates it", () => {
@@ -265,5 +281,26 @@ describe("R8: the maps are drawn to scale with a title and a description", () =>
     expect((x ?? 0) + (w ?? 0)).toBeGreaterThan(150);
     expect(y).toBeLessThan(-200);
     expect((y ?? 0) + (h ?? 0)).toBeGreaterThan(0);
+  });
+});
+
+describe("R18: a step's section renders on its own, as a step page shows it", () => {
+  const svg = { path: "M0 0 L10 -10", xmin: 0, ymin: 0, xmax: 10, ymax: 10 };
+  const summary = { headline: "A headline.", lines: ["A sentence."] };
+
+  it("R18: the site section is its own heading, summary, and map, with no document around it", () => {
+    const html = renderToStaticMarkup(createElement(SiteSection, { summary, studyAreaSvg: svg }));
+    expect(html).toContain("<h2>Site</h2>");
+    expect(html).toContain("A headline.");
+    expect(html).toContain('<title id="site-map-title">Study area</title>');
+    expect(html).not.toContain("<html");
+    expect(html).not.toContain("Review record");
+  });
+
+  it("R18: the footprint section draws the footprint only when one is saved", () => {
+    const without = renderToStaticMarkup(createElement(FootprintSection, { summary, studyAreaSvg: svg, footprintSvg: null }));
+    const withFootprint = renderToStaticMarkup(createElement(FootprintSection, { summary, studyAreaSvg: svg, footprintSvg: svg }));
+    expect(without).not.toContain('stroke="red"');
+    expect(withFootprint).toContain('stroke="red"');
   });
 });
