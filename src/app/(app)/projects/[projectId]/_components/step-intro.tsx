@@ -10,8 +10,12 @@ import { REPORT_SECTIONS } from "@/app/_lib/report-sections";
 >>>>>>> 4ca814a (Show each step's real report section, and make the stage rail container-responsive)
 import { STEP_GROUP, STEP_TITLE } from "@/app/_lib/workflow-labels";
 import { formatTimestamp } from "@/modules/provenance";
+<<<<<<< HEAD
 import { listSectionFeedback, type FeedbackStep } from "@/modules/workflow";
 >>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
+=======
+import { listSectionFeedbackInternal, type FeedbackStep } from "@/modules/workflow";
+>>>>>>> c39212b (Overlap the step pages' section-feedback read with the workflow read)
 import { ReportSectionPanel } from "@/ui/phase/report-section-panel.client";
 
 import { recordSectionFeedbackAction } from "../actions";
@@ -39,9 +43,18 @@ export async function StepIntro({ projectId, step }: { projectId: string; step: 
 =======
 >>>>>>> 4ca814a (Show each step's real report section, and make the stage rail container-responsive)
 export async function StepIntro({ projectId, step }: { projectId: string; step: FeedbackStep }) {
+<<<<<<< HEAD
   const { actor, workflow: w } = await loadProject(projectId);
   const feedback = await listSectionFeedback(actor, projectId, step);
 >>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
+=======
+  // loadProject is the ownership check (a project that isn't theirs is a 404 before anything renders), so the
+  // feedback read runs beside it rather than after it: each sequential read is a full database round trip.
+  const [{ workflow: w }, feedback] = await Promise.all([
+    loadProject(projectId),
+    listSectionFeedbackInternal(projectId, step),
+  ]);
+>>>>>>> c39212b (Overlap the step pages' section-feedback read with the workflow read)
   return (
     <ReportSectionPanel
       model={{

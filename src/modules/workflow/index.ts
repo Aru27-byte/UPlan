@@ -16,10 +16,14 @@ export { recordReview, listReviews } from "./reviews";
 export type { RecordReviewInput } from "./reviews";
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 export { recordSectionFeedback, listSectionFeedback, listSectionFeedbackInternal, FEEDBACK_STEPS } from "./feedback";
 =======
 export { recordSectionFeedback, listSectionFeedback, FEEDBACK_STEPS } from "./feedback";
 >>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
+=======
+export { recordSectionFeedback, listSectionFeedback, listSectionFeedbackInternal, FEEDBACK_STEPS } from "./feedback";
+>>>>>>> c39212b (Overlap the step pages' section-feedback read with the workflow read)
 export type { FeedbackStep, SectionFeedback, RecordFeedbackInput } from "./feedback";
 
 export { finishResearch,cancelResearchChange } from "./finish";
