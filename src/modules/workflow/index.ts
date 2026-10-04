@@ -15,7 +15,10 @@ export type {
 export { recordReview, listReviews } from "./reviews";
 export type { RecordReviewInput } from "./reviews";
 
-export { finishResearch, cancelResearchChange } from "./finish";
+export { recordSectionFeedback, listSectionFeedback, FEEDBACK_STEPS } from "./feedback";
+export type { FeedbackStep, SectionFeedback, RecordFeedbackInput } from "./feedback";
+
+export { finishResearch,cancelResearchChange } from "./finish";
 export type { FinishInput } from "./finish";
 
 export { getFinishReadiness } from "./readiness";

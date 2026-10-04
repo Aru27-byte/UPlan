@@ -2,7 +2,7 @@ import { APPLICATION_TYPE_LABEL, NOT_RECORDED, applicationTypeLabel } from "@/ap
 import type { Decision } from "@/modules/decisions";
 import { ActionForm } from "@/ui/action-form.client";
 import { inputClassName } from "@/ui/action-styles";
-import { Panel } from "@/ui/panel";
+import { Accordion } from "@/ui/accordion";
 import { SubmitButton } from "@/ui/submit-button.client";
 
 import { loadSampleDetailsAction, saveDetailsAction } from "../actions";
@@ -27,7 +27,12 @@ export function DetailsPanel({
 
   if (readOnly) {
     return (
-      <Panel id="details" title="Project details" description="Read-only while the project is completed or generating a document.">
+      <Accordion
+        id="details"
+        group="Set up"
+        title="Project details"
+        summary="Read-only while the project is completed or generating a document."
+      >
         <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <Fact label="Title" value={d.title} />
           <Fact label="Application type" value={typeLabel} />
@@ -38,15 +43,16 @@ export function DetailsPanel({
           <Fact label="Target decision date" value={d.targetDecisionOn} />
           <Fact label="Permit number" value={d.permitNumber} />
         </dl>
-      </Panel>
+      </Accordion>
     );
   }
 
   return (
-    <Panel
+    <Accordion
       id="details"
+      group="Set up"
       title="Project details"
-      description="Record what you know now and the rest later. A detail you leave blank stays “Not yet recorded”."
+      summary="Record what you know now and the rest later. A detail you leave blank stays “Not yet recorded”."
     >
       <div className="flex flex-col gap-5">
         <ActionForm action={saveDetailsAction.bind(null, projectId)} className="grid max-w-3xl gap-4 sm:grid-cols-2">
@@ -96,7 +102,7 @@ export function DetailsPanel({
           </ActionForm>
         ) : null}
       </div>
-    </Panel>
+    </Accordion>
   );
 }
 

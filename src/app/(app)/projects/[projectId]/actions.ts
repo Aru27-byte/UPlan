@@ -15,7 +15,14 @@ import {
   updateDecisionDetails,
   type GeometryKind,
 } from "@/modules/decisions";
-import { PHASES, cancelResearchChange, finishResearch, recordReview } from "@/modules/workflow";
+import {
+  FEEDBACK_STEPS,
+  PHASES,
+  cancelResearchChange,
+  finishResearch,
+  recordReview,
+  recordSectionFeedback,
+} from "@/modules/workflow";
 import { ValidationError } from "@/platform/errors";
 import type { ActionState } from "@/ui/action-state";
 
@@ -43,6 +50,16 @@ export async function recordReviewAction(projectId: string, _previous: ActionSta
     if (!form.success) throw new ValidationError("This form is out of date. Reload the page and try again.");
     const review = await recordReview(actor, projectId, form.data);
     return review.verdict === "reviewed" ? "Review recorded." : "Revision requested. Change an input above, then review the new draft.";
+  });
+}
+
+export async function recordSectionFeedbackAction(projectId: string, _previous: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const step = z.enum(FEEDBACK_STEPS).safeParse(formData.get("step"));
+    if (!step.success) throw new ValidationError("This form is out of date. Reload the page and try again.");
+    await recordSectionFeedback(actor, projectId, { step: step.data, note: requiredText(formData, "note", "The feedback") });
+    return "Feedback recorded.";
   });
 }
 

@@ -69,7 +69,7 @@ export type ProjectSummary = {
   phasesReviewed: number;              // of PHASES.length, at each phase's current output
   phasesTotal: number;
   nextAction: NextAction | null;       // the first of deriveNextActions (F18 R6)
-  hasPhaseAwaitingReview: boolean;
+  phases: Pick<PhaseView, "phase" | "state">[]; // each phase's state, for the status graphic
   usesSampleData: boolean;             // F23: shown as a label on the row
   lastActivityAt: Date;
 };
@@ -125,7 +125,7 @@ The signed-in app looks like the landing and sign-in pages: the same ink page, c
 | --- | --- | --- |
 | `Panel` | `Card` | Titled surface with optional actions and footer |
 | `StatusLabel` | `Badge`, `StatusPill` | Text plus a shape and an icon, in one of `neutral`, `info`, `warn`, `danger`, `ok`. Color is never the only signal (R8) |
-| `Metric` | `StatTile` | A label and an integer |
+| `StatBox` | `StatTile`, `Metric` | A label and an integer, for a panel header (the dashboard's table and the profile's resource-type list) |
 | `PageHeader` | itself | Breadcrumb, title, meta line, actions |
 | `actionClassName(variant)` | — | `primary`, `secondary`, `danger`, `ghost` class strings, for a link or a plain button, mirroring the split `button-styles.ts` makes |
 | `SubmitButton` (client) | — | A submit button that reads `useFormStatus`, disables itself while pending, and says what it is doing (R10) |
@@ -138,19 +138,17 @@ The signed-in app looks like the landing and sign-in pages: the same ink page, c
 
 ## The pages
 
-**Dashboard (R1–R7).** A Server Component. It calls `listProjectSummaries`, `getCity`, and `getProfileOverview` (below), then renders, top to bottom: the header with **New research**; three `Metric`s (in progress, completed, awaiting review); the city profile `Panel` (R6); **Current research**; **Completed research**. Each project is a row in a table with a column for the title and type, the stage, the version, the last activity, and the actions. On a phone the row becomes a stacked block. Its title links to the project's overview. The actions:
+**Dashboard (R1–R7).** A Server Component. It calls `listProjectSummaries` and `getCity`, then renders: the header, titled "Welcome back, {first name}" with the line "Your {city} research", and **View city profile** beside **New research**; then one **My Research Projects** table. Its header carries two `StatBox`es (in progress, completed). Rows are sorted by phases left to review (`phasesTotal - phasesReviewed`), most first, then by last activity, newest first. Each row is an `ExpandableRow` (client: it holds only the open state; the summary, actions, and details are rendered on the server). Collapsed, a row shows the title, the progress badge, a small counter of phases left for review, a "Sample data" badge if needed, and the last-updated time, with the actions beside it. Opened, it shows `PhaseStatus`: six numbered nodes joined by a track, each with an icon, the phase name, and its state in words, linking to that phase, with "Phases left for review" at the top right, and links to the overview (and, once completed, the document). The actions:
 
 | State | Actions |
 | --- | --- |
-| in progress | **Resume research** (a link to the step named in `nextStep`, or Overview) · **Delete research** |
-| completed | **Re-research** · **Download document** · **Delete research** |
-| finishing | None, and the text "Generating the document" |
+| in progress | **Resume** (a link to the step named in `nextStep`, or Overview) · **Delete** |
+| completed | **Re-research** · **Delete** (Download document is in the opened row) |
+| finishing | None, and the badge "Generating document" |
 
-**Resume** is a link. **Re-research** and **Delete** are forms whose Server Functions call `startResearchChange` and `deleteDecision` with the row version the page was rendered with (R5, F22). **Delete** opens `ConfirmDialog`, which names the project and says the records are kept.
+**Resume** is a link. **Re-research** and **Delete** are forms whose Server Functions call `startResearchChange` and `deleteDecision` with the row version the page was rendered with (R5, F22). **Delete** opens `ConfirmDialog`, which names the project and says the records are kept. The toggle is a `<button aria-expanded aria-controls>` and the actions sit beside it, never inside it.
 
 An empty list renders an empty state with the two ways to begin (R1).
-
-**City profile panel (R6).** `profiles.getProfileOverview(cityId)` returns `{ cityName, stateCode, versionNumber | null, changedAt | null, resourceTypeCount, ruleCount }` from the current profile version, and `null` versions for a city with no approved profile. It reads the profile document once and counts. It adds no table and no column.
 
 **New research (R9).** One form in a `Panel`, an `ActionForm` over `createProject`. The city is shown as a read-only line. Two submit buttons share the form: **Create project** and **Create with sample data** (F23), distinguished by the submitter's `name`/`value`, so the sample path is the same validation plus one more call and never a second form.
 
@@ -166,11 +164,11 @@ An empty list renders an empty state with the two ways to begin (R1).
 | --- | --- | --- |
 | R1 | `DEFAULT_LANDING_PATH`, dashboard empty state | Sign-in, callback, and register all use it |
 | R2 | `listDecisions`, `getDecision` | `created_by` and `deleted_at` filters; one `NotFoundError` |
-| R3 | `ProjectSummary`, the row layout | Counts and words only |
+| R3 | `ProjectSummary`, `ExpandableRow`, `PhaseStatus` | Counts and words only |
 | R4 | The state table above | Actions chosen by `state`; enforced again inside each module function |
 | R5 | `deleteDecision`, `ConfirmDialog` | Compare-and-set on `row_version`; nothing else deleted |
-| R6 | `getProfileOverview`, the profile panel, the rail item | Also in the rail on every page |
-| R7 | The three `Metric`s | Integers |
+| R6 | The header's View city profile button, the rail item | Also in the rail on every page |
+| R7 | The two `StatBox`es | Integers |
 | R8 | The token table, components, accessibility rules, contrast test | Axe checks in the end-to-end specs |
 | R9 | `projects/new`, `createProject`, `createSampleProject` | One form, two submitters |
 | R10 | `ActionForm`, `SubmitButton`, `runAction` | `role="alert"` and `role="status"` |
@@ -185,7 +183,7 @@ An empty list renders an empty state with the two ways to begin (R1).
 
 - Vitest unit tests: `runAction` maps each expected error class to `{ error }` and rethrows an unexpected error and a redirect (R10); the token contrast test (R8); `safeNextPath` and `DEFAULT_LANDING_PATH` (R1).
 - Testcontainers integration tests: `listDecisions` returns only the actor's own non-deleted projects, and a second actor gets `NotFoundError` from `getDecision` on the first's project (R2); `deleteDecision` hides the project, leaves its geometry, runs, and reviews in place, and fails with `ConflictError` on a stale `row_version` and while a document is being generated (R5); **a race test** fires two `deleteDecision` calls on one version at once and asserts one succeeds (R5); `listProjectSummaries` for a project in each state (R3, R4).
-- Playwright: sign in, land on the dashboard, see the profile panel and the correct actions for an in-progress and a completed project, delete with confirmation, and pass `@axe-core/playwright` at desktop and phone widths (R1–R8).
+- Playwright: sign in, land on the dashboard, see the research table sorted by phases left, expand a row to see its phase status, see the correct actions for an in-progress and a completed project, delete with confirmation, and pass `@axe-core/playwright` at desktop and phone widths (R1–R8).
 
 ## Open questions
 

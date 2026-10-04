@@ -28,12 +28,13 @@ import {
   type EvidenceConsistency,
   type FormattedProvenance,
 } from "@/modules/provenance";
-import { Panel } from "@/ui/panel";
+import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel, type StatusTone } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
 import { ResolutionForm } from "../_components/resolution-form";
+import { StepIntro } from "../_components/step-intro";
 
 const CONFIDENCE_TONE: Record<ConfidenceLevel, StatusTone> = { high: "ok", moderate: "info", low: "warn" };
 
@@ -55,9 +56,10 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   const model = phaseModel(w, projectId, "evidence");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
+  const intro = <StepIntro projectId={projectId} step="evidence" />;
 
   // Without a run for the current inputs there is no evidence base to show: the drafted output says why.
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
 
   const today = todayInZone(w.timeZone, () => new Date());
   const [mappings, allResolutions] = await Promise.all([
@@ -110,17 +112,27 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   };
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction}>
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
       <div className="flex flex-col gap-4">
         {cards.map(({ resourceType, gap, sources, disagreements }) => (
-          <Panel
+          <Accordion
             key={resourceType.key}
+            group={model.group}
             headingLevel={3}
             title={resourceType.label}
-            description={
+            summary={`${
               resourceType.mapStatus === "approximate"
                 ? "Approximate boundary: a site study sets the regulated boundary."
                 : "Regulatory boundary."
+            } ${sources.length} ${sources.length === 1 ? "source" : "sources"}${
+              disagreements.length > 0 ? `, ${disagreements.length} ${disagreements.length === 1 ? "disagreement" : "disagreements"}` : ""
+            }.`}
+            status={
+              gap ? (
+                <StatusLabel tone="warn">No usable dataset</StatusLabel>
+              ) : disagreements.length > 0 ? (
+                <StatusLabel tone="warn">Sources disagree</StatusLabel>
+              ) : null
             }
           >
             {gap ? (
@@ -158,11 +170,16 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
                 ))}
               </div>
             ) : null}
-          </Panel>
+          </Accordion>
         ))}
 
         {match.recordedForEarlierData.length > 0 ? (
-          <Panel headingLevel={3} title="Recorded for earlier data">
+          <Accordion
+            group={model.group}
+            headingLevel={3}
+            title="Recorded for earlier data"
+            summary={`${match.recordedForEarlierData.length} ${match.recordedForEarlierData.length === 1 ? "note" : "notes"} about data this analysis no longer uses.`}
+          >
             <p className="mb-3 text-sm text-muted">
               These notes were recorded about a pair of dataset versions this analysis no longer uses. They are not
               carried over to the current data.
@@ -175,7 +192,7 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
                 </li>
               ))}
             </ul>
-          </Panel>
+          </Accordion>
         ) : null}
       </div>
     </PhasePage>
