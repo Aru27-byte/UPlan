@@ -2,7 +2,7 @@ import type { Actor } from "@/modules/accounts";
 import { listDecisions, type Decision } from "@/modules/decisions";
 
 import type { NextAction } from "./next-actions";
-import { PHASES } from "./phases";
+import { PHASES, type PhaseView } from "./phases";
 import { getWorkflow } from "./workflow";
 
 // TechDesign/project-dashboard.md, "Data": the dashboard's per-project facts. Counts and words only —
@@ -16,7 +16,7 @@ export type ProjectSummary = {
   phasesReviewed: number;
   phasesTotal: number;
   nextAction: NextAction | null; // the first applicable action (F18 R6)
-  hasPhaseAwaitingReview: boolean;
+  phases: Pick<PhaseView, "phase" | "state">[]; // each phase's state, for the dashboard's status graphic
   usesSampleData: boolean;
   lastActivityAt: Date;
 };
@@ -43,9 +43,7 @@ export async function listProjectSummaries(actor: Actor): Promise<ProjectSummary
         phasesReviewed: w.phases.filter((p) => p.state.kind === "reviewed").length,
         phasesTotal: PHASES.length,
         nextAction: w.nextActions[0] ?? null,
-        hasPhaseAwaitingReview: w.phases.some(
-          (p) => p.state.kind === "needs-review" || p.state.kind === "revision-requested",
-        ),
+        phases: w.phases.map(({ phase, state }) => ({ phase, state })),
         usesSampleData: w.usesSampleData,
         lastActivityAt,
       };
