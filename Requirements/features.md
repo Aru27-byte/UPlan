@@ -1,7 +1,7 @@
 # UPlan — Feature List
 
-**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27
-**Last updated:** 2026-09-27
+**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27; AI assist (F24) added 2026-10-10
+**Last updated:** 2026-10-10
 **Derived from:** [charter.md](charter.md), [intents.md](intents.md), review rounds 1–9
 **Next:** Requirements and TechDesign pairs, starting with release 1
 
@@ -19,7 +19,7 @@ v1 ships in stages *(round 8)*. Release 1 proves the pilot's edge: a planner tak
 
 | Release | Intents | Features |
 | --- | --- | --- |
-| **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F23 |
+| **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F24 |
 | **Later in v1** — order not set | I5, I8, phone look-up | F11 reviewer role, F12, F13, F15 |
 
 Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well. On 2026-09-27 it grew again, by request: a dashboard that opens on sign-in (F20), phases whose drafted output a planner reviews and iterates on (F21), research changes that produce new document versions (F22), and sample data for every phase (F23). Jurisdiction membership was removed at the same time (F11).
@@ -51,6 +51,7 @@ Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the
 | F21 | Research phases and review | `research-phases` | I1–I3, I6 | 1 *(added 2026-09-27)* |
 | F22 | Research changes and document versions | `research-changes` | I6 | 1 *(added 2026-09-27)* |
 | F23 | Sample data | `sample-data` | All | 1 *(added 2026-09-27)* |
+| F24 | AI assist | `ai-assist` | I1, I2, I4, I9 | 1, in three waves *(added 2026-10-10)* |
 
 ## Release 1 — foundations
 
@@ -78,6 +79,7 @@ A city's profile: its regulated categories, its rules, and the settings its plan
 UPlan watches the city's public records for code changes and keeps the profile current from them *(round 8)*.
 
 - **UPlan's team confirms every change** *(round 9)*. UPlan finds the change and drafts the rule update automatically; someone on UPlan's team checks it against the ordinance before it reaches any decision.
+- **The drafting model is NVIDIA's hosted inference service** *(2026-10-10, F24)*. Every drafted change quotes the sentence that supports it, and is checked before staff see it. Only published code text is sent.
 - *Default:* the published Sammamish Municipal Code is the base, and adopted ordinances are watched for changes not yet codified. The city publishes both, and codifies ordinances "if appropriate" after adoption.
 - *Default:* when the rules change, a released report stays exactly as released, and a decision still in progress switches to the new rules and shows the planner what changed.
 
@@ -238,7 +240,7 @@ The page a planner lands on after signing in. It shows their current research an
 Each project's research moves through phases. In each, UPlan drafts an output from the phase's inputs, the planner reviews it, and if it needs work the planner changes the inputs and reviews the new output.
 
 - The phases are the stage rail's (F18): Site, Evidence, Screening, Studies, Footprint, Impact. Overview and Report frame them.
-- **The drafting is UPlan's analysis engine, not a language model** *(decided 2026-09-26)*. Measurements come from PostGIS. Each phase's summary is written from fixed sentence templates over those measurements.
+- **The drafting is UPlan's analysis engine, not a language model** *(decided 2026-09-26, and unchanged by F24)*. Measurements come from PostGIS. Each phase's summary is written from fixed sentence templates over those measurements. AI assist (F24) sits beside the drafted output and never changes it.
 - A review is the planner's own record: reviewed, or revision requested with a note. It is not sign-off (F12) and says nothing about the development.
 - A review is tied to the exact output it was made on. When inputs change and the output changes, the phase asks for review again and shows what changed since the last review.
 - A planner can upload a boundary file for the site or the footprint, or load sample data (F23), in place of drawing.
@@ -263,6 +265,21 @@ Sample data for every phase, so the whole workflow can be used and shown without
 - A **Start with sample data** option creates a project with every phase's input filled in. Each phase can also load its own sample input.
 - Sample data is labeled as sample everywhere it appears, including the final document. It is never presented as a real site or a real source (P1).
 - The sample evidence datasets are illustrative and staff-seeded; they are marked so in their provenance.
+
+### F24. AI assist — `ai-assist`
+
+**Serves:** I1, I2, I4, I9 · **Release:** 1, in three waves *(added 2026-10-10)*
+
+A language model that helps a planner read, and helps staff keep the profile current. It reads and quotes; the analysis still measures and decides nothing (charter, *AI assistance*).
+
+- **Wave 1: explain and find.** Plain-language explanations of the evidence, a screening row, and the impact table, each restating only what is already drafted. A finder that returns the exact passage of the code behind a rule, a flag, a study, or a buffer width.
+- **Wave 2: questions and comparison.** Questions for a site visit that follow from the gaps and limits UPlan recorded; questions for the pre-application conference tied to each flagged study; why two sources may differ, from their metadata; what would narrow a range.
+- **Wave 3: staff drafts.** A profile rule change drafted from a changed code document; a dataset's limitations drafted from its published metadata; a comparison of the engine's study list with the city's checklist. Staff confirm each, and never the requester.
+- Every suggestion is labeled, quotes its source, shows the model and date, is bound to the output it was made on, and is stored beside the analysis, never inside it or the final document.
+- A planner asks for it; nothing runs unasked, and no phase needs it. Site and Footprint have none, because a boundary is the planner's own act.
+- Only public text and measured results with names removed are sent. Runs on NVIDIA's free hosted inference service, within per-person and per-city daily caps.
+
+**Open for TechDesign:** the model chosen, the caps, and where the code text comes from on the new hosting (see `TechDesign/ai-assist.md`).
 
 ## Release 1 — accounts, records, and profile upkeep
 
@@ -345,7 +362,7 @@ A planner opens a decision's map and report on a phone, on a site visit or in a 
 | I8. Review and sign off before the report goes out | F12 | F5, F11 |
 | I9. Maintain the city's profile | F17 | F1, F2 |
 
-Every intent is covered. F16 serves the public records constraint rather than an intent.
+Every intent is covered. F16 serves the public records constraint rather than an intent. F24 delivers no intent of its own: it makes I1, I2, I4, and I9 faster to carry out, and each still works without it.
 
 ## Open questions
 

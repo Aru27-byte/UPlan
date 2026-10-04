@@ -1,7 +1,7 @@
 # UPlan — Alternatives and Trade-offs
 
-**Status:** Draft — system-level technical design
-**Last updated:** 2026-09-12
+**Status:** Draft — system-level technical design; D27 and D28 added 2026-10-10
+**Last updated:** 2026-10-10
 **Related:** [tech-stack.md](tech-stack.md) · [system-architecture.md](system-architecture.md) · [data-model.md](data-model.md)
 
 One record per decision. A change to the stack starts here: update the record, then the documents that cite it.
@@ -237,6 +237,8 @@ One record per decision. A change to the stack starts here: update the record, t
 
 ## D15. Drafting rule updates with RAG on open models (later in v1)
 
+> **Superseded in part by D27 (2026-10-10).** The retrieval, checks, and staff confirmation stand. The models no longer run on the VM; they are NVIDIA's hosted models, called from a Server Action. The reasoning below on model size and VM memory is history.
+
 **Chosen.**
 
 - A retrieval-augmented generation workflow in the worker that runs entirely on the VM (see _Drafting code changes with retrieval_ in the architecture).
@@ -281,6 +283,8 @@ One record per decision. A change to the stack starts here: update the record, t
 **Revisit when.** Planners need offline look-up and accept that it must be labeled as possibly out of date.
 
 ## D17. Hosting at zero cost on Oracle Cloud's Always Free tier
+
+> **Superseded by D28 (2026-10-10),** which moves the target to Vercel and Supabase. The record stays because its reasons for rejecting Vercel are the open items D28 lists.
 
 **Chosen.**
 
@@ -457,5 +461,65 @@ Prettier handles formatting.
 **Trade-offs accepted.** The summaries are plainer than generated prose. Their wording is changed in code, reviewed in a pull request, and versioned by `TEMPLATE_VERSION`.
 
 **Revisit when.** A model can be constrained so that every sentence it writes is provably backed by a measurement, and the charter's posture allows it.
+
+**Amended 2026-10-10 (D27).** The decision stands for phase outputs. AI assist (F24) is a separate, labeled aid beside them, so the model still never sits between a measurement and its sentence.
+
+## D27. AI assist on NVIDIA's hosted inference, beside the analysis and never inside it
+
+**Chosen.**
+
+- A new module, `assist`, and one platform client, `src/platform/model-client.ts`, that calls NVIDIA's OpenAI-compatible API (`integrate.api.nvidia.com/v1`) with `fetch` and Zod. The key is a server-side environment variable. Model ids are constants, pinned in code, changed only through a pull request that passes the evaluation set.
+- Six fixed output kinds: Explain, Questions, Find, Compare, Metadata draft, and Rule draft. Each has a Zod shape with a place for an exact quote, and each output passes deterministic checks for quotes, copied numbers, verdict words, and references.
+- Only four classes of input leave UPlan: published code text, dataset metadata, profile rules, and project results with identity removed.
+- Suggestions are stored in their own tables, bound to the output they were made on, requested by a person, and never part of the analysis, the fingerprint, or the released document. Metadata and rule drafts take effect only when staff other than the requester confirm.
+- Embeddings use `nvidia/nv-embedqa-e5-v5` at 1,024 dimensions, so D21's `vector(1024)` column and index are unchanged.
+
+**Considered.**
+
+- _Keep models on the VM (D15)._ Private and free, but it needs the VM, and the stated hosting target no longer has one. A 4B model also drafts and explains less reliably than a hosted model in the 49B to 70B class.
+- _The Claude or OpenAI APIs._ Stronger, but paid per token, which the zero-cost constraint rules out, and the city has made no data-sharing agreement.
+- _Let the model write the phase summaries or the report._ Rejected by D26 and the charter: untestable sentences that cannot be pinned to a measurement.
+- _A chat assistant._ No fixed shape to check, and it needs project identity in context.
+- _Send the whole project for context._ Would put applicant and parcel identity at a third party. The allow-list sends measurements only.
+- _Automatic suggestions on page load._ Spends the free allowance on unread text and invites trust in unrequested output. A button is one extra click.
+- _A fallback to another hosted model on failure._ A fallback mechanism; failures are shown.
+- _A worker queue for assist calls._ The target has no worker, and one call per request fits a function invocation. A queue would add a race to solve a problem that does not exist.
+
+**Trade-offs accepted.**
+
+- A third party sees requests, and its free tier is rate-limited, intended for development and evaluation, and its catalog changes. Mitigated by the allow-list, the caps, pinned ids, and every phase working without assist.
+- Quote and number checks reject some true outputs (hyphenation, rounding). The cost is a visible rejection, never a wrong display.
+- Output is not reproducible. It is stored and shown as stored.
+
+**Revisit when.** NVIDIA's terms don't allow the pilot's use, a model id is retired and no candidate passes the evaluation set, or the city funds a paid or self-hosted model.
+
+## D28. Hosting on Vercel and Supabase
+
+**Chosen _(the stated infrastructure, 2026-10-10)_.**
+
+- Vercel hosts the Next.js application. Supabase provides PostgreSQL with PostGIS and pgvector, Auth (already D14), and Storage through an S3-compatible endpoint, which keeps the existing S3 client.
+- AI assist needs nothing else (D27).
+
+**Considered.** D17's Oracle VM, which runs the worker, Chromium, and GDAL, and the options D17 rejected. D17 rejected Vercel Hobby because it is limited to non-commercial use and cannot run the worker, Chromium, or GDAL. Those objections are still true, so the move creates the following work, none of it designed yet.
+
+**Open items this decision creates.**
+
+| Concern | Was | On Vercel and Supabase | Status |
+| --- | --- | --- | --- |
+| Background jobs (analysis run, report release, ingestion, daily sweeps, heartbeat) | graphile-worker, a long-lived process (D8) | No long-lived process. Candidates: Vercel Cron calling a route that drains a Postgres queue; Supabase `pg_cron` with Edge Functions; running each job inline in a function within `maxDuration` | Open |
+| Enqueue in the same transaction | `graphile_worker.add_job()` | Keep a Postgres jobs table written in the same transaction, drained by the chosen runner | Open |
+| PDF rendering | Playwright Chromium in the worker (D12) | Chromium in a function (a trimmed build) within size and time limits, or a different renderer that still produces a tagged PDF with an outline (P3, WCAG) | Open, and it must be proven |
+| Dataset ingestion | GDAL command-line tools (D11) | No GDAL in a function. Candidates: ingest in PostGIS from GeoJSON or a PostGIS-readable file, or ingestion outside Vercel by staff | Open |
+| Analysis runtime | A job on a two-core VM | PostGIS inside Supabase; the run is SQL, so it may fit a function, but a long run can exceed `maxDuration` | Open |
+| Basemap file | `caddy` serves a `.pmtiles` file | Supabase Storage or Vercel static files with range requests | Open |
+| Backups and restore | pgBackRest to Object Storage | Supabase's own backups; check the free plan's retention | Open |
+| Health check | OCI synthetic monitor | A route plus an external monitor, or Vercel's own | Open |
+| Database size | 200 GB boot volume | The free plan's limit (about 500 MB), with documents stored as `bytea` | Open |
+| Eligibility | — | Vercel Hobby is non-commercial; a city pilot may need Pro | Open |
+| Project pausing | — | Supabase pauses a free project after a week idle (D14) | Known |
+
+**Trade-offs accepted.** Less to administer, and free tiers that fit a pilot's dozens of users. In return, the heavy work has no home yet, and two free tiers (Supabase and NVIDIA) carry no service levels.
+
+**Revisit when.** The jobs and PDF items are decided, which should happen before any further release 1 code assumes a worker.
 
 Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [OpenAI: gpt-oss](https://openai.com/index/introducing-gpt-oss/) · [Unsloth: Qwen3.5 memory requirements](https://unsloth.ai/docs/models/qwen3.5) · [Google: Gemma 4](https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/) · [Neon: plans](https://neon.com/docs/introduction/plans) · [Supabase: free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing) · [Vercel: Hobby plan](https://vercel.com/docs/plans/hobby)

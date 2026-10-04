@@ -18,6 +18,8 @@ That gives the loop the requirements describe without a state machine to keep in
 
 **Rejected:** a language model for the summaries. The charter, `do-not.md`, and the decision of 2026-09-26 rule it out; and templates over measured numbers make every sentence testable.
 
+**Added 2026-10-10:** a labeled AI assist panel beside each analysis phase's output (F24, [ai-assist.md](ai-assist.md)). It is requested by the planner, stored apart from the output, and never part of the output, its fingerprint, a review, or the document. The decision above stands for the summaries themselves.
+
 ## Module
 
 ```
@@ -103,7 +105,7 @@ A run is "current" only if the analysis for the **current inputs** finished (`An
 | impact | "{n} measured overlaps across {m} resource types." or, with none, "No mapped resource or buffer overlaps the footprint." | One line per impact: "{label}: {measure} {min}[–{max}] {unit}{, approximate boundary}[; depends on {attribute}]" · with none, "This describes the mapped data, not a finding about the site." · one line per recorded limit |
 
 - **R3** is enforced two ways. The templates contain no evaluative words, and a denylist test renders every template over fixtures (including empty ones) and fails if any output matches `safe`, `clear`, `clearance`, `waive`, `acceptable`, `recommend`, `approve`, `deny`, `denied`, `no study needed`, or `not required`. The `PhaseOutput` type has no severity, score, or rank field, so a verdict has nowhere to live.
-- **R2, R13:** every page that shows a drafted summary renders the fixed notice "Drafted by UPlan's analysis engine from measurements. No language model wrote this." beside it, and each limit through `describeLimit` in `analysis`, which replaces the two copies of the limit sentences that `impact/page.tsx` and `document.tsx` held.
+- **R2, R13:** every page that shows a drafted summary renders the fixed notice "Drafted by UPlan's analysis engine from measurements. No language model wrote this." beside it, and the assist panel below it carries its own notice that its text is AI-assisted and is not part of the analysis, and each limit through `describeLimit` in `analysis`, which replaces the two copies of the limit sentences that `impact/page.tsx` and `document.tsx` held.
 - Ordering inside every list is the run's own deterministic order (`orderResults`), so the same facts give the same lines.
 
 ## Reviews (R5, R6, R7, R8, R12)
