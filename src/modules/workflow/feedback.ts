@@ -41,6 +41,7 @@ export async function recordSectionFeedback(actor: Actor, decisionId: string, in
 
 export async function listSectionFeedback(actor: Actor, decisionId: string, step: FeedbackStep): Promise<SectionFeedback[]> {
   await getDecision(actor, decisionId); // ownership
+<<<<<<< HEAD
   return listSectionFeedbackInternal(decisionId, step);
 }
 
@@ -50,6 +51,8 @@ export async function listSectionFeedback(actor: Actor, decisionId: string, step
  * succeeds) — so the two reads overlap instead of queueing, one fewer round trip on every step page.
  */
 export async function listSectionFeedbackInternal(decisionId: string, step: FeedbackStep): Promise<SectionFeedback[]> {
+=======
+>>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
   const rows = await db
     .select({
       id: reportSectionFeedback.id,

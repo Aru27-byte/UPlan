@@ -15,7 +15,11 @@ export type {
 export { recordReview, listReviews } from "./reviews";
 export type { RecordReviewInput } from "./reviews";
 
+<<<<<<< HEAD
 export { recordSectionFeedback, listSectionFeedback, listSectionFeedbackInternal, FEEDBACK_STEPS } from "./feedback";
+=======
+export { recordSectionFeedback, listSectionFeedback, FEEDBACK_STEPS } from "./feedback";
+>>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
 export type { FeedbackStep, SectionFeedback, RecordFeedbackInput } from "./feedback";
 
 export { finishResearch,cancelResearchChange } from "./finish";
