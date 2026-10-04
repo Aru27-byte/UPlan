@@ -38,3 +38,29 @@ export const phaseReview = pgTable(
     index("phase_review_by_phase").on(t.decisionId, t.phase, t.reviewedAt),
   ],
 );
+
+// TechDesign/research-phases.md, "Report-section feedback" (R15) — a planner's note about the section of
+// the final document a step feeds. Append-only (a trigger in migration 0008 rejects UPDATE and DELETE). It
+// is a note: nothing reads it back into an output. `decision_id` references decision(id) through the
+// migration, not here, because a module's tables.ts never imports another module's tables.
+export const reportSectionFeedback = pgTable(
+  "report_section_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    decisionId: uuid("decision_id").notNull(),
+    step: text("step").notNull(),
+    note: text("note").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "report_section_feedback_step_check",
+      sql`${t.step} in ('overview', 'site', 'evidence', 'screening', 'studies', 'footprint', 'impact')`,
+    ),
+    check("report_section_feedback_note_shape", sql`length(btrim(${t.note})) between 1 and 2000`),
+    index("report_section_feedback_by_step").on(t.decisionId, t.step, t.createdAt),
+  ],
+);

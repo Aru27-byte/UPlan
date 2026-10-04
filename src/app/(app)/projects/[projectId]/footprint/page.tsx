@@ -11,6 +11,7 @@ import { PhasePage } from "@/ui/phase/phase-page";
 
 import { recordReviewAction } from "../actions";
 import { BoundaryPanel } from "../_components/boundary-panel";
+import { StepIntro } from "../_components/step-intro";
 
 // Phase 5: the proposal's footprint, traced over the read-only study area (F8). The drafted output is the
 // PostGIS-computed area of the traced footprint — the proposal under evaluation, never evidence.
@@ -29,6 +30,7 @@ export default async function FootprintPage({ params }: { params: Promise<{ proj
     <PhasePage
       model={phaseModel(w, projectId, "footprint")}
       reviewAction={recordReviewAction.bind(null, projectId)}
+      intro={<StepIntro projectId={projectId} step="footprint" />}
       editor={
         studyAreaGeom ? (
           <BoundaryPanel

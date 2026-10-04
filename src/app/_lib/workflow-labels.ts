@@ -1,6 +1,7 @@
 import type { NextAction, PhaseKey, PhaseReview, PhaseView, StepState, Workflow } from "@/modules/workflow";
 import { formatTimestamp } from "@/modules/provenance";
 import type { AnalysisStatus, InputChange } from "@/modules/analysis";
+import type { StepGroup } from "@/ui/phase/group-tones";
 import type { PhaseViewModel } from "@/ui/phase/types";
 import type { StatusTone } from "@/ui/status-label";
 
@@ -19,7 +20,7 @@ export const PHASE_TITLE: Record<PhaseKey, string> = {
 
 export const STEP_TITLE = { overview: "Overview", ...PHASE_TITLE, report: "Report" } as const;
 
-export const STEP_GROUP: Record<keyof typeof STEP_TITLE, string> = {
+export const STEP_GROUP: Record<keyof typeof STEP_TITLE, StepGroup> = {
   overview: "Set up",
   site: "Set up",
   evidence: "Assemble",
@@ -178,6 +179,7 @@ export function toPhaseViewModel(
   return {
     phase: view.phase,
     title: PHASE_TITLE[view.phase],
+    group: STEP_GROUP[view.phase],
     state: { kind: label.kind, text: label.text, tone: label.tone },
     output: view.output
       ? { headline: view.output.headline, lines: view.output.lines, contentSha256: view.output.contentSha256 }

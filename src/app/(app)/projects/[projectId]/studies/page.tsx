@@ -3,11 +3,12 @@ import { loadProject } from "@/app/_lib/project";
 import { SCREENING_CANNOT_SEE, STUDY_LABEL, STUDY_NOT_FLAGGED, describeScreeningGap } from "@/modules/analysis";
 import { formatFeet } from "@/modules/provenance";
 import { DataTable } from "@/ui/data-table";
-import { Panel } from "@/ui/panel";
+import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
+import { StepIntro } from "../_components/step-intro";
 
 // Phase 4 (F14): each study the city's profile names, and whether mapped data flags it. A flag can add a
 // study; the absence of a flag never removes one, because the city decides which studies an application needs
@@ -18,8 +19,9 @@ export default async function StudiesPage({ params }: { params: Promise<{ projec
   const model = phaseModel(w, projectId, "studies");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
+  const intro = <StepIntro projectId={projectId} step="studies" />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -77,16 +79,22 @@ export default async function StudiesPage({ params }: { params: Promise<{ projec
   const gaps = run.results.evidenceBase.gaps;
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction}>
-      <Panel
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+      <Accordion
+        group={model.group}
         title="Studies named in the city's profile"
-        description="The city decides which studies an application needs. This shows which ones mapped data flags."
+        summary="The city decides which studies an application needs. This shows which ones mapped data flags."
       >
         <p className="mb-4 rounded-lg border border-info/25 bg-info-soft px-4 py-3 text-sm text-text">{SCREENING_CANNOT_SEE}</p>
         <DataTable caption="Studies named in the profile and whether mapped data flags them" columns={["Study", "Status", "Basis"]} rows={rows} />
-      </Panel>
+      </Accordion>
       {gaps.length > 0 ? (
-        <Panel headingLevel={3} title="Where the data can't say" description="A study can't be flagged by data that isn't there.">
+        <Accordion
+          group={model.group}
+          headingLevel={3}
+          title="Where the data can't say"
+          summary="A study can't be flagged by data that isn't there."
+        >
           <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-text">
             {gaps.map((gap) => (
               <li key={`${gap.resourceType}:${gap.reason}`}>
@@ -94,7 +102,7 @@ export default async function StudiesPage({ params }: { params: Promise<{ projec
               </li>
             ))}
           </ul>
-        </Panel>
+        </Accordion>
       ) : null}
     </PhasePage>
   );

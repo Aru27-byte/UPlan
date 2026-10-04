@@ -2,46 +2,108 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Fragment } from "react";
 
+import { Icon } from "../icons";
 import { StatusLabel, type StatusTone } from "../status-label";
 
-// The stage rail on every project page (decision-overview.md F18 R1–R3): the order of the work, grouped as
-// Set up, Assemble, Analyze, Report, with each stage's state as words and a shape (R12). It orders the work
-// and never blocks it: every stage is a link (R3). Client-only for usePathname, so the current stage gets
-// aria-current; it takes plain props and imports no runtime code from @/modules.
+import { GROUP_TONE, type StepGroup } from "./group-tones";
+
+// The stage rail on every project page (decision-overview.md F18 R1–R3, research-phases.md R17): one linear
+// process, Set up → Assemble → Analyze → Report. Each group is its own color (shared with the report-section
+// block and the accordions), the stages are numbered in order, and an arrow sits between stages and between
+// groups so the direction of the work reads without the words. A stage's state is words and a shape, never
+// color alone (F18 R12). It orders the work and never blocks it: every stage is a link (R3). Client-only for
+// usePathname, so the current stage gets aria-current; it takes plain props and imports no runtime code from
+// @/modules.
 export type RailStage = {
   key: string;
   label: string;
   href: string;
-  group: string;
+  group: StepGroup;
   stateText: string;
   tone: StatusTone;
 };
 
+type Group = { name: StepGroup; stages: { stage: RailStage; number: number }[] };
+
+function groupStages(stages: RailStage[]): Group[] {
+  const groups: Group[] = [];
+  stages.forEach((stage, index) => {
+    const last = groups.at(-1);
+    const entry = { stage, number: index + 1 };
+    if (last?.name === stage.group) last.stages.push(entry);
+    else groups.push({ name: stage.group, stages: [entry] });
+  });
+  return groups;
+}
+
 export function StageRail({ stages }: { stages: RailStage[] }) {
   const pathname = usePathname();
+  const groups = groupStages(stages);
   return (
-    <nav aria-label="Research stages" className="overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel">
-      <ol className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4 2xl:grid-cols-8">
-        {stages.map((stage, index) => {
-          const active = pathname === stage.href || pathname.startsWith(`${stage.href}/`);
-          const startsGroup = index === 0 || stages[index - 1]?.group !== stage.group;
+    <nav aria-label="Research stages" className="flex flex-col gap-3 rounded-xl border-2 border-cream/70 bg-surface p-3 text-text shadow-panel">
+      <div aria-hidden="true" className="eyebrow flex items-center gap-2 px-1 text-muted">
+        <span>Start</span>
+        <span className="h-0.5 flex-1 rounded-full bg-ink/30" />
+        <Icon name="arrow-right" />
+        <span>Finish</span>
+      </div>
+      <ol className="flex flex-col gap-1 2xl:flex-row 2xl:items-stretch">
+        {groups.map((group, groupIndex) => {
+          const tone = GROUP_TONE[group.name];
           return (
-            <li key={stage.key} className="flex bg-surface">
-              <Link
-                href={stage.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex w-full flex-col gap-1 px-3 py-3 ${active ? "bg-card-yellow" : "hover:bg-canvas"}`}
+            <Fragment key={group.name}>
+              {groupIndex > 0 ? (
+                <li aria-hidden="true" className="flex items-center justify-center py-0.5 text-ink 2xl:px-0.5 2xl:py-0">
+                  <Icon name="arrow-right" className="size-6 rotate-90 2xl:rotate-0" />
+                </li>
+              ) : null}
+              <li
+                style={{ flexGrow: group.stages.length }}
+                className={`flex min-w-0 flex-col gap-2 rounded-lg border-2 p-2 ${tone.edge} ${tone.fill} text-ink 2xl:basis-0`}
               >
-                <span className="eyebrow text-[0.6875rem] text-muted">
-                  {startsGroup ? stage.group : " "}
-                </span>
-                <span className={`text-sm font-semibold ${active ? "text-ink underline decoration-2 underline-offset-4" : "text-text"}`}>
-                  {index + 1}. {stage.label}
-                </span>
-                <StatusLabel tone={stage.tone}>{stage.stateText}</StatusLabel>
-              </Link>
-            </li>
+                <p className="eyebrow px-1 text-ink">
+                  {groupIndex + 1}. {group.name}
+                </p>
+                <ol className="flex flex-col gap-1 sm:flex-row sm:items-stretch">
+                  {group.stages.map(({ stage, number }, stageIndex) => {
+                    const active = pathname === stage.href || pathname.startsWith(`${stage.href}/`);
+                    return (
+                      <Fragment key={stage.key}>
+                        {stageIndex > 0 ? (
+                          <li aria-hidden="true" className="flex items-center justify-center text-ink">
+                            <Icon name="arrow-right" className="rotate-90 sm:rotate-0" />
+                          </li>
+                        ) : null}
+                        <li className="flex min-w-0 sm:flex-1">
+                          <Link
+                            href={stage.href}
+                            aria-current={active ? "page" : undefined}
+                            className={`flex w-full flex-col gap-1.5 rounded-lg border-2 bg-white px-3 py-2.5 ${
+                              active ? "border-ink shadow-button" : "border-transparent hover:border-ink/40"
+                            }`}
+                          >
+                            <span className={`flex items-center gap-2 text-sm font-semibold text-text ${active ? "underline decoration-2 underline-offset-4" : ""}`}>
+                              <span
+                                aria-hidden="true"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-ink text-xs text-page-text"
+                              >
+                                {number}
+                              </span>
+                              {stage.label}
+                            </span>
+                            <span className="self-start">
+                              <StatusLabel tone={stage.tone}>{stage.stateText}</StatusLabel>
+                            </span>
+                          </Link>
+                        </li>
+                      </Fragment>
+                    );
+                  })}
+                </ol>
+              </li>
+            </Fragment>
           );
         })}
       </ol>
