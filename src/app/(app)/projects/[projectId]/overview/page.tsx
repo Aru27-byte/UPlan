@@ -58,6 +58,21 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
 =======
 >>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
 
+  // R18: the project's facts as recorded (null reads "Not yet recorded"), and every phase whose output is not
+  // reviewed — to do, updating, needs review, or a revision requested.
+  const glance: [string, string | null][] = [
+    ["Application type", applicationTypeLabel(d.applicationType)],
+    ["Parcel or address", d.parcelOrAddress],
+    ["Applicant", d.applicant],
+    ["Project manager", d.projectManager],
+    ["Application filed on", d.applicationFiledOn],
+    ["Target decision date", d.targetDecisionOn],
+    ["City", w.cityName],
+  ];
+  const pending = w.phases
+    .map((view) => ({ phase: view.phase, label: reviewStateLabel(view.state) }))
+    .filter(({ label }) => label.kind !== "reviewed");
+
   const labelOf = (key: string): string => {
     const found = rules?.resourceTypes.find((r) => r.key === key);
     if (!found) throw new Error(`the analysis names a resource type the profile lacks: ${key}`);
@@ -92,6 +107,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
       <StepIntro projectId={projectId} step="overview" />
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 24b950d (Add a project-at-a-glance panel to the Overview (R18))
       <Panel
         title="Project at a glance"
         description="What this project is, and which phases still need work or review."
@@ -125,8 +143,11 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
         </div>
       </Panel>
 
+<<<<<<< HEAD
 =======
 >>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
+=======
+>>>>>>> 24b950d (Add a project-at-a-glance panel to the Overview (R18))
       <Panel title="What next?" description="From the project's records, in order. Each step names a place to work, never a judgment about the development.">
         {w.nextActions.length === 0 ? (
           <p className="text-sm text-text">Nothing is waiting on you.</p>
