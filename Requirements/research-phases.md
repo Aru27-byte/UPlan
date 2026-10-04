@@ -60,6 +60,8 @@ Until then the phase says exactly what is missing or that the analysis is runnin
 
 **R17. The stage rail shows the research as one linear process.** Stages are numbered in order, grouped as Set up, Assemble, Analyze, and Report, each group in its own color, with an arrow between stages and between groups showing the direction of the work. Each stage still shows its state as words and a shape, never by color alone (F18 R12).
 
+**R18. The Overview shows the project at a glance, between its report-section block and its data:** the application type, parcel or address, applicant, project manager, the filing and target dates, and the city, each reading "Not yet recorded" when blank, and every phase whose output is not reviewed, with its state (to do, updating, needs review, or revision requested) and a link to it. When every phase is reviewed it says so. It states facts and never a verdict.
+
 ## Out of scope for this feature
 
 - Sign-off by a second person, and comments from reviewers (F12).

@@ -243,6 +243,8 @@ export const reportSectionFeedback = pgTable("report_section_feedback", {
 
 **Accordions** are `src/ui/accordion.tsx`: a native `<details>` with a styled `<summary>` (title, one-line summary, status, a chevron), closed by default, so it needs no script and works by keyboard. `PhasePage` wraps the inputs, the drafted output, the page's detail, and the history in it. The editors (`BoundaryPanel`) and the `MapWorkspace` panel stay `Panel`s (R16 exceptions).
 
+**The Overview's "Project at a glance"** (R18) is a `Panel` in `overview/page.tsx`, read from `getWorkflow()`: the decision's recorded details, and the phases whose `reviewStateLabel` kind is not `reviewed`. It sits directly after `StepIntro` and is not an accordion, because it is the summary the accordions below hang from.
+
 **The rail** keeps `StageRail`'s props and adds each group's color from `src/ui/phase/group-tones.ts`, shared with the report-section block so a group has one color everywhere. Groups are outlined segments of numbered stages joined by arrows (a right arrow on wide screens, down on phones).
 
 ## Requirement coverage
@@ -266,6 +268,7 @@ export const reportSectionFeedback = pgTable("report_section_feedback", {
 | R15 | `report-sections.ts`, `report_section_feedback`, `recordSectionFeedback`, `ReportSectionPanel` | A note, never an edit |
 | R16 | `Accordion`; map and editors stay `Panel`s | Native `<details>`, closed |
 | R17 | `StageRail`, `group-tones.ts` | Words and shapes as well as color |
+| R18 | `overview/page.tsx`, `reviewStateLabel` | Facts only; links to each phase |
 
 ## Risks and tradeoffs
 

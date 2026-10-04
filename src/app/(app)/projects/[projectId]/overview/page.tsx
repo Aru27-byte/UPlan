@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { NOT_RECORDED, applicationTypeLabel } from "@/app/_lib/labels";
 import { loadProject } from "@/app/_lib/project";
 import {
   NEXT_ACTION_TEXT,
@@ -8,6 +9,7 @@ import {
   analysisStatusText,
   projectHref,
   publishedVersion,
+  reviewStateLabel,
 } from "@/app/_lib/workflow-labels";
 import { STUDY_LABEL, describeLimit, describeScreeningGap, matchResolutions } from "@/modules/analysis";
 import type { RuleSet } from "@/modules/profiles";
@@ -37,6 +39,21 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
   const { run, rules, status } = w.facts;
   const analysis = analysisStatusText(status);
   const group = STEP_GROUP.overview;
+
+  // R18: the project's facts as recorded (null reads "Not yet recorded"), and every phase whose output is not
+  // reviewed — to do, updating, needs review, or a revision requested.
+  const glance: [string, string | null][] = [
+    ["Application type", applicationTypeLabel(d.applicationType)],
+    ["Parcel or address", d.parcelOrAddress],
+    ["Applicant", d.applicant],
+    ["Project manager", d.projectManager],
+    ["Application filed on", d.applicationFiledOn],
+    ["Target decision date", d.targetDecisionOn],
+    ["City", w.cityName],
+  ];
+  const pending = w.phases
+    .map((view) => ({ phase: view.phase, label: reviewStateLabel(view.state) }))
+    .filter(({ label }) => label.kind !== "reviewed");
 
   const labelOf = (key: string): string => {
     const found = rules?.resourceTypes.find((r) => r.key === key);
@@ -70,6 +87,39 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
   return (
     <div className="flex flex-col gap-5">
       <StepIntro projectId={projectId} step="overview" />
+
+      <Panel
+        title="Project at a glance"
+        description="What this project is, and which phases still need work or review."
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+            {glance.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-muted">{label}</dt>
+                <dd className={value === null ? "text-muted" : "font-medium text-text"}>{value ?? NOT_RECORDED}</dd>
+              </div>
+            ))}
+          </dl>
+          <div>
+            <h3 className="text-sm font-semibold text-text">Phases that need you</h3>
+            {pending.length === 0 ? (
+              <p className="mt-2 text-sm text-text">Every phase is reviewed at its current output.</p>
+            ) : (
+              <ul className="mt-2 flex flex-col divide-y divide-line">
+                {pending.map(({ phase, label }) => (
+                  <li key={phase} className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
+                    <Link href={projectHref(projectId, phase)} className="text-sm font-medium text-text underline-offset-2 hover:underline">
+                      {PHASE_TITLE[phase]}
+                    </Link>
+                    <StatusLabel tone={label.tone}>{label.text}</StatusLabel>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Panel>
 
       <Panel title="What next?" description="From the project's records, in order. Each step names a place to work, never a judgment about the development.">
         {w.nextActions.length === 0 ? (
