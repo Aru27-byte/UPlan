@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { listJurisdictions } from "@/modules/profiles";
 
 // TechDesign/project-dashboard.md, "The shell": this release supports exactly one city (decided 2026-09-26),
@@ -8,7 +10,9 @@ export type CityResult =
   | { kind: "city"; city: Awaited<ReturnType<typeof listJurisdictions>>[number] }
   | { kind: "problem"; message: string };
 
-export async function getCity(): Promise<CityResult> {
+// `cache` is React's per-request memo, not Next.js data caching (do-not.md): the layout and the page both
+// ask for the city in one request and share one read; the next request reads it afresh.
+export const getCity = cache(async (): Promise<CityResult> => {
   const cities = await listJurisdictions();
   const [only] = cities;
   if (!only) {
@@ -25,4 +29,4 @@ export async function getCity(): Promise<CityResult> {
     };
   }
   return { kind: "city", city: only };
-}
+});

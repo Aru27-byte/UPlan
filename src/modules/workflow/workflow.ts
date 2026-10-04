@@ -1,6 +1,6 @@
 import type { Actor } from "@/modules/accounts";
 import { DecisionStatusSchema, getDecision, type Decision, type DecisionStatus } from "@/modules/decisions";
-import { getLatestReleasedSnapshot, listDocumentVersions, type DocumentVersion, type ReportDetails } from "@/modules/reports";
+import { getLatestReleasedSnapshot, listDocumentVersionsInternal, type DocumentVersion, type ReportDetails } from "@/modules/reports";
 import { db } from "@/platform/db";
 
 import { summarizeChanges, type ChangeSummary } from "./changes";
@@ -49,10 +49,15 @@ export function detailsOf(decision: Decision, usesSampleData: boolean): ReportDe
 export async function getWorkflow(actor: Actor, decisionId: string): Promise<Workflow> {
   const decision = await getDecision(actor, decisionId);
   const decisionStatus = DecisionStatusSchema.parse(decision.status);
-  const { facts, usesSampleData, cityName, timeZone } = await loadPhaseFacts(decision);
-  const reviews = await listReviewsInternal(decision.id);
+  // The three reads touch different tables and none needs another's result, so they overlap: this runs on
+  // every project page, and each sequential read costs a full database round trip. The decision above is
+  // read first and alone because it is the ownership check.
+  const [{ facts, usesSampleData, cityName, timeZone }, reviews, versions] = await Promise.all([
+    loadPhaseFacts(decision),
+    listReviewsInternal(decision.id),
+    listDocumentVersionsInternal(decision.id),
+  ]);
   const phases = buildPhaseViews(facts, reviews);
-  const versions = await listDocumentVersions(actor, decision.id);
   const latestVersion = versions[0]?.versionNumber ?? null;
   const unresolvedDisagreements = countUnresolvedDisagreements(facts);
 

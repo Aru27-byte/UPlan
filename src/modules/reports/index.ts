@@ -1,6 +1,7 @@
 export { requestFinalDocument } from "./request";
 export {
   listDocumentVersions,
+  listDocumentVersionsInternal,
   getLatestAttempt,
   getDocumentFile,
   getLatestReleasedSnapshot,
