@@ -28,8 +28,7 @@ const phasesLeft = (s: ProjectSummary) => s.phasesTotal - s.phasesReviewed;
 // (R3), with the actions that fit each state (R4). Counts and words only: no percentage, score, or rating (R3,
 // R7). Every read goes through a module function that checks ownership itself; nothing here decides access.
 export default async function DashboardPage() {
-  const { actor, name } = await requireActor();
-  const cityResult = await getCity();
+  const [{ actor, name }, cityResult] = await Promise.all([requireActor(), getCity()]);
   if (cityResult.kind !== "city") return null; // the layout already shows the problem in place of this page
   const city = cityResult.city;
 

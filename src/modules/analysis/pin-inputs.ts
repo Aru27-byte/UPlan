@@ -100,26 +100,33 @@ export async function pinInputs(
   profileChangeId?: string,
   clock: Clock = () => new Date(),
 ): Promise<PinResult> {
-  const decision = await getDecisionForAnalysis(decisionId);
-  const studyArea = await getLatestGeometryInternal(decisionId, "study_area");
-  if (!studyArea) return { kind: "no-study-area" };
-  const footprint = await getLatestGeometryInternal(decisionId, "footprint"); // null: evidence base and screening only
+  if (purpose === "preview" && !profileChangeId) throw new Error("a preview run needs the profile change it previews");
 
-  const jurisdiction = await getJurisdiction(decision.jurisdictionId);
-  let document: unknown;
-  let profileVersionId: string | null = null;
-  if (purpose === "preview") {
-    if (!profileChangeId) throw new Error("a preview run needs the profile change it previews");
-    document = (await getProfileChange(profileChangeId)).proposedDocument;
-  } else {
-    const current = await getCurrentProfile(decision.jurisdictionId);
-    if (!current) return { kind: "no-profile" };
-    document = current.document;
-    profileVersionId = current.id;
-  }
+  // Every input is read exactly once, but the reads are independent, so they overlap in two waves instead
+  // of queueing up: this runs on every project page, and each sequential read is a full database round
+  // trip. A read made for an input the run turns out not to need (the footprint of a project with no study
+  // area) is discarded; it changes nothing.
+  const [decision, studyArea, footprint] = await Promise.all([
+    getDecisionForAnalysis(decisionId),
+    getLatestGeometryInternal(decisionId, "study_area"),
+    getLatestGeometryInternal(decisionId, "footprint"), // null: evidence base and screening only
+  ]);
+  if (!studyArea) return { kind: "no-study-area" };
+
+  const [jurisdiction, profile, mappings] = await Promise.all([
+    getJurisdiction(decision.jurisdictionId),
+    purpose === "preview" && profileChangeId
+      ? getProfileChange(profileChangeId).then((change) => ({ document: change.proposedDocument, versionId: null }))
+      : getCurrentProfile(decision.jurisdictionId).then((current) =>
+          current ? { document: current.document, versionId: current.id } : null,
+        ),
+    getJurisdictionDatasetMappings(decision.jurisdictionId),
+  ]);
+  if (!profile) return { kind: "no-profile" };
+  const profileVersionId: string | null = profile.versionId;
   // Re-validate rather than `as`-cast: untyped jsonb read back from the database (conventions.md),
   // even though it was validated once before it was stored.
-  const profileDocument = ProfileDocumentSchema.parse(document);
+  const profileDocument = ProfileDocumentSchema.parse(profile.document);
 
   // Throws ValidationError when a vesting rule set has no filing date: the same message the planner
   // sees on the Overview, and no default date stands in for the missing one (F1 R3).
@@ -128,7 +135,6 @@ export async function pinInputs(
     todayInZone(jurisdiction.timeZone, clock),
     decision.applicationFiledOn,
   );
-  const mappings = await getJurisdictionDatasetMappings(decision.jurisdictionId);
   const datasetVersionIds = [
     ...new Set(mappings.map((m) => m.dataset.currentVersionId).filter((id): id is string => id !== null)),
   ].sort();

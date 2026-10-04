@@ -41,6 +41,15 @@ export async function recordSectionFeedback(actor: Actor, decisionId: string, in
 
 export async function listSectionFeedback(actor: Actor, decisionId: string, step: FeedbackStep): Promise<SectionFeedback[]> {
   await getDecision(actor, decisionId); // ownership
+  return listSectionFeedbackInternal(decisionId, step);
+}
+
+/**
+ * The same list without the ownership read, for a caller that authorizes the project itself in the same
+ * breath (the step pages, which read the feedback alongside getWorkflow and render nothing unless that
+ * succeeds) — so the two reads overlap instead of queueing, one fewer round trip on every step page.
+ */
+export async function listSectionFeedbackInternal(decisionId: string, step: FeedbackStep): Promise<SectionFeedback[]> {
   const rows = await db
     .select({
       id: reportSectionFeedback.id,

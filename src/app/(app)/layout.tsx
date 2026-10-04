@@ -13,8 +13,8 @@ import { AppShell } from "@/ui/shell/app-shell";
 // The city's name is in the navigation on every page (F20 R6). With no city, or more than one, the page is
 // replaced by a plain statement of what is wrong, not by a guess (city.ts).
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { name, email } = await requireActor();
-  const city = await getCity();
+  // Independent reads, so they overlap rather than queue (each is a database round trip).
+  const [{ name, email }, city] = await Promise.all([requireActor(), getCity()]);
 
   return (
     <AppShell userName={name} userEmail={email} cityName={city.kind === "city" ? city.city.name : "No city set up"}>

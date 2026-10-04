@@ -34,6 +34,15 @@ export type DocumentVersion = {
 /** Every published version of a project's document, newest first (R9). */
 export async function listDocumentVersions(actor: Actor, decisionId: string): Promise<DocumentVersion[]> {
   await getDecision(actor, decisionId);
+  return listDocumentVersionsInternal(decisionId);
+}
+
+/**
+ * The same list without the ownership read, for a caller that has just authorized the project itself
+ * (the workflow module's getWorkflow, which reads the project first and would otherwise read it twice
+ * in a row — one more database round trip on every page).
+ */
+export async function listDocumentVersionsInternal(decisionId: string): Promise<DocumentVersion[]> {
   const rows = await db
     .select({
       id: report.id,
