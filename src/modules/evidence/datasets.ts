@@ -11,7 +11,20 @@ import { dataset, datasetVersion, jurisdictionDataset } from "./tables";
 
 // R1 of evidence-layers.md: a dataset is only ingested from a free public source, checked once,
 // at registration — not re-validated on every feature.
-const FREE_PUBLIC_LICENSES = new Set(["Public domain", "CC0", "CC-BY", "CC-BY-4.0", "ODbL"]);
+// The last two were added 2026-10-10 because the pilot's real sources state no Creative Commons license:
+// King County's GIS terms of use allow copying, distributing, and using its data (selling needs a written
+// agreement), and a US federal agency's data is a government work. Layers whose terms forbid redistribution
+// (King County's 2023 canopy and land cover) and ones with no stated terms (the city's own GIS layers) are
+// not on this list and stay out until the publisher authorizes them in writing.
+const FREE_PUBLIC_LICENSES = new Set([
+  "Public domain",
+  "CC0",
+  "CC-BY",
+  "CC-BY-4.0",
+  "ODbL",
+  "King County GIS terms of use",
+  "Public domain (US government work)",
+]);
 
 // R12 of evidence-layers.md: authority and spatial precision are required, recorded when a dataset is
 // set up and never inferred from its features. Omitting either fails here, and the columns are

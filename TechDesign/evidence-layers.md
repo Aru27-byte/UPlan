@@ -50,7 +50,7 @@ export async function mapToJurisdiction(
 }
 ```
 
-`FREE_PUBLIC_LICENSES` is a short allow-list (e.g., public domain, CC0, CC-BY, ODbL) checked at registration time, not re-validated per feature — R1 is enforced once, where the dataset enters the system.
+`FREE_PUBLIC_LICENSES` is a short allow-list (public domain, CC0, CC-BY, CC-BY-4.0, ODbL, and, since 2026-10-10, "King County GIS terms of use" and "Public domain (US government work)", which the pilot's real sources need) checked at registration time, not re-validated per feature — R1 is enforced once, where the dataset enters the system.
 
 **R12:** `NewDataset` is a Zod schema whose `authority` and `spatialPrecision` are required literal unions, matching the `check` lists on the two `dataset` columns (see `evidence-review.md` for the columns and the migration that fills them for existing datasets). Omitting either fails validation at registration, and the columns are `not null` with no default.
 
