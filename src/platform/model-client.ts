@@ -9,7 +9,11 @@ import { env } from "./env";
 // Model ids are constants, not settings (best-practices.md): changing one is a pull request that must pass
 // the evaluation set (F24 R16). A retired id fails explicitly as an `http-error`; there is no fallback model.
 
+<<<<<<< HEAD
 export const GENERATE_MODEL_ID = "nvidia/nemotron-3-ultra-550b-a55b";
+=======
+export const GENERATE_MODEL_ID = "nvidia/nemotron-3.5-lightning-30b-a3b";
+>>>>>>> worktree-ai-assist
 export const EMBED_MODEL_ID = "nvidia/nv-embedqa-e5-v5";
 export const EMBED_DIMENSIONS = 1024;
 
@@ -80,13 +84,23 @@ async function post(path: string, body: unknown): Promise<unknown> {
 
 export type ChatResult = { content: string; tokensIn: number | null; tokensOut: number | null };
 
-/** One chat completion at temperature 0. The text is returned as the model wrote it; the caller checks it. */
+/**
+ * One chat completion. The text is returned as the model wrote it; the caller checks it.
+ *
+ * Nemotron 3.5 Lightning is a reasoning model. Thinking is turned off here: every assist fills a fixed shape
+ * from supplied text, so there is nothing to deliberate over, and reasoning tokens would spend the free
+ * allowance and the token cap before any answer is written. The vendor recommends temperature 1.0 and top_p
+ * 0.95 for both modes (model card), so those are used; a suggestion is stored and shown as stored, never
+ * regenerated, so run-to-run variation is already part of the design (ai-assist.md, "Risks").
+ */
 export async function chat(messages: { role: "system" | "user"; content: string }[], maxTokens: number): Promise<ChatResult> {
   const raw = await post("/chat/completions", {
     model: GENERATE_MODEL_ID,
     messages,
-    temperature: 0,
+    temperature: 1.0,
+    top_p: 0.95,
     max_tokens: maxTokens,
+    chat_template_kwargs: { enable_thinking: false },
     stream: false,
   });
   const parsed = ChatResponseSchema.safeParse(raw);

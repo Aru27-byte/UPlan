@@ -100,7 +100,7 @@ describe("F24 R1, R3, R9, R10: a requested suggestion is stored beside the analy
     const { planner, decision } = await project();
     const s = await requestSuggestion(planner.actor, { assistId: "EV1", decisionId: decision.id, jurisdictionId: city.id, subjectKey: "", question: null, documentId: null, datasetId: null, suppliedText: null });
     expect(s.status).toBe("ready");
-    expect(s.modelId).toMatch(/llama/);
+    expect(s.modelId).toMatch(/nemotron/);
     expect(s.request?.passages.length).toBeGreaterThan(0);
     expect(s.finishedAt).not.toBeNull();
     expect(chatCalls).toBe(1);

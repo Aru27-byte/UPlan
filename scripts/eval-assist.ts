@@ -130,4 +130,6 @@ if (!isModelConfigured()) {
 }
 
 console.log(failures === 0 ? "\nNo metric got worse." : `\n${failures} check(s) failed.`);
-process.exit(failures === 0 ? 0 : 1);
+// Not process.exit(): on Windows it can fire while a network socket is still closing and crash Node with a
+// libuv assertion after the results have printed. Setting the code lets the process end on its own.
+process.exitCode = failures === 0 ? 0 : 1;
