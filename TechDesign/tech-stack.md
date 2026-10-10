@@ -1,7 +1,7 @@
 # UPlan — Tech Stack
 
-**Status:** Draft — system-level technical design
-**Last updated:** 2026-09-12
+**Status:** Draft — system-level technical design; model and hosting rows amended 2026-10-10
+**Last updated:** 2026-10-10
 **Derived from:** [charter.md](../Requirements/charter.md), [intents.md](../Requirements/intents.md), [features.md](../Requirements/features.md)
 **Related:** [system-architecture.md](system-architecture.md) · [data-model.md](data-model.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
@@ -10,7 +10,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 ## Principles behind the stack
 
 - **Zero cost.** Every choice is open-source software, or a free tier used within its limits. No paid API, and no paid tier.
-- **Few services, little configuration.** One VM runs everything from one Compose file. Oracle Cloud's Always Free tier provides the infrastructure, and the only other external services are GitHub, Let's Encrypt, and Supabase Auth for sign-in.
+- **Few services, little configuration.** _As of 2026-10-10 (D28):_ Vercel hosts the application, Supabase holds the data, sign-in, and files, and NVIDIA serves the model calls. GitHub hosts the code. _Before it: one Oracle VM ran everything from one Compose file._
 - **Less code.** One repository, one language, one database, and two process types of our own. A dependency earns its place only by removing more code than it adds.
 - **The database guards the invariants.** Constraints, row locks, and immutable rows prevent race conditions. No coordination lives in application memory.
 - **Failures stay visible.** No layer substitutes defaults, cached data, another source, or another model when something fails.
@@ -64,13 +64,14 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | GDAL command-line tools | 3.8 or later | Loading public GIS data into PostGIS, in the worker image                                                                    | D11      |
 | Poppler `pdftotext`     | —            | Later in v1: turning code and ordinance PDFs into text for F2, in the worker image                                           | D15      |
 
-## Retrieval and drafting (F2, later in v1)
+## AI assist, retrieval, and drafting (F24, and F2 later in v1)
 
-| Choice                                                 | Version line           | Role                                                                                                             | Decision |
-| ------------------------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------- | -------- |
-| llama.cpp server (`ghcr.io/ggml-org/llama.cpp:server`) | Pinned by image digest | Serves both models to the worker in router mode: embeddings, and generation constrained by a JSON Schema grammar | D15      |
-| Qwen3.5-4B, GGUF Q4_K_M (2.74 GB)                      | Pinned by SHA-256      | Drafts profile changes from retrieved passages. Apache 2.0                                                       | D15      |
-| Qwen3-Embedding-0.6B, GGUF Q8_0 (639 MB)               | Pinned by SHA-256      | Embeds code chunks and queries as 1,024-dimension vectors. Apache 2.0                                            | D15, D21 |
+| Choice                                          | Version line              | Role                                                                                                                                  | Decision |
+| ----------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| NVIDIA hosted inference API (`integrate.api.nvidia.com/v1`) | OpenAI-compatible API | Generation and embeddings for AI assist and F2, over HTTPS from the server, with an API key in a Vercel environment variable. Called with `fetch` and Zod: no SDK | D27      |
+| `meta/llama-3.3-70b-instruct` | Pinned id in `model-client.ts` | Fills the fixed output shapes at temperature 0. Chosen unmeasured; a change must pass `npm run eval:assist`                       | D27      |
+| `nvidia/nv-embedqa-e5-v5`                       | Pinned id in `model-client.ts` | Embeds code chunks and questions as 1,024-dimension vectors for Find, stored in pgvector                                              | D21, D27 |
+| llama.cpp, Qwen3.5-4B, Qwen3-Embedding-0.6B     | —                         | **Superseded by D27.** The earlier on-VM design (D15), kept only as history                                                           | D15      |
 
 ## Files and documents
 
@@ -102,8 +103,12 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 ## Hosting and operations at zero cost
 
+**Target as of 2026-10-10 (D28): Vercel for the application, Supabase for the database, sign-in, and files, and NVIDIA for model calls.** Next.js on Vercel needs no choice of its own. The Oracle rows below are the earlier design (D17) and are superseded where D28 says so. What replaces the worker, Chromium rendering, and GDAL ingestion is open.
+
 | Choice                                                      | Version line                       | Role                                                                               | Cost basis  | Decision |
 | ----------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | ----------- | -------- |
+| Vercel                                                      | Hobby or Pro; check eligibility    | Hosts the Next.js application: pages, Server Actions, route handlers               | Free tier, with usage limits; Hobby is for non-commercial use | D28      |
+| Supabase (Postgres with PostGIS and pgvector, Auth, Storage) | Free plan                         | The database, sign-in, and files, through one project                              | Free tier   | D14, D28 |
 | Oracle Cloud Infrastructure Arm VM (`VM.Standard.A1.Flex`)  | 2 OCPUs, 12 GB, 200 GB boot volume | Runs every process                                                                 | Always Free | D17      |
 | Ubuntu Server                                               | 24.04 LTS                          | Host operating system, with unattended security upgrades                           | Open source | D17      |
 | Docker Engine with the Compose plugin                       | —                                  | Runs every container from one Compose file                                         | Open source | D17      |
@@ -126,7 +131,9 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 | Left out                                                                     | Why                                                                                                                               |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Paid services and APIs, including the Claude and OpenAI APIs                 | Zero cost. Drafting runs on open models on the VM                                                                                 |
+| Paid services and APIs, including the Claude and OpenAI APIs                 | Zero cost. Model calls use NVIDIA's free hosted inference _(D27)_                                                                 |
+| A fallback model, or a second model service                                  | A fallback hides a failure. A failed call is shown, and the phase works without assist                                            |
+| A chat assistant over a whole project                                        | No fixed shape to check, and it needs project identity in context. Every assist has one purpose, input, and shape                 |
 | Redis or any second datastore                                                | PostgreSQL already provides the queue, locks, and vector search                                                         |
 | A separate vector database, such as Qdrant, Weaviate, or Chroma              | One more service using memory the VM doesn't have. pgvector keeps chunks beside the rules they're compared with                   |
 | A reranking model                                                            | Another model in memory, and more minutes per draft. It's the first upgrade if retrieval misses sections                          |

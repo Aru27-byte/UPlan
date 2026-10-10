@@ -7,21 +7,28 @@ import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
+import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
+
+// A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
+// limit is set above the call's own 45 s timeout (platform/model-client.ts), so a slow answer is a recorded
+// failure and never a function killed mid-write. 60 s is within the limit of every Vercel plan.
+export const maxDuration = 60;
 
 // Phase 6 (F9): what the proposal's footprint would remove or disturb, per regulated resource and buffer,
 // measured in PostGIS against the pinned evidence. It states the impact and never whether it is acceptable
 // (R6). Where a rule depends on an attribute the evidence lacks, the quantity is a range, never a guess.
 export default async function ImpactPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { workflow: w } = await loadProject(projectId);
+  const { actor, workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "impact");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="impact" />;
+  const assist = <PhaseAssist projectId={projectId} phase="impact" actor={actor} workflow={w} group={model.group} />;
 
   // The impact needs a footprint as well as a current run: the phase says which is missing.
-  if (!run || !rules || model.output === null) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
+  if (!run || !rules || model.output === null) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -50,7 +57,7 @@ export default async function ImpactPage({ params }: { params: Promise<{ project
   }));
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
       <Accordion
         group={model.group}
         title="Measured impact"

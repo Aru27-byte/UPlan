@@ -1,7 +1,7 @@
 # UPlan — Product Charter
 
-**Status:** Draft — review rounds 1–9 complete; planner-maintained profiles added 2026-09-12, with round 10 open. Intents are in `Requirements/intents.md`; the feature list is in `Requirements/features.md`.
-**Last updated:** 2026-09-12
+**Status:** Draft — review rounds 1–9 complete; planner-maintained profiles added 2026-09-12, with round 10 open; AI assistance added 2026-10-10. Intents are in `Requirements/intents.md`; the feature list is in `Requirements/features.md`.
+**Last updated:** 2026-10-10
 **Next:** Round 10, then UI design and technical design, starting with the release 1 features
 
 ## In one line
@@ -56,6 +56,17 @@ A **decision**, anchored to a **study area**.
 
 **Sign-off releases the analysis, not the development.** A reviewer's sign-off in UPlan means the decision's analysis and report are ready to go out. The call on the development is still made outside UPlan.
 
+## AI assistance *(decided 2026-10-10)*
+
+**A model reads and quotes. UPlan's engine measures, and decides nothing.** The slow part of a planner's work is reading: finding the sentence of the code behind a buffer, working out why two datasets disagree, explaining a screening row to a colleague, thinking of what a desk screen can't see. That is where a language model helps. It is weak where UPlan must never be wrong — the number, the flag, the verdict — so it never goes there.
+
+- **What it may do.** Explain a drafted output in plain language. Find the exact passage of the code that answers a question. Say why two sources may differ, from their own metadata. Turn the gaps and limits UPlan has already recorded into questions for a site visit or a pre-application conference. For UPlan's staff, draft a profile rule change or a dataset's limitations from the published text, for a person to confirm.
+- **What it may not do.** Measure, round, or convert a number. Decide what a screen flags or which studies an application needs. Recommend, rank, clear, approve, deny, or propose a condition. Write any sentence of the phase outputs or the released report. Read an applicant's documents or draw a footprint from a site plan.
+- **How it stays honest.** Every statement carries an exact quote from the text it was given, or it is rejected. Every number in it is a copy of a number it was given. It sits beside the analysis and never inside it, so the analysis, its fingerprint, and the report are identical with or without it. A planner asks for it; nothing runs unasked. A failure is shown as a failure.
+- **What leaves UPlan.** Only public text and measured results with names removed go to the model service: published code, dataset metadata, the city's rules, and a project's measurements. Never a project's title, parcel, applicant, notes, coordinates, or documents.
+
+The model runs on NVIDIA's free hosted inference service, and the application on Vercel with Supabase (see *v1 scope*). A planner can use every phase without it.
+
 ## Principles
 
 - **P1. Provenance is the substrate.** Every figure shows its source, its date, and its confidence. Remote data is often coarse or years old, and "when was this surveyed?" is the first hard question any finding will face.
@@ -70,6 +81,7 @@ A **decision**, anchored to a **study area**.
 - **Report** — the main output; what planners actually use and take out of the product. It is released as a locked document that can't be edited *(round 8)*.
   - **Audience:** the planning commission and city council — kept in round 6. Neither body decides v1's subdivision applications: the Hearing Examiner decides subdivisions and the Director decides short subdivisions (see *Pilot context*).
   - Staff reports are public records, so the report is written for the commission and council but must hold up when read by residents, opponents, and attorneys.
+  - **No sentence in the report is written by a model** *(2026-10-10)*. Its text is built from pinned analysis records and the planner's own reviews, so it can be reproduced and defended line by line (P3).
 
 ## Ecological dimensions — v1
 
@@ -107,6 +119,8 @@ The Sammamish profile covers the city's six regulated critical area types plus i
 | Evidence UPlan builds independently from public data | Applicant-submitted studies as an evidence source |
 | Profiles planners upload from Excel and edit, including their settings | Uploading evidence layers; uploads carry rules and settings only |
 | Desk analysis from free public data, including public remote sensing *(round 9)* | Field survey and on-site data capture; licensed data |
+| AI assist that explains, finds, questions, and compares, and drafts profile rules and dataset notes for staff to confirm *(2026-10-10)* | A model that measures, flags, decides, recommends, drafts conditions, or writes any report text; reading applicant documents; drawing a footprint from a site plan |
+| Hosting on Vercel, with Supabase for data, sign-in, and files *(2026-10-10)* | A self-run server |
 | Current rules for every decision | Tracking which version of the rules a decision was judged under |
 | One application in the browser and on phones; on a phone, planners look up a decision's map and report | A separate mobile product; building a decision or recording anything on a phone |
 | Planners and their reviewers as users, with sign-off before a report goes out | Resident accounts and participation — v2 |
@@ -133,7 +147,9 @@ Checked 2026-09-12 against the sources linked.
 - **Critical area boundaries may be set by site study, not by the map.** In Washington, critical area maps are commonly indicative, with the regulated boundary set by a site-specific study. Planners set this for each critical area type as a profile setting.
 - **A desk screen can miss what no map shows.** A stream or wetland that no dataset records will not appear in screening, which is why a clean screen never waives a study (P2).
 
-P1 and P2 govern all three: the report states plainly what desk analysis cannot see.
+- **A model can misread, and a quote can mislead.** AI assist is checked for exact quotes and copied numbers, which catches invention but not a true sentence applied to the wrong place. It never states a conclusion, and a planner is told so beside every suggestion.
+
+P1 and P2 govern all four: the report states plainly what desk analysis cannot see.
 
 ## Success metrics
 
@@ -142,3 +158,5 @@ Deferred by decision, 2026-09-12.
 ## Open questions
 
 **Round 10:** whether vesting settings change which rules a decision uses; who approves profile uploads and edits; whether v1 opens to cities beyond Sammamish; and whether automatic code tracking stays in release 1. Feature-level questions are in `Requirements/features.md`.
+
+**AI assist** *(2026-10-10)*: whether a city's pilot use of NVIDIA's free inference service is permitted under its terms, which decides whether assist is on for real projects or for evaluation only; and where the code text for retrieval comes from on the new hosting.

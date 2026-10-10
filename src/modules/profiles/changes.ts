@@ -42,7 +42,10 @@ async function applyDocument(
     actor: Actor;
     jurisdictionId: string;
     baseVersionId: string | null; // the revision the caller's page showed; null when it showed no profile
-    source: "upload" | "edit";
+    source: "upload" | "edit" | "code_change";
+    // Who proposed it, when that is not the person applying it: an AI draft is proposed by the staff member
+    // who requested it and decided by another (F24 R7). Everything else is both, by the same person.
+    proposedBy?: string;
     uploadId: string | null;
     reason: string;
     build: (current: ProfileDocument | null) => ProfileDocument;
@@ -82,7 +85,7 @@ async function applyDocument(
       uploadId: input.uploadId,
       reason: input.reason,
       status: "approved",
-      proposedBy: input.actor.userId,
+      proposedBy: input.proposedBy ?? input.actor.userId,
       decidedBy: input.actor.userId,
       decidedAt: sql`now()`,
     })
@@ -127,6 +130,40 @@ export async function applyProfileDocument(
   return db.transaction((tx) =>
     applyDocument(tx, { actor, jurisdictionId, baseVersionId, source: "edit", uploadId: null, reason, build: () => parsed }),
   );
+}
+
+/**
+ * Applies a drafted change that another person proposed, inside the caller's transaction so the confirmation that
+ * records it commits or fails with it (F24 R7). `build` runs under the city's row lock against the current
+ * document; the base-version check is the same compare-and-set every other change takes.
+ */
+export async function applyDraftedChange(
+  tx: DbOrTx,
+  confirmer: Actor,
+  input: {
+    jurisdictionId: string;
+    baseVersionId: string;
+    proposedBy: string;
+    reason: string;
+    build: (current: ProfileDocument) => ProfileDocument;
+  },
+): Promise<{ changeId: string; versionNumber: number }> {
+  const applied = await applyDocument(tx, {
+    actor: confirmer,
+    jurisdictionId: input.jurisdictionId,
+    baseVersionId: input.baseVersionId,
+    source: "code_change",
+    proposedBy: input.proposedBy,
+    uploadId: null,
+    reason: input.reason,
+    build: (current) => {
+      if (!current) throw new ValidationError("This city has no profile yet, so there is nothing to change.");
+      return input.build(current);
+    },
+  });
+  const [version] = await tx.select({ changeId: profileVersion.changeId }).from(profileVersion).where(eq(profileVersion.id, applied.versionId));
+  if (!version) throw new Error("the version just created was not found");
+  return { changeId: version.changeId, versionNumber: applied.versionNumber };
 }
 
 /** Saves the settings panel (R4): vesting, map status per resource type, retention, and export formats. */

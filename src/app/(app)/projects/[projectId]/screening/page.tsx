@@ -7,20 +7,27 @@ import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
+import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
+
+// A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
+// limit is set above the call's own 45 s timeout (platform/model-client.ts), so a slow answer is a recorded
+// failure and never a function killed mid-write. 60 s is within the limit of every Vercel plan.
+export const maxDuration = 60;
 
 // Phase 3 (F14): what the mapped data says is in, and near, the study area, per resource type. It is a
 // register of measurements, not a finding: an empty row is a measured zero within a stated search distance,
 // and a resource type with no usable dataset is a gap that says nothing can be said (P2).
 export default async function ScreeningPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { workflow: w } = await loadProject(projectId);
+  const { actor, workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "screening");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="screening" />;
+  const assist = <PhaseAssist projectId={projectId} phase="screening" actor={actor} workflow={w} group={model.group} />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -58,7 +65,7 @@ export default async function ScreeningPage({ params }: { params: Promise<{ proj
   ];
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
       <Accordion
         group={model.group}
         title="Screening register"

@@ -4,7 +4,12 @@
 # extension in POSTGRES_DB on first start.
 services:
   postgres:
-    image: postgis/postgis:18-3.6
+    # PostGIS plus pgvector (migration 0009 needs it). A two-line build on the official PostGIS image, so
+    # local development matches Supabase and production without another image to maintain.
+    build:
+      dockerfile_inline: |
+        FROM postgis/postgis:18-3.6
+        RUN apt-get update && apt-get install -y --no-install-recommends postgresql-18-pgvector && rm -rf /var/lib/apt/lists/*
     restart: unless-stopped
     environment:
       POSTGRES_USER: uplan

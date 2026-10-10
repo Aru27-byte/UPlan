@@ -34,6 +34,7 @@ import { StatusLabel, type StatusTone } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
 import { ResolutionForm } from "../_components/resolution-form";
+import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
 
 const CONFIDENCE_TONE: Record<ConfidenceLevel, StatusTone> = { high: "ok", moderate: "info", low: "warn" };
@@ -47,6 +48,11 @@ type Source = {
   quality: DatasetVersionQuality;
 };
 
+// A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
+// limit is set above the call's own 45 s timeout (platform/model-client.ts), so a slow answer is a recorded
+// failure and never a function killed mid-write. 60 s is within the limit of every Vercel plan.
+export const maxDuration = 60;
+
 // Phase 2 (F19, research-phases.md): the evidence base for the study area, one card per resource type in the
 // city's profile, with the seven facts behind each confidence label, both sources wherever two disagree, and
 // the planner's recorded reasoning about each disagreement. A resolution is a note: it changes no number.
@@ -57,9 +63,10 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="evidence" />;
+  const assist = <PhaseAssist projectId={projectId} phase="evidence" actor={actor} workflow={w} group={model.group} />;
 
   // Without a run for the current inputs there is no evidence base to show: the drafted output says why.
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
 
   const today = todayInZone(w.timeZone, () => new Date());
   const [mappings, allResolutions] = await Promise.all([
@@ -112,7 +119,7 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   };
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
       <div className="flex flex-col gap-4">
         {cards.map(({ resourceType, gap, sources, disagreements }) => (
           <Accordion

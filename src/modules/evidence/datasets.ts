@@ -1,11 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Geometry } from "geojson";
 import { z } from "zod";
 
 import { requireStaff, type Actor } from "@/modules/accounts";
 import { EvidenceAttributesSchema, type EvidenceAttributes, type EvidenceProvenance } from "@/modules/provenance";
 import { db, type DbOrTx } from "@/platform/db";
-import { NotFoundError, ValidationError } from "@/platform/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/platform/errors";
 
 import { dataset, datasetVersion, jurisdictionDataset } from "./tables";
 
@@ -253,4 +253,25 @@ export async function getMappedResourceTypeKeys(tx: DbOrTx, jurisdictionId: stri
     .from(jurisdictionDataset)
     .where(eq(jurisdictionDataset.jurisdictionId, jurisdictionId));
   return [...new Set(rows.map((r) => r.resourceTypeKey))];
+}
+
+/**
+ * Sets what a dataset can't show (F3 R10) from a staff-confirmed AI metadata draft (F24 R7). A compare-and-set on
+ * the value the draft was made against: if someone changed it since, zero rows match and this is a ConflictError,
+ * never an overwrite. The caller records the previous value beside its confirmation, so the history is kept there.
+ */
+export async function setDatasetLimitation(tx: DbOrTx, datasetId: string, expected: string | null, next: string): Promise<void> {
+  const updated = await tx
+    .update(dataset)
+    .set({ knownLimitation: next })
+    .where(
+      and(
+        eq(dataset.id, datasetId),
+        expected === null ? isNull(dataset.knownLimitation) : eq(dataset.knownLimitation, expected),
+      ),
+    )
+    .returning({ id: dataset.id });
+  if (updated.length !== 1) {
+    throw new ConflictError("This dataset's limitation changed since the draft was made. Draft again from the current record.");
+  }
 }

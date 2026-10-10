@@ -19,7 +19,7 @@ A **phase** is one step of the research that produces an output: **Site, Evidenc
 
 **R1. A project has six phases, in a fixed order, and each has its own page.** Every phase page shows, in this order: what the output is drafted from (its inputs); the output; the review; and the history of earlier outputs and reviews.
 
-**R2. A phase's output is drafted by UPlan's analysis engine, deterministically, from the phase's pinned inputs.** The same inputs give the same output, byte for byte. Measurements come from PostGIS. The sentences that describe them are fixed templates over those measurements. No language model writes any of it, and the page says so beside every drafted summary (P2, _Posture_; decided 2026-09-26).
+**R2. A phase's output is drafted by UPlan's analysis engine, deterministically, from the phase's pinned inputs.** The same inputs give the same output, byte for byte. Measurements come from PostGIS. The sentences that describe them are fixed templates over those measurements. No language model writes any of it, and the page says so beside every drafted summary (P2, _Posture_; decided 2026-09-26). An AI suggestion (F24, [ai-assist.md](ai-assist.md)) may appear beside the output on request. It is labeled, is not part of the output, and changes neither the output nor its fingerprint.
 
 **R3. A drafted summary states measurements and gaps and never a verdict.** It never says an impact is acceptable, that land is clear, that a study isn't needed, or what the planner should decide. It never ranks or scores (P2, F18 R5, F9 R6). A denylist test enforces this on every template.
 
@@ -67,7 +67,7 @@ Until then the phase says exactly what is missing or that the analysis is runnin
 - Sign-off by a second person, and comments from reviewers (F12).
 - Feedback that rewrites a section automatically. R15 records the feedback; a person acts on it.
 - Editing a drafted summary. The summary is derived, so an edit would be a claim that isn't backed by a measurement. A planner who disagrees requests a revision and changes an input, or records the reasoning in a note.
-- Drafting with a language model, in any phase.
+- Drafting a phase's output with a language model, in any phase. AI assist (F24) is a separate, labeled aid beside the output, not a drafter of it.
 - Conditions of approval (F13).
 - Field verification, applicant studies, and licensed data as inputs (charter).
 

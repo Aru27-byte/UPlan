@@ -25,6 +25,8 @@ Edit `.env` and fill in:
 
 - `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` — from your Supabase project's Project Settings → API
 - `APP_URL` — leave as `http://localhost:3000`
+- `NVIDIA_API_KEY` — optional. A free key from https://build.nvidia.com turns on AI assist (TechDesign/ai-assist.md).
+  Leave it empty and the assist panels say it is not set up; every phase still works.
 - `OCI_S3_*` — only exercised by profile workbook uploads; any syntactically valid value
   (a real URL for `OCI_S3_ENDPOINT`, any non-empty string for the rest) satisfies startup
   validation, but uploading a workbook fails at runtime without real OCI Object Storage

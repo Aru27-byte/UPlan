@@ -1,7 +1,7 @@
 # UPlan — Application Architecture Diagram
 
-**Status:** Draft — a one-page visual map of the application as built, with where automation and AI sit
-**Last updated:** 2026-10-03
+**Status:** Draft — a one-page visual map of the application, with where automation and AI sit; AI assist added 2026-10-10 (designed, not built)
+**Last updated:** 2026-10-10
 **Related:** [system-architecture.md](system-architecture.md) (hosting, VM, budget) · [research-phases.md](research-phases.md) (phase drafting) · [project-dashboard.md](project-dashboard.md) (pages) · [data-model.md](data-model.md)
 
 This page shows how a request travels through UPlan and marks every place that does automated "AI-like" work. It adds no design of its own: where it and another TechDesign doc disagree, the other doc wins and this page is wrong.
@@ -12,9 +12,9 @@ This page shows how a request travels through UPlan and marks every place that d
 | --- | --- | --- | --- |
 | **AI-1** | **Analysis engine** (`analysis`, job J2): measures areas, buffers, and overlaps in PostGIS from pinned inputs | No. Deterministic SQL | Built |
 | **AI-2** | **Phase drafting** (`workflow/drafting.ts`): turns the measured numbers into a headline and plain sentences using fixed templates | No. Fixed wording; a test fails on any verdict-shaped word | Built |
-| **AI-3** | **Code-change drafting** (F2: `models` container, jobs J7–J9): reads a city's code, retrieves passages, and drafts a *profile rule change* with an exact quote | **Yes.** Local open models on the VM, never an external API | Designed, **not built** (dashed in the diagram) |
+| **AI-3** | **AI assist** (F24, module `assist`): on request, explains, finds passages, asks questions, and compares sources; for staff, drafts profile rules and dataset notes (F2). Calls NVIDIA's hosted API from a Server Action | **Yes.** Hosted open models, with only allow-listed public text and de-identified measurements sent | Designed ([ai-assist.md](ai-assist.md)), **not built** (dashed in the diagram) |
 
-UPlan never uses a model to write findings, recommendations, or conditions. The only model, AI-3, drafts profile rules, and staff confirm each draft before any project can use it.
+UPlan never uses a model to write findings, recommendations, conditions, a number, a flag, or any sentence of a phase output or the released document. AI-3 reads and quotes, sits beside the analysis, is requested by a person, and for rule and dataset drafts waits for staff confirmation. See [ai-assist.md](ai-assist.md) for the per-phase tables.
 
 ## Diagram 1 — System map
 
@@ -54,8 +54,13 @@ flowchart LR
     direction TB
     J1["J1 · run_analysis"]
     J2["J2 · release_report<br/>render + tagged PDF"]
+<<<<<<< HEAD
     J3["J3 · ingest_dataset<br/>build_records_export · record_heartbeat<br/>daily maintenance"]
     J4["J4 · check_code_source · index_code_document<br/>draft_code_change · later"]
+=======
+    J3["J3 · ingest_dataset · preview_profile_change<br/>build_records_export · record_heartbeat<br/>daily maintenance"]
+    J4["J4 · F2 source checks · later<br/>runner for these is open (D28)"]
+>>>>>>> worktree-ux-workflow-specs
   end
 
   subgraph DATA["Data"]
@@ -69,7 +74,7 @@ flowchart LR
     X3["X3 · City code · later"]
   end
 
-  AI3["AI-3 · models container · later<br/>llama.cpp · Qwen3.5-4B drafts<br/>Qwen3-Embedding-0.6B embeds<br/>local only"]
+  AI3["AI-3 · AI assist · designed, not built<br/>module assist → platform/model-client<br/>NVIDIA hosted API · allow-listed input<br/>explain · find · questions · compare · drafts"]
 
   B1 -->|"1 · HTTPS"| E1
   B2 -->|"1 · HTTPS"| E1
@@ -103,7 +108,9 @@ flowchart LR
   J3 -->|"15 · download"| X2
   J3 -->|"15 · raw files"| OS
   J4 -->|"16 · fetch"| X3
-  J4 -->|"17 · embed + draft JSON"| AI3
+  J4 -->|"17 · F2 drafts via the same client"| AI3
+  M3 -->|"19 · on request, one call per click"| AI3
+  AI3 -->|"20 · checked, stored beside the analysis"| PG
   AI3 -.->|"18 · draft → staff approve"| M1
 
   classDef ai fill:#eab676,stroke:#211c14,stroke-width:2px,color:#211c14
@@ -222,7 +229,7 @@ sequenceDiagram
 | M3 | Phases and reviews, the document, records export, health |
 | AI-1 | **AI.** The analysis engine: PostGIS measurements, same inputs give the same results. Not a language model |
 | AI-2 | **AI.** Phase drafting: fixed sentence templates over the measured numbers. Not a language model |
-| AI-3 | **AI, later.** Local models on the VM that draft profile rule changes with an exact quote. Staff confirm each. Dashed because it is not built |
+| AI-3 | **AI, later.** AI assist and F2 drafting: hosted models reached through one server-side client. Suggestions are labeled, quote their source, and are stored beside the analysis. Dashed because it is not built |
 | J1 | Job `run_analysis`: runs AI-1 for one project |
 | J2 | Job `release_report`: renders the document and stores the next version |
 | J3 | The other jobs: dataset ingest, profile preview, records export, heartbeat, daily maintenance |
@@ -231,7 +238,7 @@ sequenceDiagram
 | OS | Holds raw uploads and backups. Documents are **not** here |
 | X1 | Supabase Auth: email and password |
 | X2 | Free public GIS data that J3 downloads |
-| X3 | The city's published code that J4 reads. Later |
+| X3 | The city's published code that J4 reads, or that staff upload. Later |
 
 ### Arrows
 
@@ -247,7 +254,8 @@ sequenceDiagram
 | Steps 10–11 | A module asks AI-1 for pinned measurements; results are stored |
 | Step 12 | A write queues its job in the same transaction as the change |
 | Steps 13–17 | The worker picks up the job and runs AI-1, document rendering, ingest, or F2 |
-| Step 18 | An AI-3 draft goes to staff approval; it never reaches a project directly |
+| Step 18 | An AI-3 rule or dataset draft goes to staff approval; it never reaches a project directly |
+| Steps 19–20 | A planner presses a button; the module sends one allow-listed request, checks the answer, and stores it beside the analysis. Nothing flows from it back into the analysis |
 | Sequence diagram `->>` | A request or call |
 | Sequence diagram `-->>` | A response |
 | Sequence diagram coloured bands | The five flows: A read, B write and analyse, C review, D finish and download, E change |
@@ -257,4 +265,5 @@ sequenceDiagram
 - **Authorization is in the modules**, not `proxy.ts` (E2).
 - **Slow work is a job.** A write adds its job in the same transaction (step 12), so a job never exists without its change.
 - **Documents live in PG.** Each version is stored once with a hash and never edited; a research change adds a new version.
-- **No language model writes findings.** AI-1 and AI-2 are deterministic; AI-3 drafts rules only, and only after staff approval.
+- **No language model writes findings.** AI-1 and AI-2 are deterministic; AI-3 reads, quotes, and asks, and its rule and dataset drafts take effect only after staff approval.
+- **Hosting.** The diagram's VM, Caddy, and worker boxes describe the earlier target; the stated target is Vercel, Supabase, and NVIDIA (D28), and what replaces the worker is open.

@@ -29,7 +29,9 @@ tests/e2e/               Playwright specs
 deploy/                  compose.yaml, Caddyfile, models.ini, backup timer units, setup.sh, deploy.sh
 ```
 
-Modules are `accounts`, `profiles`, `provenance`, `evidence`, `decisions`, `analysis`, `workflow`, `reports`, `records`, and `operations`, with `code-tracking` and `conditions` coming later in v1. A new module needs a row in the module table in `TechDesign/system-architecture.md` before any code.
+Modules are `accounts`, `profiles`, `provenance`, `evidence`, `decisions`, `analysis`, `workflow`, `reports`, `records`, `operations`, and `assist`, with `code-tracking` and `conditions` coming later in v1. A new module needs a row in the module table in `TechDesign/system-architecture.md` before any code.
+
+`assist` sits above `analysis`, `workflow`, `profiles`, and `evidence`, as `workflow` does. Only routes import it, and `reports` must not, so no suggestion can reach a released document. The model service client is `src/platform/model-client.ts`, called only by `assist` and `code-tracking`.
 
 ## Where code goes
 

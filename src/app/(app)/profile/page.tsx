@@ -1,6 +1,10 @@
 import { requireActor } from "@/app/_lib/actor";
+import { respondAssistAction } from "@/app/_lib/assist-actions";
+import { cityAssistPanel } from "@/app/_lib/assist-view";
 import { getCity } from "@/app/_lib/city";
 import { STUDY_LABEL } from "@/modules/analysis";
+import { listSourceDocuments } from "@/modules/assist";
+import { getJurisdictionDatasetMappings } from "@/modules/evidence";
 import {
   ProfileDocumentSchema,
   getCurrentProfile,
@@ -11,11 +15,18 @@ import {
 } from "@/modules/profiles";
 import { formatFeet, formatRuleProvenance, formatTimestamp } from "@/modules/provenance";
 import { ActionForm } from "@/ui/action-form.client";
+import { AssistPanel } from "@/ui/phase/assist-panel";
 import { PageHeader } from "@/ui/page-header";
 import { Panel } from "@/ui/panel";
 import { SubmitButton } from "@/ui/submit-button.client";
 
-import { installSampleEvidenceAction } from "./actions";
+import {
+  confirmMetadataDraftAction,
+  confirmRuleDraftAction,
+  installSampleEvidenceAction,
+  requestCityAssistAction,
+} from "./actions";
+import { CodeTextPanel } from "./code-text-panel";
 import { ProfileFlyout } from "./profile-flyout.client";
 import { ResourceTypePanel, type ResourceTypeItem, type ResourceTypeRule } from "./resource-type-panel.client";
 import { SettingsForm } from "./settings-form";
@@ -74,6 +85,11 @@ function toResourceTypeItems(profile: ProfileDocument): ResourceTypeItem[] {
   });
 }
 
+// A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
+// limit is set above the call's own 45 s timeout (platform/model-client.ts), so a slow answer is a recorded
+// failure and never a function killed mid-write. 60 s is within the limit of every Vercel plan.
+export const maxDuration = 60;
+
 // The city profile (TechDesign/jurisdiction-profile.md, project-dashboard.md R6): the rules and settings
 // every project in the city is analyzed under, always one click from any page. Anyone signed in can read it
 // and change it; a change applies at once (profile-upload-edit.md R5).
@@ -83,12 +99,29 @@ export default async function ProfilePage() {
   if (cityResult.kind !== "city") return null;
   const city = cityResult.city;
 
-  const [overview, profileVersion, sources] = await Promise.all([
+  const [overview, profileVersion, sources, documents, mappings] = await Promise.all([
     getProfileOverview(city.id),
     getCurrentProfile(city.id),
     listSources(city.id),
+    listSourceDocuments(city.id),
+    getJurisdictionDatasetMappings(city.id),
   ]);
   const profile = profileVersion ? ProfileDocumentSchema.parse(profileVersion.document) : null;
+  const assist = await cityAssistPanel({
+    actor,
+    jurisdictionId: city.id,
+    timeZone: city.timeZone,
+    profile: profileVersion ? { documentSha256: profileVersion.documentSha256 } : null,
+    datasets: [...new Map(mappings.map((m) => [m.dataset.id, m.dataset])).values()].map((d) => ({
+      id: d.id,
+      title: d.title,
+      knownLimitation: d.knownLimitation,
+    })),
+    requestAction: (assistId) => requestCityAssistAction.bind(null, city.id, assistId),
+    respondAction: respondAssistAction,
+    confirmRuleAction: confirmRuleDraftAction,
+    confirmMetadataAction: confirmMetadataDraftAction,
+  });
 
   return (
     <>
@@ -146,6 +179,9 @@ export default async function ProfilePage() {
           </p>
         </Panel>
       )}
+
+      <AssistPanel model={assist} id="assist-profile" />
+      <CodeTextPanel jurisdictionId={city.id} documents={documents} timeZone={city.timeZone} isStaff={actor.isStaff} />
 
       {actor.isStaff ? (
         <Panel

@@ -4,6 +4,13 @@ import { z } from "zod";
 
 import { requireActor } from "@/app/_lib/actor";
 import { requiredText, requiredUuid, runAction } from "@/app/_lib/action-state";
+import {
+  AssistIdSchema,
+  addSourceDocument,
+  confirmMetadataDraft,
+  confirmRuleDraft,
+  requestSuggestion,
+} from "@/modules/assist";
 import { installSampleEvidence } from "@/modules/evidence";
 import { addUrlSource, applyUpload, editSettings, removeSource, updateSource } from "@/modules/profiles";
 import { formatCount } from "@/modules/provenance";
@@ -141,5 +148,76 @@ export async function installSampleEvidenceAction(jurisdictionId: string, _previ
     const { actor } = await requireActor();
     const { created, existing } = await installSampleEvidence(actor, jurisdictionId);
     return `Sample evidence: ${formatCount(created.length, "dataset", "datasets")} installed, ${existing.length} already present.`;
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// AI assist for the city profile (TechDesign/ai-assist.md, F24). Code text is added by staff; a question is
+// asked by anyone signed in; drafts are requested by staff and confirmed by a different staff member.
+// ---------------------------------------------------------------------------------------------------------
+
+export async function addSourceDocumentAction(jurisdictionId: string, _previous: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const kind = z.enum(["code", "checklist"]).safeParse(formData.get("kind"));
+    if (!kind.success) throw new ValidationError("Choose whether this is code text or a checklist.");
+    const added = await addSourceDocument(actor, jurisdictionId, {
+      kind: kind.data,
+      title: requiredText(formData, "title", "A title"),
+      text: requiredText(formData, "text", "The text"),
+    });
+    return `Indexed in ${added.chunkCount} ${added.chunkCount === 1 ? "section" : "sections"}. AI assist can now quote it.`;
+  });
+}
+
+function optionalField(formData: FormData, name: string): string | null {
+  const value = formData.get(name);
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+export async function requestCityAssistAction(
+  jurisdictionId: string,
+  assistId: string,
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const id = AssistIdSchema.safeParse(assistId);
+    if (!id.success) throw new ValidationError("This form is out of date. Reload the page and try again.");
+    const result = await requestSuggestion(actor, {
+      assistId: id.data,
+      decisionId: null,
+      jurisdictionId,
+      subjectKey: "",
+      question: optionalField(formData, "question"),
+      documentId: optionalField(formData, "documentId"),
+      datasetId: optionalField(formData, "datasetId"),
+      suppliedText: optionalField(formData, "suppliedText"),
+    });
+    if (result.status === "ready") return "The suggestion is below, labeled as AI-assisted.";
+    if (result.status === "rejected") return "The model's answer failed UPlan's checks, so none of it is shown as an answer. The reasons are below.";
+    if (result.status === "failed") return "The model service did not finish. The reason is below, and nothing has replaced it.";
+    return "The request is still running. Reload the page in a minute.";
+  });
+}
+
+export async function confirmRuleDraftAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const applied = await confirmRuleDraft(actor, requiredUuid(formData, "suggestionId", "The draft"), {
+      acceptedPaths: formData.getAll("acceptedPaths").filter((v): v is string => typeof v === "string"),
+      effectiveOn: requiredText(formData, "effectiveOn", "The effective date"),
+      ordinance: requiredText(formData, "ordinance", "The ordinance"),
+    });
+    return `Applied as profile version ${applied.versionNumber}. Open projects are being re-analyzed under it.`;
+  });
+}
+
+export async function confirmMetadataDraftAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    await confirmMetadataDraft(actor, requiredUuid(formData, "suggestionId", "The draft"));
+    return "The dataset's limitation was updated. Every project that uses it now shows the new text.";
   });
 }
