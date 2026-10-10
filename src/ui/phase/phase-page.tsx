@@ -19,12 +19,15 @@ export function PhasePage({
   reviewAction,
   intro,
   editor,
+  assist,
   children,
 }: {
   model: PhaseViewModel;
   reviewAction: (previous: ActionState, formData: FormData) => Promise<ActionState>;
   intro: ReactNode;
   editor?: ReactNode;
+  /** The AI assist panel (F24): beside the drafted output, never part of it. Site and Footprint have none. */
+  assist?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -33,6 +36,7 @@ export function PhasePage({
       {editor}
       <InputsBlock model={model} />
       <DraftedOutput model={model} />
+      {assist}
       {children}
       <ReviewPanel model={model} action={reviewAction} />
       <ReviewHistory model={model} />

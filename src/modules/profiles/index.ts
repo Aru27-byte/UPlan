@@ -37,7 +37,7 @@ export { generateTemplate } from "./template";
 export { parseUpload } from "./upload";
 export type { UploadResult } from "./upload";
 
-export { applyProfileDocument, applyUpload, editSettings, getProfileChange } from "./changes";
+export { applyDraftedChange, applyProfileDocument, applyUpload, editSettings, getProfileChange } from "./changes";
 export type { ProfileChange } from "./changes";
 
 export { addUrlSource, listSources, removeSource, updateSource } from "./sources";

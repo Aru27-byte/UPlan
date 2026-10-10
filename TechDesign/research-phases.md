@@ -16,6 +16,8 @@ That gives the loop the requirements describe without a state machine to keep in
 
 **Rejected:** letting the planner edit a drafted summary. The summary is derived from measurements; an edited sentence would be a claim with no measurement behind it, in a document that must hold up (P3). A disagreement becomes a revision request and a changed input.
 
+**Added 2026-10-10:** a labeled AI assist panel beside each analysis phase's output (F24, [ai-assist.md](ai-assist.md)). It is requested by the planner, stored apart from the output, and never part of the output, its fingerprint, a review, or the document. The decision above stands for the summaries themselves.
+
 **Rejected:** a language model for the summaries. The charter, `do-not.md`, and the decision of 2026-09-26 rule it out; and templates over measured numbers make every sentence testable.
 
 **Added 2026-10-10:** a labeled AI assist panel beside each analysis phase's output (F24, [ai-assist.md](ai-assist.md)). It is requested by the planner, stored apart from the output, and never part of the output, its fingerprint, a review, or the document. The decision above stands for the summaries themselves.

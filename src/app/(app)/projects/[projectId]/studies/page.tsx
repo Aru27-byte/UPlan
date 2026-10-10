@@ -8,20 +8,27 @@ import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
 import { recordReviewAction } from "../actions";
+import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
+
+// A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
+// limit is set above the call's own 45 s timeout (platform/model-client.ts), so a slow answer is a recorded
+// failure and never a function killed mid-write. 60 s is within the limit of every Vercel plan.
+export const maxDuration = 60;
 
 // Phase 4 (F14): each study the city's profile names, and whether mapped data flags it. A flag can add a
 // study; the absence of a flag never removes one, because the city decides which studies an application needs
 // (charter, Pilot context). So the page never says a study is not needed — only that mapped data doesn't flag it.
 export default async function StudiesPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { workflow: w } = await loadProject(projectId);
+  const { actor, workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "studies");
   const { run, rules } = w.facts;
   const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="studies" />;
+  const assist = <PhaseAssist projectId={projectId} phase="studies" actor={actor} workflow={w} group={model.group} />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} />;
+  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -79,7 +86,7 @@ export default async function StudiesPage({ params }: { params: Promise<{ projec
   const gaps = run.results.evidenceBase.gaps;
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro}>
+    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
       <Accordion
         group={model.group}
         title="Studies named in the city's profile"

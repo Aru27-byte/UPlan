@@ -1,7 +1,7 @@
 export { getWorkflow, detailsOf } from "./workflow";
 export type { Workflow } from "./workflow";
 
-export { PHASES, missingReason } from "./phases";
+export { PHASES, missingReason, buildPhaseViews } from "./phases";
 export type {
   PhaseKey,
   PhaseFacts,

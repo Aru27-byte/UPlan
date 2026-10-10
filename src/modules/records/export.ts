@@ -94,10 +94,20 @@ async function renderExport(scope: ExportScope, format: string, jurisdictionId: 
     "records-export": sql`select * from records_export where jurisdiction_id = ${jurisdictionId} ${dateFilter("requested_at")}`,
   };
 
+  // F24 R17: AI suggestions and their responses are records, and they follow their parent's retention and export:
+  // a project's suggestions go out with its decision, and the city-level ones (rule and metadata drafts) with
+  // the profile changes. Each row carries the request that was sent and the model that answered.
+  const assistQueries: Partial<Record<ExportScope["recordTypes"][number], ReturnType<typeof sql>>> = {
+    decision: sql`select 'ai_suggestion' as record_kind, s.* from ai_suggestion s where s.jurisdiction_id = ${jurisdictionId} and s.decision_id is not null ${dateFilter("s.started_at")}`,
+    "profile-change": sql`select 'ai_suggestion' as record_kind, s.* from ai_suggestion s where s.jurisdiction_id = ${jurisdictionId} and s.decision_id is null ${dateFilter("s.started_at")}`,
+  };
+
   const rows: Record<string, unknown>[] = [];
   for (const recordType of scope.recordTypes) {
     const result = await db.execute<Record<string, unknown>>(queries[recordType]);
     rows.push(...result.rows);
+    const assist = assistQueries[recordType];
+    if (assist) rows.push(...(await db.execute<Record<string, unknown>>(assist)).rows);
   }
   if (format === "csv") return Buffer.from(toCsv(rows), "utf8");
   return Buffer.from(JSON.stringify(rows), "utf8"); // geojson/xlsx renderers follow the same read-only pattern

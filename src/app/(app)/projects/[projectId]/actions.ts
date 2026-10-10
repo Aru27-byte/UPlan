@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireActor } from "@/app/_lib/actor";
 import { optionalText, requiredInt, requiredText, requiredUuid, runAction } from "@/app/_lib/action-state";
 import { saveResolution } from "@/modules/analysis";
+import { AssistIdSchema, requestSuggestion } from "@/modules/assist";
 import {
   ApplicationTypeSchema,
   MAX_UPLOAD_BYTES,
@@ -183,5 +184,36 @@ export async function cancelResearchChangeAction(projectId: string, _previous: A
     const { actor } = await requireActor();
     await cancelResearchChange(actor, projectId, requiredInt(formData, "rowVersion"));
     return "The research change was cancelled. The last published version is current again.";
+  });
+}
+
+// F24 R9: a suggestion is requested by a person pressing a button, one phase and one subject at a time. The
+// module authorizes, builds the allow-listed request, claims the one live row, and makes the one call; a
+// rejection or a failure comes back as a stored result, and the page shows it as one.
+export async function requestAssistAction(
+  projectId: string,
+  assistId: string,
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const id = AssistIdSchema.safeParse(assistId);
+    if (!id.success) throw new ValidationError("This form is out of date. Reload the page and try again.");
+    const subject = formData.get("subjectKey");
+    const result = await requestSuggestion(actor, {
+      assistId: id.data,
+      decisionId: projectId,
+      jurisdictionId: null,
+      subjectKey: typeof subject === "string" ? subject : "",
+      question: null,
+      documentId: null,
+      datasetId: null,
+      suppliedText: null,
+    });
+    if (result.status === "ready") return "The suggestion is below, labeled as AI-assisted.";
+    if (result.status === "rejected") return "The model's answer failed UPlan's checks, so none of it is shown as an answer. The reasons are below.";
+    if (result.status === "failed") return "The model service did not finish. The reason is below, and nothing has replaced it.";
+    return "The request is still running. Reload the page in a minute.";
   });
 }

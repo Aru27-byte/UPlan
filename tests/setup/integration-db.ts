@@ -23,6 +23,14 @@ let container: StartedPostgreSqlContainer | undefined;
 
 export async function setup(): Promise<void> {
   container = await new PostgreSqlContainer("postgis/postgis:18-3.6").withStartupTimeout(120_000).start();
+  // The PostGIS image has no pgvector, which migration 0009 (AI assist's code index) needs. Production's
+  // `postgres` image and Supabase both have it; here it is added to the throwaway container before migrating.
+  const install = await container.exec([
+    "bash",
+    "-c",
+    "apt-get update -qq && apt-get install -y -qq postgresql-18-pgvector",
+  ]);
+  if (install.exitCode !== 0) throw new Error(`installing pgvector in the test container failed: ${install.output}`);
   const connectionString = container.getConnectionUri();
   process.env.DATABASE_URL = connectionString;
 

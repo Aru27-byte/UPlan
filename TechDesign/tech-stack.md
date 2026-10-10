@@ -69,7 +69,11 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | Choice                                          | Version line              | Role                                                                                                                                  | Decision |
 | ----------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | NVIDIA hosted inference API (`integrate.api.nvidia.com/v1`) | OpenAI-compatible API | Generation and embeddings for AI assist and F2, over HTTPS from the server, with an API key in a Vercel environment variable. Called with `fetch` and Zod: no SDK | D27      |
+<<<<<<< HEAD
 | An instruction-tuned open model from NVIDIA's catalog | Pinned id in `model-client.ts` | Fills the fixed output shapes. Chosen by the evaluation set from a short candidate list in ai-assist.md                       | D27      |
+=======
+| `meta/llama-3.3-70b-instruct` | Pinned id in `model-client.ts` | Fills the fixed output shapes at temperature 0. Chosen unmeasured; a change must pass `npm run eval:assist`                       | D27      |
+>>>>>>> worktree-ai-assist
 | `nvidia/nv-embedqa-e5-v5`                       | Pinned id in `model-client.ts` | Embeds code chunks and questions as 1,024-dimension vectors for Find, stored in pgvector                                              | D21, D27 |
 | llama.cpp, Qwen3.5-4B, Qwen3-Embedding-0.6B     | —                         | **Superseded by D27.** The earlier on-VM design (D15), kept only as history                                                           | D15      |
 

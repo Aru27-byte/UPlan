@@ -28,6 +28,12 @@ describe("R1: a dataset is only ingested from a free public source", () => {
     ).rejects.toThrow(/not a recognized free public license/);
   });
 
+  it("R1: rejects terms that forbid redistribution or state nothing, even from a county or a city", async () => {
+    for (const license of ["King County use constraint: no redistribution without written authorization", "No terms stated"]) {
+      await expect(createDataset(staffActor, { ...validInput, license })).rejects.toThrow(/not a recognized free public license/);
+    }
+  });
+
   it("requires staff access, not just any actor", async () => {
     await expect(createDataset(plannerActor, validInput)).rejects.toThrow(/staff access required/);
   });

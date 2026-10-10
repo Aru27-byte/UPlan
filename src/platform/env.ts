@@ -14,6 +14,12 @@ const EnvSchema = z.object({
   SUPABASE_URL: z.url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 
+  // AI assist (TechDesign/ai-assist.md, "Hosting"). Optional on purpose: an unset key is a state the panel
+  // shows ("AI assist is not set up for this deployment"), not a configuration error, because every phase
+  // works without assist (F24 R9, R11). It is server-only: never NEXT_PUBLIC_, never logged.
+  // An empty `NVIDIA_API_KEY=` line (as .env.example ships it) is the same as no key.
+  NVIDIA_API_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).optional()),
+
   OCI_S3_ENDPOINT: z.url(),
   OCI_S3_REGION: z.string().min(1),
   OCI_S3_ACCESS_KEY_ID: z.string().min(1),

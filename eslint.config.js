@@ -71,6 +71,53 @@ export default tseslint.config(
               group: ["@/modules/*/*"],
               message: "Import only a module's index.ts — its public API — from outside the module.",
             },
+            {
+              group: ["@/platform/model-client"],
+              message: "Only the `assist` and `code-tracking` modules call the model service (do-not.md).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // F24: no module imports `assist`, so a suggestion can never reach an analysis, a review, or a released
+    // document (ai-assist.md R1, R2), and the model client is called only by `assist` and `code-tracking`
+    // (do-not.md). Only routes import `assist`. The block after this one restores the model client for them.
+    files: ["src/modules/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/modules/*/*"],
+              message: "Import only a module's index.ts — its public API — from outside the module.",
+            },
+            {
+              group: ["@/modules/assist"],
+              message: "No module imports `assist`: a suggestion must never reach the analysis or a released document (ai-assist.md R1, R2).",
+            },
+            {
+              group: ["@/platform/model-client"],
+              message: "Only the `assist` and `code-tracking` modules call the model service (do-not.md).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/assist/**/*.{ts,tsx}", "src/modules/code-tracking/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/modules/*/*"],
+              message: "Import only a module's index.ts — its public API — from outside the module.",
+            },
           ],
         },
       ],

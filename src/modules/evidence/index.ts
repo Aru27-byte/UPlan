@@ -7,6 +7,7 @@ export {
   getDatasetVersionProvenance,
   getDatasetVersionAttributes,
   getDatasetVersionQuality,
+  setDatasetLimitation,
   NewDatasetSchema,
 } from "./datasets";
 export type { NewDataset, Dataset, JurisdictionDatasetMapping, DatasetVersionQuality } from "./datasets";

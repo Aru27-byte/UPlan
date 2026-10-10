@@ -139,7 +139,7 @@ Checked 2026-09-12 against the sources linked.
 - **The city decides which studies an application needs.** Both subdivision checklists list a pre-application conference letter, a critical area affidavit, a geotechnical report, an arborist report, and a critical area study "if applicable." For a clearing and grading permit, critical area, geotechnical, and arborist studies "may be required, as determined by the City of Sammamish." Any listed as necessary at a pre-application conference "must be included with the initial submittal," and any may be requested during review in a correction letter. — [City of Sammamish: Clearing and Grading Permit](https://www.sammamish.us/media/a42o5jp4/clearing-and-grading-permit.pdf) (form dated 2025-01)
 - **Planners and applicants already have public maps.** The city's permit packets list King County iMap and the Sammamish Property Tool as resources.
 
-**Reference documents to review:** the city's [Best Available Science Summary Report](https://www.sammamish.us/media/ufubtobg/sammamish-cao_bas-report_10-20-2023.pdf) and [Existing Conditions Report](https://www.sammamish.us/media/ioxkzzqa/sammamish-cao-update-ecr_10-20-2023.pdf) for its critical areas update, both dated 2023-10-20.
+**Reference documents to review:** the city's [Best Available Science Summary Report](https://www.sammamish.us/media/abdf0ryo/sammamish_cao_bas_report_10-20-2023-1.pdf) and [Existing Conditions Report](https://www.sammamish.us/media/in5n23eh/sammamish_cao_update-_ecr_10-20-2023-1.pdf) for its critical areas update, both dated 2023-10-20.
 
 ## Known limits of desk analysis
 

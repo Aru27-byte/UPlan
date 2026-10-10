@@ -20,6 +20,8 @@ src/modules/evidence/
 
 ## Registering a dataset and mapping it (R1, R8)
 
+_As built, 2026-10-10:_ the app has no screen for this, so staff register and ingest a real dataset from the command line with `npm run db:dataset:add -- <staff email> <dataset.json>` (`scripts/add-dataset.ts`). It calls `createDataset`, `mapToJurisdiction`, and `ingestDataset` in that order, and needs GDAL's `ogr2ogr` and an S3-compatible bucket on the machine that runs it. `NewDataset` carries `publisherDateAttribute` and `sourceAsOfNoteDefault`, because a version must have a publisher date or a note (R2).
+
 ```ts
 // datasets.ts
 export async function createDataset(actor: Actor, input: NewDataset): Promise<Dataset> {
@@ -48,7 +50,7 @@ export async function mapToJurisdiction(
 }
 ```
 
-`FREE_PUBLIC_LICENSES` is a short allow-list (e.g., public domain, CC0, CC-BY, ODbL) checked at registration time, not re-validated per feature — R1 is enforced once, where the dataset enters the system.
+`FREE_PUBLIC_LICENSES` is a short allow-list (public domain, CC0, CC-BY, CC-BY-4.0, ODbL, and, since 2026-10-10, "King County GIS terms of use" and "Public domain (US government work)", which the pilot's real sources need) checked at registration time, not re-validated per feature — R1 is enforced once, where the dataset enters the system.
 
 **R12:** `NewDataset` is a Zod schema whose `authority` and `spatialPrecision` are required literal unions, matching the `check` lists on the two `dataset` columns (see `evidence-review.md` for the columns and the migration that fills them for existing datasets). Omitting either fails validation at registration, and the columns are `not null` with no default.
 

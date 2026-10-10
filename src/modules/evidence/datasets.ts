@@ -1,17 +1,30 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Geometry } from "geojson";
 import { z } from "zod";
 
 import { requireStaff, type Actor } from "@/modules/accounts";
 import { EvidenceAttributesSchema, type EvidenceAttributes, type EvidenceProvenance } from "@/modules/provenance";
 import { db, type DbOrTx } from "@/platform/db";
-import { NotFoundError, ValidationError } from "@/platform/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/platform/errors";
 
 import { dataset, datasetVersion, jurisdictionDataset } from "./tables";
 
 // R1 of evidence-layers.md: a dataset is only ingested from a free public source, checked once,
 // at registration — not re-validated on every feature.
-const FREE_PUBLIC_LICENSES = new Set(["Public domain", "CC0", "CC-BY", "CC-BY-4.0", "ODbL"]);
+// The last two were added 2026-10-10 because the pilot's real sources state no Creative Commons license:
+// King County's GIS terms of use allow copying, distributing, and using its data (selling needs a written
+// agreement), and a US federal agency's data is a government work. Layers whose terms forbid redistribution
+// (King County's 2023 canopy and land cover) and ones with no stated terms (the city's own GIS layers) are
+// not on this list and stay out until the publisher authorizes them in writing.
+const FREE_PUBLIC_LICENSES = new Set([
+  "Public domain",
+  "CC0",
+  "CC-BY",
+  "CC-BY-4.0",
+  "ODbL",
+  "King County GIS terms of use",
+  "Public domain (US government work)",
+]);
 
 // R12 of evidence-layers.md: authority and spatial precision are required, recorded when a dataset is
 // set up and never inferred from its features. Omitting either fails here, and the columns are
@@ -30,6 +43,10 @@ export const NewDatasetSchema = z.object({
   knownLimitation: z.string().min(1).nullable(),
   confidenceDefault: z.enum(["high", "moderate", "low"]),
   confidenceRationaleDefault: z.string().min(1),
+  // R2: where each version's publisher date comes from — an attribute of the source — or, when the publisher
+  // gives none, the fixed note every version shows. Ingestion needs one of them: a version has a date or a note.
+  publisherDateAttribute: z.string().min(1).nullable().optional(),
+  sourceAsOfNoteDefault: z.string().min(1).nullable().optional(),
 });
 export type NewDataset = z.infer<typeof NewDatasetSchema>;
 
@@ -253,4 +270,25 @@ export async function getMappedResourceTypeKeys(tx: DbOrTx, jurisdictionId: stri
     .from(jurisdictionDataset)
     .where(eq(jurisdictionDataset.jurisdictionId, jurisdictionId));
   return [...new Set(rows.map((r) => r.resourceTypeKey))];
+}
+
+/**
+ * Sets what a dataset can't show (F3 R10) from a staff-confirmed AI metadata draft (F24 R7). A compare-and-set on
+ * the value the draft was made against: if someone changed it since, zero rows match and this is a ConflictError,
+ * never an overwrite. The caller records the previous value beside its confirmation, so the history is kept there.
+ */
+export async function setDatasetLimitation(tx: DbOrTx, datasetId: string, expected: string | null, next: string): Promise<void> {
+  const updated = await tx
+    .update(dataset)
+    .set({ knownLimitation: next })
+    .where(
+      and(
+        eq(dataset.id, datasetId),
+        expected === null ? isNull(dataset.knownLimitation) : eq(dataset.knownLimitation, expected),
+      ),
+    )
+    .returning({ id: dataset.id });
+  if (updated.length !== 1) {
+    throw new ConflictError("This dataset's limitation changed since the draft was made. Draft again from the current record.");
+  }
 }

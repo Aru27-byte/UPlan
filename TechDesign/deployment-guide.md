@@ -228,6 +228,16 @@ This upgrade (migration `0003`) removes jurisdiction membership, adds the phase 
 5. **Optional cleanup.** `OCI_BUCKET_REPORTS` and the `uplan-reports` bucket are unused. Remove them in a later deploy, after `src/platform/env.ts` stops requiring the variable.
 6. **Sign in and check:** the dashboard lists the projects you created; the City profile page is one click away; a project opens on its Overview with the stage rail.
 
+### A16. AI assist _(2026-10-10, F24)_
+
+AI assist needs no worker and no container: it is one model call inside a Server Function, with Supabase as the only state ([ai-assist.md](ai-assist.md), _Hosting on Vercel, Supabase, and NVIDIA_).
+
+1. **Key.** Create a free API key at build.nvidia.com. Add it as `NVIDIA_API_KEY` in the app's environment (Vercel: Project Settings → Environment Variables, Production and Preview, not exposed to the browser). Without it the panels say assist is not set up, and nothing else changes.
+2. **Database.** Migration `0009_ai_assist.sql` creates the tables and runs `CREATE EXTENSION IF NOT EXISTS vector`. Supabase has pgvector, so `npm run db:migrate` against the Supabase connection string is the whole step.
+3. **Function time.** The pages that can call the model set `maxDuration = 60`. The call's own timeout is 45 seconds.
+4. **Staff.** Drafts need two staff accounts: one asks, a different one confirms. Add the second person to `staff_member` the same way the first was added.
+5. **Check.** `npm run eval:assist` runs the planted-failure checks with no key, and the golden questions with one.
+
 ## Part B — Pilot
 
 The pilot is Sammamish's planners using UPlan on real applications. That is a different promise from the demo. The design already describes the finished system; this part lists what the repository doesn't yet do, and the order to do it in. **Each item needs its own design before code**, as the spec-first workflow requires. The sketches below are the design starting point, not tested work.

@@ -359,10 +359,39 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 - **End-to-end:** a phase page with a suggestion, a rejected suggestion, a failed one, and an out-of-date one, each with its axe check and a phone-width view.
 - **Evaluation suite:** golden questions with expected quotes and planted failures. A change to a model id, prompt, chunking, or retrieval query ships only if no metric gets worse.
 
+<<<<<<< HEAD
 ## Open items
 
 - **Hosting migration beyond assist.** This design needs only Vercel and Supabase. The rest of release 1 still assumes a worker, Chromium, and GDAL (D1, D8, D11, D12, D17). Where those run on Vercel and Supabase is open; see D28.
 - **Where code text comes from.** F2's fetch-and-index used Poppler and a worker. On the new target, the first source is staff upload or paste of the city's code text, which `document_chunk` indexes at upload. Fetching is a later step.
+=======
+## As built (2026-10-10)
+
+Everything above was built, in all three waves. These are the places the code differs from the design text, so the two agree.
+
+| Topic | Design said | As built | Why |
+| --- | --- | --- | --- |
+| Generation model | A candidate list | `meta/llama-3.3-70b-instruct`, a constant in `platform/model-client.ts`, temperature 0, no `guided_json` | One instruction-tuned model on the free API. The checks, not the decoder, enforce the shape. Chosen unmeasured: run `npm run eval:assist` against a candidate before changing it |
+| Output parsing | Zod parse of the raw response | The same, and exactly one wrapping markdown fence is stripped. Any other prose around the JSON is a K1 rejection | A fence is formatting, not content |
+| `ai_suggestion.assist_id` | Not a column | Added. The unique key is `(coalesce(decision_id, jurisdiction_id), assist_id, subject_key, output_sha256)` where `status <> 'failed'` | Two assists of one kind (`SC1` and `SC3` are Explain and Find; `EV2` and `ST3` are both Compare) must not share a key |
+| `ai_suggestion.input_sha256` | `not null` | Nullable while `running`, required for `ready` | The row claims the unique key before retrieval, so a double submission makes one call (R13). The request is written when it has been assembled |
+| `ai_suggestion.response_raw` | `jsonb` | `text` | The model's reply may not be JSON, and K1 must be able to keep it |
+| Claiming a row | Cap, then claim | One transaction: advisory locks on the person and the city, then the live-row lookup, the stale-row release, the two counts, and the insert | Serializes the count and the insert without a table lock, and works through Supabase's transaction pooler |
+| `source_document` and `document_chunk` | Belonged to F2's `code_source` and `code_check` | Standalone: `jurisdiction_id`, `kind` (`code` or `checklist`), `title`, `content_sha256`, `embedding_model`, `chunk_count`, `created_by`. No raw object, no `search_text`, no status. Write-once by trigger | There is no fetch or worker on this target. Staff paste text, which is chunked at section numbers and embedded in the same request |
+| One confirmation | A check in code | `ai_suggestion_one_confirmation`, a unique partial index on `ai_suggestion_response (suggestion_id) where response = 'confirmed'` | A one-at-a-time rule is a constraint (best-practices) |
+| Confirming a rule draft | `source = 'code_change'` through F17 | `profiles.applyDraftedChange`, in the confirmer's transaction with the response row: `proposed_by` is the requester, `decided_by` the confirmer, source `code_change`. The profile pointer is moved under the city's row lock with the base version compared | F17 applies at once (R5, 2026-10-04); the second-person rule is F24's own |
+| What a rule draft can change | "rule-owned paths" | A number of an existing rule: `bufferRules.<key>.widthFt`, `studyTriggers.<key>.withinFt`, `treeRules.<key>.minDbhIn`, `.maxCount`, `.periodYears`. Never a setting, a date, or a new or removed rule. Staff enter the effective date and the ordinance; the rule in force ends that day and a new entry starts | A date is staff's act (PR1 _Never_), and the profile already versions a rule by date |
+| Confirming a metadata draft | A new attribute version | A compare-and-set of `dataset.known_limitation` from the value the draft was made against, in one transaction with the response row, which records the previous text. Only the limitation is a stored field; vintage, scale, and method are shown, not written | There is no versioned attribute table to write to. Making one is an `evidence` change of its own |
+| Retrieval | `document_chunk` ranked by cosine, per rule | `retrieveCodePassages`: one embedding call for all queries, one nearest-neighbour query each in one transaction with `hnsw.iterative_scan = relaxed_order`, de-duplicated and capped (4 for a row, 6 for a question, 12 for a rule draft) | Keeps one request to one embedding call and one chat call |
+| ST3 and EV3 inputs | Not specified | ST3 compares the profile's named studies with a `checklist` document staff added. EV3 takes the publisher's metadata text staff paste (12,000 characters) | No source for either exists on this target |
+| Records export (R17) | Both tables in F16's export | A project's suggestions are exported with its `decision` records and the city-level ones with `profile-change` records, each row carrying `request`, `model_id`, and `prompt_version` | F16's record types are a closed list in every profile's settings, so a new type would change every profile document |
+| Evaluation set (R16) | Defined when built | `npm run eval:assist`: planted failures run offline and must each be rejected; golden questions run against the real service when a key is set | |
+
+## Open items
+
+- **Hosting migration beyond assist.** This design needs only Vercel and Supabase. The rest of release 1 still assumes a worker, Chromium, and GDAL (D1, D8, D11, D12, D17). Where those run on Vercel and Supabase is open; see D28.
+- **Where code text comes from.** _Decided and built:_ staff paste the city's code text or a checklist on the profile page, up to 150,000 characters at a time. It is chunked at section numbers, embedded, and written once. F2's fetch-and-index (Poppler and a worker) is a later step.
+>>>>>>> worktree-ai-assist
 - **NVIDIA terms** for a city pilot, as above.
 - **The model id.** Chosen by running the evaluation set against two or three catalog candidates; the table above is a starting list, not a measurement.
 - **Whether Find belongs on the dashboard** as a city-level question box. It would be PR2 without a project, with the same rules.
