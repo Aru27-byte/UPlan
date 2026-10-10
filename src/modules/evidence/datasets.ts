@@ -30,6 +30,10 @@ export const NewDatasetSchema = z.object({
   knownLimitation: z.string().min(1).nullable(),
   confidenceDefault: z.enum(["high", "moderate", "low"]),
   confidenceRationaleDefault: z.string().min(1),
+  // R2: where each version's publisher date comes from — an attribute of the source — or, when the publisher
+  // gives none, the fixed note every version shows. Ingestion needs one of them: a version has a date or a note.
+  publisherDateAttribute: z.string().min(1).nullable().optional(),
+  sourceAsOfNoteDefault: z.string().min(1).nullable().optional(),
 });
 export type NewDataset = z.infer<typeof NewDatasetSchema>;
 

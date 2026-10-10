@@ -20,6 +20,8 @@ src/modules/evidence/
 
 ## Registering a dataset and mapping it (R1, R8)
 
+_As built, 2026-10-10:_ the app has no screen for this, so staff register and ingest a real dataset from the command line with `npm run db:dataset:add -- <staff email> <dataset.json>` (`scripts/add-dataset.ts`). It calls `createDataset`, `mapToJurisdiction`, and `ingestDataset` in that order, and needs GDAL's `ogr2ogr` and an S3-compatible bucket on the machine that runs it. `NewDataset` carries `publisherDateAttribute` and `sourceAsOfNoteDefault`, because a version must have a publisher date or a note (R2).
+
 ```ts
 // datasets.ts
 export async function createDataset(actor: Actor, input: NewDataset): Promise<Dataset> {
