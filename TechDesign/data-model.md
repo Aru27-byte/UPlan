@@ -683,7 +683,7 @@ create table source_document (
   title           text not null,
   content_sha256  text not null,
   raw_object_key  text not null,
-  embedding_model text not null,                 -- SHA-256 of the embedding model file
+  embedding_model text not null,                 -- the embedding model id (D27; was a model file's SHA-256)
   status          text not null check (status in ('indexing', 'indexed', 'failed')),
   error_detail    text,
   created_at      timestamptz not null default now(),
@@ -698,7 +698,7 @@ create table document_chunk (
   section_path       text not null,              -- 'SMC 21.03.020.C'
   heading            text not null,
   body               text not null,
-  embedding          vector(1024) not null,      -- Qwen3-Embedding-0.6B
+  embedding          vector(1024) not null,      -- nvidia/nv-embedqa-e5-v5 (D27)
   search_text        tsvector generated always as (to_tsvector('english', heading || ' ' || body)) stored,
   unique (source_document_id, ordinal)
 );
@@ -711,8 +711,8 @@ create table code_change_draft (
   id                 uuid primary key default gen_random_uuid(),
   source_document_id uuid not null references source_document (id),
   base_version_id    uuid not null references profile_version (id),
-  input_sha256       text not null,              -- document, base version, model files, prompt version
-  generator_model    text not null,              -- SHA-256 of the generation model file
+  input_sha256       text not null,              -- document, base version, model id, prompt version
+  generator_model    text not null,              -- the generation model id (D27)
   prompt_version     integer not null check (prompt_version > 0),
   status             text not null check (status in ('running', 'ready', 'failed')),
   retrieved          jsonb,                      -- per changed section: chunk ids, ranks, scores
@@ -741,6 +741,10 @@ create trigger code_change_draft_final before update on code_change_draft
 - Retrieval reads only chunks of `indexed` documents from the city's own sources that were embedded with the current embedding model. pgvector's iterative index scans (`hnsw.iterative_scan`) keep those filtered searches from returning too few rows.
 - `profile_change.source` gains `code_change`, with a unique `code_change_draft_id` that's required for that source only. `proposed_by` is null for that source only, because the system proposes the draft; UPlan staff decide it.
 - A draft is proposed by the transaction that finishes it or, when the city already has a pending change, by the transaction that decides that change (see _Drafting code changes with retrieval_ in the architecture).
+
+## AI assist tables (F24, release 1)
+
+`ai_suggestion` and `ai_suggestion_response` hold every model output other than F2's drafts, with the request that was sent, the raw response, the checks that passed or failed, and each person's response. Their definitions, the unique key that makes a double submission one suggestion, and the append-only trigger are in [ai-assist.md](ai-assist.md), _Data model_. They hold no measurement, and no analysis, review, or report row refers to them. A confirmed rule draft links to its `profile_change` through `ai_suggestion_response.profile_change_id`.
 
 ## Additions later in v1
 

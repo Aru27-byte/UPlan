@@ -17,11 +17,11 @@ These rules apply to all work in this repository. `TechDesign/` is the source of
 
 ## Zero cost, few services, little configuration
 
-- **Every service costs nothing:** open-source software, or a free tier used within the limits in _Free-tier budget_ in `TechDesign/system-architecture.md`. Never add a paid service, a paid tier, or a paid API, including the Claude and OpenAI APIs.
-- **Few external services.** Oracle Cloud's Always Free tier provides the infrastructure, and GitHub and Let's Encrypt are the only other external services. Adding one needs a decision record that says why the existing providers can't do the job.
-- **Fit the VM.** 2 OCPUs and 12 GB of memory run everything. Before adding a process, a model, or anything else with a runtime cost, state its memory and CPU needs against the container limits in the architecture.
-- **Minimal configuration.** Prefer a default, or one setting in an existing file, over a new file, service, or console resource.
-- **Watch the allowances.** A change that raises use of a free allowance, such as Object Storage requests, updates the budget table in the same change.
+- **Every service costs nothing:** open-source software, or a free tier used within the limits in _Free-tier budget_ in `TechDesign/system-architecture.md`. Never add a paid service, a paid tier, or a paid API, including the Claude and OpenAI APIs. NVIDIA's free hosted inference is the one model service allowed _(decided 2026-10-10, D27)_.
+- **Few external services.** The deployment target is Vercel for hosting, Supabase for the database, sign-in, and files, and NVIDIA's inference API for the AI assist _(2026-10-10, D28)_. GitHub is the only other external service. Adding one needs a decision record that says why these can't do the job.
+- **Serverless-shaped.** Every web instance and function is short-lived and many run at once. Before adding a process, a model, or anything else with a runtime cost, state its duration and memory against the hosting plan's function limits. Work longer than one function invocation needs a design in the architecture first.
+- **Minimal configuration.** Prefer a default, or one setting in an existing file, over a new file, service, or console resource. Model ids are constants in code, not settings.
+- **Watch the allowances.** A change that raises use of a free allowance, such as Supabase storage or NVIDIA requests, updates the budget table in the same change.
 
 ## Rewrite, don't pile up
 
@@ -68,7 +68,8 @@ These are not fallbacks, and they are allowed:
 - **P2, screening never clears land:** no code path produces "clear," "safe to develop," or "no study needed."
 - **P3, the report is the product:** a report is built only from a pinned analysis run. After release, its row, bytes, and hash never change.
 - **Posture:** UPlan never recommends. No generated text proposes approval, denial, or conditions. Conditions are traced, never drafted.
-- **Drafting (F2):** a model drafts only profile rules, each backed by an exact quote from a retrieved passage. A draft reaches decisions only after every deterministic check passes and UPlan staff confirm it.
+- **Drafting (F2):** a model drafts only profile rules and dataset metadata, each backed by an exact quote from a supplied passage. A draft reaches decisions only after every deterministic check passes and UPlan staff confirm it.
+- **AI assist (F24):** a model may explain, ask questions, find passages, and compare sources. It reads and quotes; it never measures, flags, decides, or writes into the released document. Its output has a fixed shape, is checked for exact quotes, copied numbers, and verdict words, is stored beside the analysis and never inside it, and is requested by a person, never automatically.
 - **Limits of desk analysis:** never count significant trees. When a rule depends on a field-rated attribute, compute the range rather than assuming a value.
 - **Free public data only:** licensed, applicant, and consultant data never become evidence.
 
@@ -78,7 +79,8 @@ These are not fallbacks, and they are allowed:
 - Scope every query of city data to a jurisdiction the actor belongs to.
 - Validate every boundary with Zod: form data, route params, uploads, job payloads, environment variables, and API responses.
 - Never log secrets, or personal data beyond a user id.
-- Keep applicant and personal data inside UPlan's own infrastructure: the VM and its Object Storage. The models run on the VM and receive only public code text.
+- Keep applicant and personal data inside UPlan's own infrastructure: the Supabase project and the Vercel deployment. The model service receives only the allow-listed classes in `TechDesign/ai-assist.md` (_What may be sent_): published code text, dataset metadata, profile rules, and project results with identity removed. A new class needs a decision record first.
+- The model API key is a server-side environment variable. It never reaches the browser, a log, or a response.
 
 ## Accessibility
 

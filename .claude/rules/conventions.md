@@ -20,7 +20,9 @@
 | Route segments          | kebab-case folders, camelCase params                                               | `decisions/[decisionId]/report`               |
 | Database                | snake_case, singular tables; `*_id`, `*_at` for timestamps, `*_on` for dates       | `decision_geometry.created_at`                |
 | Job tasks               | snake_case verb phrases                                                            | `run_analysis`, `release_report`              |
-| Job queues and keys     | `<aggregate>:<id>` and `<task>:<id>`. Every job that uses the models goes on `rag` | `decision:<id>`, `run_analysis:<id>`, `rag`   |
+| Job queues and keys     | `<aggregate>:<id>` and `<task>:<id>`. Model calls are not jobs: they run in a Server Action through the `assist` module | `decision:<id>`, `run_analysis:<id>`          |
+| AI assist kinds         | Lowercase kebab-case, matching the `ai_suggestion.kind` check list exactly          | `explain`, `metadata-draft`, `rule-draft`     |
+| Prompt versions         | One integer constant per kind, bumped on any change to its prompt or shape          | `EXPLAIN_PROMPT_VERSION`                      |
 | Profile keys            | lowercase kebab-case                                                               | `wetlands`, `forest-canopy`                   |
 | Tests                   | start with the requirement id                                                      | `it("R3: rejects a rule without a citation")` |
 

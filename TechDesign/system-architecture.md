@@ -1,18 +1,29 @@
 # UPlan — System Architecture
 
-**Status:** Draft — system-level technical design
-**Last updated:** 2026-09-12
+**Status:** Draft — system-level technical design; hosting and model sections amended 2026-10-10
+**Last updated:** 2026-10-10
 **Derived from:** [charter.md](../Requirements/charter.md), [intents.md](../Requirements/intents.md), [features.md](../Requirements/features.md)
 **Related:** [tech-stack.md](tech-stack.md) · [data-model.md](data-model.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
 This document sets the shape every feature's TechDesign doc builds on. A feature doc adds detail; it doesn't contradict this document without changing it first.
 
+## Update, 2026-10-10: hosting target and AI assist
+
+Two decisions change this document. Where a section below disagrees with this one, this one wins, and the section is overdue for a rewrite.
+
+| Decision | What it changes here | Record |
+| --- | --- | --- |
+| **Hosting target: Vercel for the application, Supabase for the database, sign-in, and files** | The Oracle VM, Compose file, `caddy`, `postgres`, `migrate`, backup timer, and deploy script no longer exist as the target. `web` becomes Vercel functions and pages. `postgres` becomes Supabase Postgres, which has PostGIS and pgvector. Object storage becomes Supabase Storage, which has an S3-compatible endpoint | D28 |
+| **AI assist, on NVIDIA's free hosted inference API** | The `models` container (V6), Hugging Face model files (X4), and llama.cpp are replaced by calls from `src/platform/model-client.ts` to NVIDIA's API. F2's drafting uses the same client. A new module, `assist`, owns every other model use | D27 |
+
+**Still open: what replaces the worker.** graphile-worker needs a long-lived process, which Vercel does not provide. The analysis run (J2), report rendering with Chromium (J5), GDAL dataset ingestion (J4), the daily sweeps (J3, J6), the heartbeat (J10), and F2's source checks (J7) all assumed it. AI assist needs none of them (see _Hosting on Vercel, Supabase, and NVIDIA_ in [ai-assist.md](ai-assist.md)). Until D28's open items are decided, the sections below on jobs, the VM, and deploys describe the design as it was, not as it will be hosted.
+
 ## Constraints
 
-- **Zero cost.** Every service is open-source software, or a free tier used within its limits (see _Free-tier budget_). There is no paid API, and no paid tier held in reserve.
-- **Few external services.** Oracle Cloud Infrastructure's Always Free tier provides all of the infrastructure. The only other external services are GitHub, which already hosts the code, Let's Encrypt, which issues the TLS certificate, and Supabase Auth, which handles sign-in (D14). Public data, model files, and the basemap extract are downloads from free public sources, and the city provides a DNS name.
-- **Minimal configuration.** One VM runs everything from one Compose file. A managed service is used only where the VM can't do the job itself: object storage, admin access, and monitoring from outside the VM.
-- **Sized for the free VM.** Since June 15, 2026, Always Free Arm compute is 2 OCPUs and 12 GB of memory in total. Every process fits in that, including the language models.
+- **Zero cost.** Every service is open-source software, or a free tier used within its limits (see _Free-tier budget_). There is no paid API, and no paid tier held in reserve. NVIDIA's free hosted inference is the one model service _(D27)_.
+- **Few external services.** _As of 2026-10-10 (D28):_ Vercel hosts the application, Supabase provides the database, sign-in, and files, and NVIDIA's inference API serves the AI assist. GitHub already hosts the code. Public data is downloaded from free public sources. _Before it, Oracle Cloud's Always Free tier provided the infrastructure, with Let's Encrypt for the certificate._
+- **Minimal configuration.** One repository deploys to Vercel and one Supabase project holds the data. No server is administered.
+- **Sized for the hosting plans.** Every function fits the plan's duration and memory limits, and the database fits Supabase's free-tier size. _Before D28: sized for the 2 OCPUs and 12 GB Oracle VM, including the language models._
 
 ## Assumptions for open product questions
 
@@ -49,7 +60,7 @@ flowchart LR
       V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
       V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, upload, edit, approve · F1 F17<br/>W3 · Projects: dashboard, details, study area, footprint, overview · F5 F8 F18 F20<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Phases: evidence, screening, studies, impact, review · F7 F9 F14 F19 F21<br/>W6 · Final document: finish, versions, download · F10 F22<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
       V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · preview_profile_change · F1 F17<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10 F22<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
-      V6["V6 · models · llama.cpp server · later<br/>Qwen3.5-4B drafts · Qwen3-Embedding-0.6B embeds"]
+      V6["V6 · models · superseded by D27<br/>now NVIDIA's hosted API · see X4"]
       V7["V7 · migrate · once per deploy"]
       V8["V8 · backup timer · systemd · pgBackRest"]
       V9["V9 · deploy script<br/>build · migrate · restart"]
@@ -67,7 +78,7 @@ flowchart LR
     X1["X1 · Public GIS data"]
     X2["X2 · City code and ordinances · later"]
     X3["X3 · Protomaps basemap builds"]
-    X4["X4 · Hugging Face model files · later"]
+    X4["X4 · NVIDIA inference API · AI assist · F2"]
   end
 
   U12 -->|"HTTPS"| V2
@@ -88,7 +99,7 @@ flowchart LR
   V4 -->|"J4 · download datasets"| X1
   V4 -->|"J7 · fetch documents · later"| X2
   V4 -->|"J8 J9 · embed, generate JSON drafts · later"| V6
-  V6 -.->|"model files at setup, SHA-256 checked"| X4
+  V3 -->|"AI assist · key from env · allow-listed input only"| X4
   V9 -.->|"fetch a tested tag"| G1
   V9 -->|"runs"| V7
   V7 -->|"migrations"| V5
@@ -128,7 +139,7 @@ flowchart LR
 | V3  | `web`            | Next.js 16: pages, Server Functions, and route handlers for uploads, downloads, tiles, sign-in, and the health check. It never runs long work: anything slower than a request becomes a job | W1–W10                     |
 | V4  | `worker`         | graphile-worker, running at most two jobs at once and serving no HTTP. Its image carries Chromium, GDAL, and Poppler                                                                        | J1–J10                     |
 | V5  | `postgres`       | PostgreSQL 18 with PostGIS 3.6 and pgvector 0.8: relational and spatial data, the job queue, and the retrieval index. pgBackRest archives its WAL                                 | `web`, `worker`, `migrate` |
-| V6  | `models` (later) | llama.cpp's server in router mode, reachable only from `worker`. Qwen3.5-4B drafts profile changes; Qwen3-Embedding-0.6B turns text into vectors. Both stay loaded                          | J8, J9                     |
+| V6  | `models` (superseded by D27) | Was llama.cpp on the VM. Replaced by NVIDIA's hosted inference API, called from `src/platform/model-client.ts` by `assist` and `code-tracking`. Generation and embeddings are two calls to one OpenAI-compatible endpoint | J8, J9, and every assist |
 | V7  | `migrate`        | Applies database migrations once per deploy, before new containers start                                                                                                                    | Deploys                    |
 | V8  | Backup timer     | A systemd timer on the host that runs pgBackRest backups inside `postgres` and records each run                                                                                             | Recovery                   |
 | V9  | Deploy script    | `deploy/deploy.sh <tag>`: fetches a tag whose CI passed, builds the images on the VM, runs `migrate`, and restarts `worker` and `web`                                                       | Deploys                    |
@@ -173,7 +184,7 @@ flowchart LR
 | X1  | Public GIS data                  | County, state, and federal datasets that F3 ingests                                     | Free public data _(round 9)_                                      |
 | X2  | City code and ordinances (later) | The published code and adopted ordinances that F2 watches                               | Free public records                                               |
 | X3  | Protomaps basemap builds         | Where the basemap extract for the city's area comes from, built from OpenStreetMap data | Free, with OpenStreetMap attribution                              |
-| X4  | Hugging Face (later)             | Where the open model files are downloaded from, once, at setup                          | Free                                                              |
+| X4  | NVIDIA inference API             | Hosted open models for generation and embeddings, for AI assist and F2. Replaces Hugging Face model downloads. Free access is rate-limited and for development and evaluation; confirm the terms for a city pilot | Free, rate-limited                                                |
 
 ## Modules
 
@@ -191,13 +202,15 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 | `reports`       | F10, F22; later F12 | The document, its versions, PDF rendering, storage in the database                     | 1           |
 | `records`       | F16               | Retention flags, records exports                                                         | 1           |
 | `operations`    | —                 | The health check, the worker heartbeat, and backup run records                           | 1           |
+| `assist`        | F24               | AI suggestions and responses, the allow-listed request builders, the output checks, the usage caps, and the assist prompts. Calls the model service through `platform/model-client` | 1, in three waves |
 | `code-tracking` | F2                | Code sources, checks, the retrieval index, and drafting                                  | Later in v1 |
 | `conditions`    | F13               | Conditions and their links to impacts                                                    | Later in v1 |
 
 - F6 (map workspace) and F15 (phone look-up) are UI: routes in `src/app/` and components in `src/ui/`, built on the modules above.
 - F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine. F19's resolutions live in `analysis` too, since it owns the disagreement they refer to.
 - F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them and nothing imports it but routes and the worker, so it adds no cycle. It owns one table, `phase_review` (F21), and it is the one place that starts a document (F22), because that needs the planner's reviews and `reports` can't import `workflow`. `reports` receives what it needs as arguments: the snapshot, and the worker-injected drafting function.
-- Clients for PostgreSQL, Object Storage, and the model server live in `src/platform/`. Only `code-tracking` calls the model server.
+- F24 needs a module of its own, `assist`, for the reason `workflow` has one: it reads `analysis`, `workflow`, `profiles`, and `evidence`, so placing it in any of them would create an import cycle. It sits above them, only routes import it, and `reports` must not, so a suggestion can never reach a released document. It owns two tables, `ai_suggestion` and `ai_suggestion_response`.
+- Clients for PostgreSQL, object storage, and the model service live in `src/platform/`. Only `assist` and `code-tracking` call the model service.
 
 ## Key flows
 
@@ -251,6 +264,8 @@ A profile approval or dataset refresh that lands after step 2 doesn't touch the 
 4. Any failure marks the version failed with its error. The previous version stays current, and every view of that dataset shows the failed refresh beside it.
 
 ## Drafting code changes with retrieval (F2, later in v1)
+
+> **Superseded in part, 2026-10-10 (D27).** The retrieval, the checks, the staff confirmation, and the record of each draft below stand. The model no longer runs in a `models` container: generation and embeddings are calls to NVIDIA's hosted API through `platform/model-client`, and a draft is one call in a Server Action, as in [ai-assist.md](ai-assist.md) (PR1), not a job on the `rag` queue. Read "the VM", "`models`", "llama.cpp", "Qwen", and "`rag`" below as the earlier design.
 
 F2 drafts rule updates with a retrieval-augmented generation (RAG) workflow that runs entirely on the VM. The worker retrieves passages from PostgreSQL and calls the open models in the `models` container. No text goes to an external AI API.
 
@@ -484,6 +499,9 @@ The heartbeat writes every 5 minutes, which also keeps WAL moving, so a stale ar
 | Notification emails     | 1,000 a month                                  | Alarms only                                                                                                      |
 | GitHub Actions          | 2,000 minutes a month for a private repository | CI on pull requests                                                                                              |
 | Supabase Auth           | 50,000 monthly active users                    | The pilot's planners, reviewers, and staff: dozens. Projects idle for a week are paused (D14)                    |
+| Supabase database size  | The free plan's database limit (about 500 MB at the time of writing; check the live figure) | Rows, suggestions, and published documents stored as `bytea` (a few hundred KB each). The first allowance this design is likely to hit; a plan upgrade is a decision, not a fallback |
+| Vercel                  | The plan's function duration, invocation, and bandwidth limits. The Hobby plan is restricted to non-commercial use; check that a city pilot qualifies | Pages, Server Actions, and route handlers. Assist calls are one model call per invocation (ai-assist.md) |
+| NVIDIA inference API    | A rate-limited free tier for development and evaluation; check the live limit and terms | At most 40 assist requests per person and 400 per city per day (ai-assist.md, _Caps_)                           |
 
 A change that raises use of an allowance updates this table in the same change.
 
@@ -496,6 +514,7 @@ A change that raises use of an allowance updates this table in the same change.
   - `workflow`: phases, drafted outputs and reviews, the stage rail, Overview, dashboard summaries, finishing and research changes.
   - `reports`: the document, its versions, and storage in the database, without sign-off.
   - The map workspace UI.
-- **Later in v1:** `code-tracking` with the `models` container and the retrieval index, sign-off in `reports`, `conditions`, and the phone look-up views.
+- **Release 1 also builds `assist`** (F24), in waves: explain and find first, then questions and comparison, then staff drafts. It needs no worker and no container.
+- **Later in v1:** `code-tracking` and the retrieval index for F2's fetching, sign-off in `reports`, `conditions`, and the phone look-up views. F2's drafting calls the model service through `platform/model-client`, not a `models` container.
 
 Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Free Tier and upgrading](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm) · [Oracle: public IP addresses](https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingpublicIPs.htm) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [Oracle: Object Storage policy reference](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm) · [llama.cpp: server README](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) · [Qwen3.5-4B GGUF files](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) · [Qwen3-Embedding-0.6B GGUF](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [graphile-worker: job keys](https://worker.graphile.org/docs/job-key) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [W3C: WCAG 2.1, success criterion 2.1.1](https://www.w3.org/TR/WCAG21/#keyboard)
