@@ -9,7 +9,7 @@ import { env } from "./env";
 // Model ids are constants, not settings (best-practices.md): changing one is a pull request that must pass
 // the evaluation set (F24 R16). A retired id fails explicitly as an `http-error`; there is no fallback model.
 
-export const GENERATE_MODEL_ID = "meta/llama-3.3-70b-instruct";
+export const GENERATE_MODEL_ID = "nvidia/nemotron-3-ultra-550b-a55b";
 export const EMBED_MODEL_ID = "nvidia/nv-embedqa-e5-v5";
 export const EMBED_DIMENSIONS = 1024;
 
