@@ -54,13 +54,8 @@ flowchart LR
     direction TB
     J1["J1 · run_analysis"]
     J2["J2 · release_report<br/>render + tagged PDF"]
-<<<<<<< HEAD
     J3["J3 · ingest_dataset<br/>build_records_export · record_heartbeat<br/>daily maintenance"]
-    J4["J4 · check_code_source · index_code_document<br/>draft_code_change · later"]
-=======
-    J3["J3 · ingest_dataset · preview_profile_change<br/>build_records_export · record_heartbeat<br/>daily maintenance"]
     J4["J4 · F2 source checks · later<br/>runner for these is open (D28)"]
->>>>>>> worktree-ux-workflow-specs
   end
 
   subgraph DATA["Data"]

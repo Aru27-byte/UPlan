@@ -16,7 +16,6 @@ export type IconName =
   | "plus"
   | "menu"
   | "arrow-right"
-<<<<<<< HEAD
   | "download"
   | "gear"
   | "search"
@@ -27,10 +26,6 @@ export type IconName =
   | "pencil"
   | "trash"
   | "refresh";
-=======
-  | "chevron-down"
-  | "download";
->>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
 
 const PATHS: Record<IconName, ReactNode> = {
   circle: <circle cx="8" cy="8" r="5.25" />,
@@ -94,7 +89,6 @@ const PATHS: Record<IconName, ReactNode> = {
   plus: <path d="M8 3.5v9M3.5 8h9" />,
   menu: <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" />,
   "arrow-right": <path d="M3.5 8h9M9 4.5 12.5 8 9 11.5" />,
-  "chevron-down": <path d="M4 6l4 4 4-4" />,
   download: <path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M3 13h10" />,
   gear: (
     // A toothed gear, drawn on a 24-unit grid and scaled to the 16-unit icon box; the stroke is widened to match.

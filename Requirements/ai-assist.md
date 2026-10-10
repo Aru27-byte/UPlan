@@ -82,8 +82,4 @@ The design doc carries the full tables: inputs, outputs, checks, and gates per a
 ## Open items
 
 - Whether the city's use of NVIDIA's free inference service as a pilot is permitted under its terms. Until confirmed, assist is enabled for development and evaluation only.
-<<<<<<< HEAD
-- Where the code text for Find comes from on the hosting target: staff paste or upload, or a fetch. See the design doc's _Open items_.
-=======
 - ~~Where the code text for Find comes from on the hosting target.~~ _Decided 2026-10-10:_ staff paste it on the profile page. A fetch is a later step. See the design doc's _As built_.
->>>>>>> worktree-ai-assist

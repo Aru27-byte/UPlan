@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
   "id": "5eb86773-a31a-4027-a6ce-44f1c191059b",
-=======
-  "id": "09a625da-9ae8-47f1-86b3-30b8fb486ae2",
->>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
   "prevId": "845a41d6-7d56-4560-8b3e-6da41165b203",
   "version": "7",
   "dialect": "postgresql",
@@ -1402,7 +1398,6 @@
         "profile_change_upload_shape": {
           "name": "profile_change_upload_shape",
           "value": "(\"profile_change\".\"source\" = 'upload') = (\"profile_change\".\"upload_id\" is not null)"
-<<<<<<< HEAD
         }
       },
       "isRLSEnabled": false
@@ -1523,12 +1518,6 @@
         "profile_source_upload_shape": {
           "name": "profile_source_upload_shape",
           "value": "(\"profile_source\".\"kind\" = 'excel') = (\"profile_source\".\"upload_id\" is not null)"
-=======
-        },
-        "profile_change_no_self_approval": {
-          "name": "profile_change_no_self_approval",
-          "value": "\"profile_change\".\"decided_by\" is null or \"profile_change\".\"decided_by\" <> \"profile_change\".\"proposed_by\""
->>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
         }
       },
       "isRLSEnabled": false
@@ -2224,111 +2213,6 @@
       },
       "isRLSEnabled": false
     },
-<<<<<<< HEAD
-=======
-    "public.report_section_feedback": {
-      "name": "report_section_feedback",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "decision_id": {
-          "name": "decision_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "step": {
-          "name": "step",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "report_section_feedback_by_step": {
-          "name": "report_section_feedback_by_step",
-          "columns": [
-            {
-              "expression": "decision_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "step",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "report_section_feedback_created_by_app_user_id_fk": {
-          "name": "report_section_feedback_created_by_app_user_id_fk",
-          "tableFrom": "report_section_feedback",
-          "tableTo": "app_user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "report_section_feedback_step_check": {
-          "name": "report_section_feedback_step_check",
-          "value": "\"report_section_feedback\".\"step\" in ('overview', 'site', 'evidence', 'screening', 'studies', 'footprint', 'impact')"
-        },
-        "report_section_feedback_note_shape": {
-          "name": "report_section_feedback_note_shape",
-          "value": "length(btrim(\"report_section_feedback\".\"note\")) between 1 and 2000"
-        }
-      },
-      "isRLSEnabled": false
-    },
->>>>>>> a8109ff (Add report-section feedback, accordions, and a linear stage rail to project steps)
     "public.app_user": {
       "name": "app_user",
       "schema": "",

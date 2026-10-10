@@ -359,12 +359,6 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 - **End-to-end:** a phase page with a suggestion, a rejected suggestion, a failed one, and an out-of-date one, each with its axe check and a phone-width view.
 - **Evaluation suite:** golden questions with expected quotes and planted failures. A change to a model id, prompt, chunking, or retrieval query ships only if no metric gets worse.
 
-<<<<<<< HEAD
-## Open items
-
-- **Hosting migration beyond assist.** This design needs only Vercel and Supabase. The rest of release 1 still assumes a worker, Chromium, and GDAL (D1, D8, D11, D12, D17). Where those run on Vercel and Supabase is open; see D28.
-- **Where code text comes from.** F2's fetch-and-index used Poppler and a worker. On the new target, the first source is staff upload or paste of the city's code text, which `document_chunk` indexes at upload. Fetching is a later step.
-=======
 ## As built (2026-10-10)
 
 Everything above was built, in all three waves. These are the places the code differs from the design text, so the two agree.
@@ -391,7 +385,6 @@ Everything above was built, in all three waves. These are the places the code di
 
 - **Hosting migration beyond assist.** This design needs only Vercel and Supabase. The rest of release 1 still assumes a worker, Chromium, and GDAL (D1, D8, D11, D12, D17). Where those run on Vercel and Supabase is open; see D28.
 - **Where code text comes from.** _Decided and built:_ staff paste the city's code text or a checklist on the profile page, up to 150,000 characters at a time. It is chunked at section numbers, embedded, and written once. F2's fetch-and-index (Poppler and a worker) is a later step.
->>>>>>> worktree-ai-assist
 - **NVIDIA terms** for a city pilot, as above.
 - **The model id.** Chosen by running the evaluation set against two or three catalog candidates; the table above is a starting list, not a measurement.
 - **Whether Find belongs on the dashboard** as a city-level question box. It would be PR2 without a project, with the same rules.

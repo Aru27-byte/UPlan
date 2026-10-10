@@ -756,11 +756,8 @@ create trigger code_change_draft_final before update on code_change_draft
 - `profile_change.source` gains `code_change`, with a unique `code_change_draft_id` that's required for that source only. `proposed_by` is null for that source only, because the system proposes the draft; UPlan staff decide it.
 - A draft is proposed by the transaction that finishes it or, when the city already has a pending change, by the transaction that decides that change (see _Drafting code changes with retrieval_ in the architecture).
 
-<<<<<<< HEAD
-=======
 > **As built, 2026-10-10 (F24).** `source_document` and `document_chunk` above are written by `assist`, not by F2's source checks, and are simpler than shown: `source_document` has `jurisdiction_id`, `kind` (`code` or `checklist`), `title`, `content_sha256`, `embedding_model`, `chunk_count`, and `created_by`, with no `code_source`, `code_check`, raw object, or status; `document_chunk` has no `heading` or `search_text`. Both are write-once by trigger. F2's fetch-and-index will extend them when it is built. See [ai-assist.md](ai-assist.md), _As built_.
 
->>>>>>> worktree-ai-assist
 ## AI assist tables (F24, release 1)
 
 `ai_suggestion` and `ai_suggestion_response` hold every model output other than F2's drafts, with the request that was sent, the raw response, the checks that passed or failed, and each person's response. Their definitions, the unique key that makes a double submission one suggestion, and the append-only trigger are in [ai-assist.md](ai-assist.md), _Data model_. They hold no measurement, and no analysis, review, or report row refers to them. A confirmed rule draft links to its `profile_change` through `ai_suggestion_response.profile_change_id`.
