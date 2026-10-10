@@ -9,11 +9,7 @@ import { env } from "./env";
 // Model ids are constants, not settings (best-practices.md): changing one is a pull request that must pass
 // the evaluation set (F24 R16). A retired id fails explicitly as an `http-error`; there is no fallback model.
 
-<<<<<<< HEAD
 export const GENERATE_MODEL_ID = "nvidia/nemotron-3-ultra-550b-a55b";
-=======
-export const GENERATE_MODEL_ID = "nvidia/nemotron-3.5-lightning-30b-a3b";
->>>>>>> worktree-ai-assist
 export const EMBED_MODEL_ID = "nvidia/nv-embedqa-e5-v5";
 export const EMBED_DIMENSIONS = 1024;
 
