@@ -14,11 +14,33 @@ import { env } from "./env";
 // page pay it. Five minutes outlasts a planner's reading time, and `keepAlive` has the OS probe the socket
 // so a connection the network silently dropped is discovered and replaced instead of hanging a request.
 // A genuinely broken connection still fails loudly: the pool discards it and the query's error reaches the log.
-const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  idleTimeoutMillis: 300_000,
-  keepAlive: true,
-});
+//
+// The pool is small on purpose. A hosted database's pooler allows few client connections in all (Supabase's
+// session mode: 15 on the free plan), and every process holds its own pool: each `next dev` server, the
+// worker, and each Vercel instance. At node-postgres's default of 10, two processes already exceed 15 and
+// requests fail with EMAXCONNSESSION (the map's parallel tile requests are the first to show it). Five is
+// enough for a page's overlapping reads, and a request waits for a free connection instead of failing.
+// Production should also use the pooler's transaction mode (port 6543), which shares server connections
+// between clients; nothing here depends on session state (advisory locks and `set local` are per transaction).
+const POOL_MAX = 5;
+
+// In development Next.js re-evaluates this module on every change, which would leave each earlier pool holding
+// its connections until they idle out. One pool per process, kept on the global object, ends that. Production
+// evaluates the module once, so this changes nothing there.
+const POOL_KEY = Symbol.for("uplan.db.pool");
+type PoolHolder = typeof globalThis & { [POOL_KEY]?: Pool };
+
+function createPool(): Pool {
+  return new Pool({
+    connectionString: env.DATABASE_URL,
+    max: POOL_MAX,
+    idleTimeoutMillis: 120_000,
+    keepAlive: true,
+  });
+}
+
+const holder: PoolHolder = globalThis;
+const pool = env.NODE_ENV === "production" ? createPool() : (holder[POOL_KEY] ??= createPool());
 
 export const db = drizzle(pool);
 
