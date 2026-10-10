@@ -83,7 +83,7 @@ export type ChatResult = { content: string; tokensIn: number | null; tokensOut: 
 /**
  * One chat completion. The text is returned as the model wrote it; the caller checks it.
  *
- * Nemotron 3.5 Lightning is a reasoning model. Thinking is turned off here: every assist fills a fixed shape
+ * Nemotron 3 Ultra is a reasoning model. Thinking is turned off here: every assist fills a fixed shape
  * from supplied text, so there is nothing to deliberate over, and reasoning tokens would spend the free
  * allowance and the token cap before any answer is written. The vendor recommends temperature 1.0 and top_p
  * 0.95 for both modes (model card), so those are used; a suggestion is stored and shown as stored, never
