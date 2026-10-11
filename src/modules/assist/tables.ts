@@ -134,7 +134,7 @@ export const documentChunk = pgTable(
     ordinal: integer("ordinal").notNull(),
     sectionPath: text("section_path").notNull(), // "21A.50.290": what a quote's section must equal
     body: text("body").notNull(),
-    embedding: vector("embedding", { dimensions: 1024 }).notNull(), // nvidia/nv-embedqa-e5-v5 (D27)
+    embedding: vector("embedding", { dimensions: 1024 }).notNull(), // nvidia/nemotron-3-embed-1b, first 1,024 of 2,048 (D27)
   },
   (t) => [
     unique("document_chunk_one_per_ordinal").on(t.sourceDocumentId, t.ordinal),

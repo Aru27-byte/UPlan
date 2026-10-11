@@ -712,7 +712,7 @@ create table document_chunk (
   section_path       text not null,              -- 'SMC 21.03.020.C'
   heading            text not null,
   body               text not null,
-  embedding          vector(1024) not null,      -- nvidia/nv-embedqa-e5-v5 (D27)
+  embedding          vector(1024) not null,      -- nvidia/nemotron-3-embed-1b, first 1,024 of 2,048 (D27)
   search_text        tsvector generated always as (to_tsvector('english', heading || ' ' || body)) stored,
   unique (source_document_id, ordinal)
 );

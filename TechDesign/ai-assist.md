@@ -45,7 +45,7 @@ The browser never sees the key, and never calls NVIDIA. Retrieval for Find runs 
 | Role | What it does | Candidate (verify in NVIDIA's catalog before pinning) | Pinned where |
 | --- | --- | --- | --- |
 | Generate | Fills one of the six shapes from the supplied passages or measurements | An instruction-tuned open model that supports JSON-schema-guided output, such as Meta Llama 3.3 70B Instruct or an NVIDIA Nemotron instruct model | A constant in `model-client.ts`, with its prompt version |
-| Embed | Turns code chunks and questions into 1,024-dimension vectors for Find | `nvidia/nv-embedqa-e5-v5`, which returns 1,024 dimensions and takes a `query` or `passage` input type | A constant in `model-client.ts`; stored on every chunk |
+| Embed | Turns code chunks and questions into 1,024-dimension vectors for Find | `nvidia/nemotron-3-embed-1b` (since 2026-10-10; `nv-embedqa-e5-v5` was retired 2026-08-25). It returns 2,048 dimensions; the first 1,024 are kept and re-normalized, as its model card allows, so the `vector(1024)` column and index stand. The caller prefixes `query: ` or `passage: ` | A constant in `model-client.ts`; stored on every chunk |
 
 - The endpoint is OpenAI-compatible, so `model-client.ts` uses `fetch` and Zod. No SDK is added.
 - Model ids are constants, not settings: changing one is a pull request that must pass the evaluation set (R16).

@@ -34,7 +34,7 @@ let chatCalls = 0;
 function vectorFor(text: string): number[] {
   let h = 7;
   for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 9973;
-  return Array.from({ length: 1024 }, (_, i) => ((h + i) % 7) + 1);
+  return Array.from({ length: 2048 }, (_, i) => ((h + i) % 7) + 1);
 }
 
 // The request the app sent is the user message's data block; the stub reads it back the way a model would.

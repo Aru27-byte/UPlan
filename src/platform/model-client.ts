@@ -10,7 +10,12 @@ import { env } from "./env";
 // the evaluation set (F24 R16). A retired id fails explicitly as an `http-error`; there is no fallback model.
 
 export const GENERATE_MODEL_ID = "nvidia/nemotron-3-ultra-550b-a55b";
-export const EMBED_MODEL_ID = "nvidia/nv-embedqa-e5-v5";
+// nv-embedqa-e5-v5 was retired on 2026-08-25 (HTTP 410). Nemotron 3 Embed 1B returns 2,048 dimensions, and its
+// model card allows keeping only the first 1,024 or 512 of them when the vector is L2-normalized again after the
+// cut. The database column is vector(1024) and pgvector cannot index more than 2,000 dimensions, so the first
+// 1,024 are kept here, at the one place a vector enters UPlan.
+export const EMBED_MODEL_ID = "nvidia/nemotron-3-embed-1b";
+export const EMBED_NATIVE_DIMENSIONS = 2048;
 export const EMBED_DIMENSIONS = 1024;
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
@@ -109,18 +114,25 @@ export async function chat(messages: { role: "system" | "user"; content: string 
   };
 }
 
+/** Keeps the first EMBED_DIMENSIONS values and L2-normalizes the result, as the model card requires. */
+function sliceAndNormalize(vector: number[]): number[] {
+  const kept = vector.slice(0, EMBED_DIMENSIONS);
+  const norm = Math.sqrt(kept.reduce((sum, v) => sum + v * v, 0));
+  if (norm === 0) throw new ModelServiceError("bad-response", "The embedding service returned an all-zero vector.");
+  return kept.map((v) => v / norm);
+}
+
 /**
- * Embeds each text as a "passage" (indexing) or a "query" (a question); the embedder is trained for the two modes
- * and retrieval drops sharply if they are mixed up. A response whose length or vector size is not exactly what
- * was asked for is an error, never a truncation (ai-assist.md, "Model roles").
+ * Embeds each text as a "passage" (indexing) or a "query" (a question). The model is trained for the two modes
+ * and the vendor says the caller adds the prefix itself, so it is added here: retrieval drops sharply if the two
+ * are mixed up. A response whose count or vector size is not what the model is documented to return is an error,
+ * never a truncation (ai-assist.md, "Model roles"); only the documented 2,048 to 1,024 cut is made, deliberately.
  */
 export async function embed(texts: string[], inputType: "passage" | "query"): Promise<number[][]> {
   const raw = await post("/embeddings", {
     model: EMBED_MODEL_ID,
-    input: texts,
-    input_type: inputType,
+    input: texts.map((t) => `${inputType}: ${t}`),
     encoding_format: "float",
-    truncate: "NONE", // an input too long for the model is an error to show, not text to cut silently
   });
   const parsed = EmbeddingResponseSchema.safeParse(raw);
   if (!parsed.success || parsed.data.data.length !== texts.length) {
@@ -128,9 +140,12 @@ export async function embed(texts: string[], inputType: "passage" | "query"): Pr
   }
   const ordered = [...parsed.data.data].sort((a, b) => a.index - b.index);
   return ordered.map((d) => {
-    if (d.embedding.length !== EMBED_DIMENSIONS) {
-      throw new ModelServiceError("bad-response", `The embedding service returned ${d.embedding.length} dimensions, not ${EMBED_DIMENSIONS}.`);
+    if (d.embedding.length !== EMBED_NATIVE_DIMENSIONS) {
+      throw new ModelServiceError(
+        "bad-response",
+        `The embedding service returned ${d.embedding.length} dimensions, not the ${EMBED_NATIVE_DIMENSIONS} ${EMBED_MODEL_ID} is documented to return.`,
+      );
     }
-    return d.embedding;
+    return sliceAndNormalize(d.embedding);
   });
 }
