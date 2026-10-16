@@ -39,12 +39,12 @@ export default defineConfig({
     // Signed out. The two device profiles give the desktop and phone-width runs the sign-in specs rely on.
     {
       name: "public-desktop",
-      testIgnore: ["app/**", "journeys/**", "ai/**", "auth.setup.ts"],
+      testIgnore: ["app/**", "journeys/**", "ai/**", "perf/**", "auth.setup.ts"],
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "public-phone",
-      testIgnore: ["app/**", "journeys/**", "ai/**", "auth.setup.ts"],
+      testIgnore: ["app/**", "journeys/**", "ai/**", "perf/**", "auth.setup.ts"],
       use: { ...devices["Pixel 7"] },
     },
 
@@ -70,6 +70,24 @@ export default defineConfig({
       timeout: 6 * 60_000,
       workers: 1,
       use: { ...devices["Desktop Chrome"] },
+    },
+
+    // Performance: what a person feels. `perf-public` needs nothing; `perf-app` is signed in and some of it waits for the worker. One worker each, so
+    // measurements do not compete with each other. Budgets are for a production build (E2E_PERF_SCALE loosens them).
+    {
+      name: "perf-public",
+      testMatch: "perf/public-*.spec.ts",
+      timeout: 3 * 60_000,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "perf-app",
+      testMatch: "perf/app-*.spec.ts",
+      dependencies: ["setup"],
+      timeout: 8 * 60_000,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_FILE },
     },
 
     // AI assist. `ai-model` talks to the model service from Node and needs no browser or sign-in; `ai-ui` drives

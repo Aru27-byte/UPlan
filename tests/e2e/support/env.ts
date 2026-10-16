@@ -47,6 +47,26 @@ export const AI_LATENCY_P50_MS = intFromEnv("E2E_AI_LATENCY_P50_MS", 15_000);
 export const AI_LATENCY_P95_MS = intFromEnv("E2E_AI_LATENCY_P95_MS", 35_000);
 export const AI_LATENCY_HARD_MAX_MS = 45_000;
 
+// Performance budgets (the perf specs, tagged @perf). The numbers below are for a production build on Vercel with
+// Supabase in the same region: they are what a planner should feel. A development server, a laptop, or a far-away
+// database is slower for reasons that are not the app's, so E2E_PERF_SCALE multiplies every time budget (and nothing
+// else): 1 for production, 10 to check a dev server's mechanics. Byte, count, and shift budgets never scale.
+function floatFromEnv(name: string, whenUnset: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return whenUnset;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0)
+    throw new Error(`${name} must be a positive number, got "${raw}".`);
+  return value;
+}
+export const PERF_SCALE = floatFromEnv("E2E_PERF_SCALE", 1);
+/** A time budget in milliseconds, scaled for the machine under test. */
+export const ms = (budget: number): number => budget * PERF_SCALE;
+/** How many times each page or action is measured after one warm-up. The 95th percentile of fewer than 20 is the worst. */
+export const PERF_RUNS = intFromEnv("E2E_PERF_RUNS", 5);
+/** How many projects the scaling spec builds up to. */
+export const PERF_PROJECTS = intFromEnv("E2E_PERF_PROJECTS", 10);
+
 /** How many times each golden case is asked. The model samples at temperature 1.0, so one answer proves little. */
 export const AI_REPEATS = intFromEnv("E2E_AI_REPEATS", 3);
 

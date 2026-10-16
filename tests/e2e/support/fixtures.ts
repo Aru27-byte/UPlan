@@ -24,6 +24,8 @@ type Fixtures = {
 };
 
 type WorkerFixtures = {
+  /** One project with only a title, shared by every test in a worker. Read-only: no test may change it. */
+  sharedBlankProject: ProjectRef;
   /** One analysed sample-data project shared by every test in a worker. Read-only: no test may change it. */
   sharedSampleProject: ProjectRef;
 };
@@ -42,6 +44,19 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     await use(project);
     await deleteProject(page, project.title);
   },
+
+  sharedBlankProject: [
+    async ({ browser }, use) => {
+      const context = await browser.newContext({ baseURL: BASE_URL, storageState: AUTH_FILE });
+      const page = await context.newPage();
+      const title = uniqueTitle("shared-blank");
+      const id = await createProject(page, { title });
+      await use({ id, title });
+      await deleteProject(page, title);
+      await context.close();
+    },
+    { scope: "worker" },
+  ],
 
   sharedSampleProject: [
     async ({ browser }, use) => {
