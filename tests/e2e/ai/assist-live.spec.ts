@@ -501,6 +501,27 @@ test.describe("the city profile", () => {
   });
 });
 
+test.describe("a suggestion goes stale when its phase moves", () => {
+  test("@live F24 R13: after the study area changes, the old Evidence suggestion says it is out of date and is kept, not rewritten", async () => {
+    await goToStep(page, "evidence");
+    const panel = await openPanel("evidence");
+    const before = await panel.locator("article").first().innerText();
+
+    await goToStep(page, "site");
+    await page.getByRole("button", { name: "Load sample study area" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Sample study area loaded." })).toBeVisible();
+    await waitForAnalysisToSettle(page);
+
+    await goToStep(page, "evidence");
+    const card = (await openPanel("evidence")).locator("article").first();
+    await expect(card).toContainText("Out of date.");
+    await expect(card).toContainText("The phase's output changed after this was made.");
+    await expect(card).toContainText("Ask again to get a suggestion for what is on the page now.");
+    // The words of the old answer are untouched; only the warning was added.
+    expect((await card.innerText()).replace(/Out of date\.[\s\S]*?now\.\s*/, "")).toBe(before);
+  });
+});
+
 test.describe("across every ask", () => {
   test("@live latency and yield: asks finish inside the budget, and most end in a shown answer", async () => {
     const testInfo = test.info();
