@@ -63,6 +63,7 @@ A city's profile: its regulated categories, its rules, and the settings its plan
 
 - Every rule cites the code section or ordinance it comes from, and when it took effect (P1).
 - A second city is a new profile, not a rewrite.
+- **Planners switch between cities** *(2026-10-16, by request; F20 R11)*. Illustrative profiles for Redmond and Bellevue were added beside Sammamish's so there are cities to switch between (`jurisdiction-profile` R12). They are not those cities' law: each citation says so. Whether v1 opens to more than one city stays a round 10 question.
 - Rules are always current *(round 7)*: every decision uses the profile as it stands now. *Under review in round 10, because planners can now mark rule types as vesting.*
 - **Settings planners choose** *(2026-09-12)*, instead of facts UPlan confirms with each city:
   - **Vesting:** which rule types vest to the date an application was filed. What the setting does to the analysis is open in round 10.

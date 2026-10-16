@@ -86,9 +86,11 @@ existing accounts to their Supabase logins before anything else; step 7 then onl
 npm run db:seed:local -- you@example.com
 ```
 
-Use the email you just registered with. This makes you UPlan staff, creates the one city
-("Sammamish"), approves an illustrative Sammamish profile, and installs the illustrative sample
-evidence datasets. It creates no project: you start one from the dashboard. Safe to re-run any time;
+Use the email you just registered with. This makes you UPlan staff, creates three cities
+("Sammamish", "Redmond", "Bellevue"), approves an illustrative profile for each, and installs the
+illustrative sample evidence datasets for Sammamish. Use the **City** control in the left rail to
+switch between them (it appears once more than one city exists); "Start with sample data" is offered
+in Sammamish only. It creates no project: you start one from the dashboard. Safe to re-run any time;
 it skips whatever already exists. There is no jurisdiction membership: every signed-in person is a
 planner, and a project belongs to the person who created it.
 

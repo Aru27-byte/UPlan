@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+
 import { sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { createJurisdiction, jurisdictionCovers } from "@/modules/profiles";
 import { db } from "@/platform/db";
 import { ConflictError, NotFoundError, ValidationError } from "@/platform/errors";
 
@@ -18,7 +21,7 @@ import {
   updateDecisionDetails,
 } from "./decisions";
 import { getGeometrySummaryInternal, getLatestGeometry, saveGeometry } from "./geometry";
-import { loadSampleDetails } from "./sample-data";
+import { loadSampleDetails, SAMPLE_STUDY_AREA } from "./sample-data";
 
 // TechDesign/decisions.md — integration tests against the real PostgreSQL with PostGIS that
 // tests/setup/integration-db.ts starts, with every migration applied (never a mocked database). Requires
@@ -84,8 +87,33 @@ describe("R1: a decision belongs to the person who created it", () => {
     await expect(getDecision(other.actor, project.id)).rejects.toBeInstanceOf(NotFoundError);
     await expect(getDecision(staff.actor, project.id)).rejects.toBeInstanceOf(NotFoundError); // R9: staff rights open no project
     await expect(saveGeometry(other.actor, project.id, "study_area", square(-122.03), "x", 1)).rejects.toBeInstanceOf(NotFoundError);
-    expect((await listDecisions(other.actor)).map((d) => d.id)).not.toContain(project.id);
-    expect((await listDecisions(owner.actor)).map((d) => d.id)).toContain(project.id);
+    expect((await listDecisions(other.actor, city.id)).map((d) => d.id)).not.toContain(project.id);
+    expect((await listDecisions(owner.actor, city.id)).map((d) => d.id)).toContain(project.id);
+  });
+
+  it("R2/R11/R12 (project-dashboard): the list is one city's projects, and the other city's are kept", async () => {
+    const owner = await createPerson();
+    const otherCity = await createReadyCity({ sampleEvidence: false });
+    const here = await newProject(owner, "In the current city");
+    const there = await createDecision(owner.actor, { jurisdictionId: otherCity.id, title: "In the other city", applicationType: "subdivision" });
+
+    expect((await listDecisions(owner.actor, city.id)).map((d) => d.id)).toEqual([here.id]);
+    expect((await listDecisions(owner.actor, otherCity.id)).map((d) => d.id)).toEqual([there.id]);
+    // R12: a project opens under its own city whichever city is current.
+    expect((await getDecision(owner.actor, there.id)).jurisdictionId).toBe(otherCity.id);
+  });
+
+  it("R10 (sample-data): a city covers the sample site only when its boundary contains it", async () => {
+    const away = await createJurisdiction((await createPerson({ staff: true })).actor, {
+      name: `Away City ${randomUUID().slice(0, 8)}`,
+      stateCode: "WA",
+      timeZone: "America/Los_Angeles",
+      analysisSrid: 2926,
+      boundary: square(-122.2), // far from the sample study area
+    });
+    expect(await jurisdictionCovers(city.id, SAMPLE_STUDY_AREA)).toBe(true);
+    expect(await jurisdictionCovers(away.id, SAMPLE_STUDY_AREA)).toBe(false);
+    await expect(jurisdictionCovers(randomUUID(), SAMPLE_STUDY_AREA)).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("R1: a project that doesn't exist reads exactly like one that isn't yours", async () => {
@@ -313,7 +341,7 @@ describe("R14: deleting hides a project and keeps every record", () => {
     await deleteDecision(owner.actor, project.id, project.rowVersion);
 
     await expect(getDecision(owner.actor, project.id)).rejects.toBeInstanceOf(NotFoundError);
-    expect((await listDecisions(owner.actor)).map((d) => d.id)).not.toContain(project.id);
+    expect((await listDecisions(owner.actor, city.id)).map((d) => d.id)).not.toContain(project.id);
     const kept = await db.execute<{ n: number }>(sql`select count(*)::int as n from decision_geometry where decision_id = ${project.id}`);
     expect(kept.rows[0]?.n).toBe(1);
     const row = await db.execute<{ deleted_by: string }>(sql`select deleted_by from decision where id = ${project.id}`);

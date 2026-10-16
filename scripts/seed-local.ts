@@ -1,9 +1,10 @@
 // Local-dev bootstrap only — never run against a real deployment (TechDesign/sample-data.md). It sets up what a
 // fresh database needs before anyone can start a project, and nothing else:
-//   1. the one city (Sammamish), created through the real createJurisdiction
+//   1. the pilot cities (Sammamish, Redmond, Bellevue), created through the real createJurisdiction
 //   2. staff access for the person named on the command line
-//   3. an ILLUSTRATIVE Sammamish profile, applied through the real applyProfileDocument
-//   4. the illustrative sample evidence datasets, through the real installSampleEvidence
+//   3. an ILLUSTRATIVE profile for each city, applied through the real applyProfileDocument
+//   4. the illustrative sample evidence datasets, for Sammamish only (the sample site is there; F23 R10),
+//      through the real installSampleEvidence
 //
 // It creates no project. A person starts one from the dashboard ("Start with sample data"), which fills in
 // every phase's input and queues the real analysis. Safe to re-run: each step skips what already exists.
@@ -21,29 +22,42 @@ import { getActor } from "../src/modules/accounts";
 import { staffMember } from "../src/modules/accounts/tables";
 import { installSampleEvidence } from "../src/modules/evidence";
 import {
+  BELLEVUE_SAMPLE_CODE,
+  REDMOND_SAMPLE_CODE,
+  SAMMAMISH_SAMPLE_CODE,
   SAMPLE_PROFILE_REASON,
   applyProfileDocument,
   buildSampleProfileDocument,
   createJurisdiction,
   getProfileOverview,
   listJurisdictions,
+  type SampleCityCode,
 } from "../src/modules/profiles";
 
-const SAMMAMISH_BOUNDARY = {
-  type: "MultiPolygon" as const,
-  // A rough bounding box, not a surveyed boundary — enough for the map to open on the right place.
-  coordinates: [
-    [
+// A rough bounding box, not a surveyed boundary — enough for the map to open on the right place. The three
+// boxes don't overlap, so the sample site (in Sammamish) is covered by Sammamish's box alone (F23 R10).
+function box(west: number, south: number, east: number, north: number) {
+  return {
+    type: "MultiPolygon" as const,
+    coordinates: [
       [
-        [-122.06, 47.55],
-        [-121.96, 47.55],
-        [-121.96, 47.65],
-        [-122.06, 47.65],
-        [-122.06, 47.55],
+        [
+          [west, south],
+          [east, south],
+          [east, north],
+          [west, north],
+          [west, south],
+        ],
       ],
     ],
-  ],
-};
+  };
+}
+
+const CITIES: { name: string; boundary: ReturnType<typeof box>; code: SampleCityCode }[] = [
+  { name: "Sammamish", boundary: box(-122.06, 47.55, -121.96, 47.65), code: SAMMAMISH_SAMPLE_CODE },
+  { name: "Redmond", boundary: box(-122.17, 47.64, -122.07, 47.72), code: REDMOND_SAMPLE_CODE },
+  { name: "Bellevue", boundary: box(-122.25, 47.53, -122.08, 47.64), code: BELLEVUE_SAMPLE_CODE },
+];
 
 async function makeStaff(userId: string, grantedBy: string): Promise<void> {
   await db.insert(staffMember).values({ userId, grantedBy }).onConflictDoNothing();
@@ -76,38 +90,43 @@ async function main(): Promise<void> {
   const person = await getActor(db, user.id);
   console.log(`${email} is UPlan staff`);
 
-  const cities = await listJurisdictions();
-  let cityId: string;
-  if (cities.length > 1) throw new Error(`${cities.length} cities exist, but this release supports one — remove the extras first`);
-  const [existingCity] = cities;
-  if (existingCity) {
-    cityId = existingCity.id;
-    console.log(`the city "${existingCity.name}" already exists (${cityId})`);
-  } else {
-    const created = await createJurisdiction(person, {
-      name: "Sammamish",
-      stateCode: "WA",
-      timeZone: "America/Los_Angeles",
-      analysisSrid: 2926,
-      boundary: SAMMAMISH_BOUNDARY,
-    });
-    cityId = created.id;
-    console.log(`created the city "Sammamish" (${cityId})`);
+  const existingCities = await listJurisdictions();
+  let sammamishId: string | null = null;
+  for (const city of CITIES) {
+    const existingCity = existingCities.find((c) => c.name === city.name);
+    let cityId: string;
+    if (existingCity) {
+      cityId = existingCity.id;
+      console.log(`the city "${city.name}" already exists (${cityId})`);
+    } else {
+      const created = await createJurisdiction(person, {
+        name: city.name,
+        stateCode: "WA",
+        timeZone: "America/Los_Angeles",
+        analysisSrid: 2926,
+        boundary: city.boundary,
+      });
+      cityId = created.id;
+      console.log(`created the city "${city.name}" (${cityId})`);
+    }
+    if (city.name === "Sammamish") sammamishId = cityId;
+
+    const overview = await getProfileOverview(cityId);
+    if (overview.versionNumber === null) {
+      await applyProfileDocument(person, cityId, null, buildSampleProfileDocument(city.code), SAMPLE_PROFILE_REASON);
+      console.log(`applied the illustrative ${city.name} profile`);
+    } else {
+      console.log(`${city.name} already has an approved profile (version ${overview.versionNumber}) — skipping`);
+    }
   }
 
-  const overview = await getProfileOverview(cityId);
-  if (overview.versionNumber === null) {
-    await applyProfileDocument(person, cityId, null, buildSampleProfileDocument(), SAMPLE_PROFILE_REASON);
-    console.log("applied the illustrative Sammamish profile");
-  } else {
-    console.log(`the city already has an approved profile (version ${overview.versionNumber}) — skipping`);
-  }
-
-  const { created, existing } = await installSampleEvidence(person, cityId);
-  console.log(`sample evidence: ${created.length} installed, ${existing.length} already present`);
+  // Sample evidence is placed on the sample site, which is in Sammamish (F23 R10).
+  if (!sammamishId) throw new Error("Sammamish is missing after setup — this should not happen");
+  const { created, existing } = await installSampleEvidence(person, sammamishId);
+  console.log(`sample evidence (Sammamish): ${created.length} installed, ${existing.length} already present`);
 
   console.log("");
-  console.log("Next: start the worker (`npm run worker:dev`), open http://localhost:3000, and choose \"Start with sample data\".");
+  console.log("Next: start the worker (`npm run worker:dev`), open http://localhost:3000, pick a city, and choose \"Start with sample data\" (Sammamish only).");
 }
 
 main()

@@ -2,7 +2,9 @@
 // app has no screen for this: a dataset is set up by UPlan staff, once, with its authority, precision, license,
 // and limitation recorded from the publisher (never inferred from its features). This is the staff path.
 //
-//   npm run db:dataset:add -- you@example.com path/to/dataset.json
+//   npm run db:dataset:add -- you@example.com path/to/dataset.json [City name]
+//
+// The city name (for example Redmond) is required when more than one city is set up.
 //
 // Needs, on the machine that runs it: GDAL's `ogr2ogr` on PATH (ingestion loads the file with it), DATABASE_URL
 // pointing at the database the app uses, and the OCI_S3_* variables pointing at an S3-compatible bucket the file
@@ -78,8 +80,16 @@ async function main(): Promise<void> {
   const actor = await getActor(db, user.id);
   if (!actor.isStaff) throw new Error(`${email} is not UPlan staff`);
 
-  const [city, ...others] = await listJurisdictions();
-  if (!city || others.length > 0) throw new Error("this release supports exactly one city");
+  // The city is named on the command line when more than one exists; with one, naming it is optional.
+  const cityName = process.argv[4];
+  const cities = await listJurisdictions();
+  const city = cityName ? cities.find((c) => c.name === cityName) : cities.length === 1 ? cities[0] : undefined;
+  if (!city) {
+    const names = cities.map((c) => c.name).join(", ") || "none set up";
+    throw new Error(
+      cityName ? `no city named "${cityName}" (cities: ${names})` : `name the city as the last argument (cities: ${names})`,
+    );
+  }
 
   // Coverage is the area the dataset is known to cover. A county-wide layer covers the city, so the city's own
   // boundary is a true statement; anything narrower is a GeoJSON file the person supplies.

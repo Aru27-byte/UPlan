@@ -49,6 +49,10 @@ src/modules/evidence/sample-evidence.ts
 
 The **City profile** page shows staff a "Sample evidence" panel: what it installs, that it is illustrative, and one button with a confirmation. Non-staff never see it, and the function refuses them regardless (R9).
 
+## Where the sample is offered (R10)
+
+`profiles` exports `jurisdictionCovers(jurisdictionId, geometry)`: one query, `select ST_Covers(boundary, ST_SetSRID(ST_GeomFromGeoJSON($geometry), 4326)) from jurisdiction where id = $id`, so PostGIS computes it and nothing is computed in JavaScript. A missing city is a `NotFoundError`. It lives in `profiles` because that module owns the `jurisdiction` table, and `decisions` cannot import `profiles` (which already imports `decisions`). So the app layer asks it about `SAMPLE_STUDY_AREA`: the dashboard and `projects/new` use the answer to decide whether to render the sample buttons, and `createSampleProjectAction` uses it to refuse with a `ValidationError` ("Sample data is placed in Sammamish, so it can't be started in {city}.") before calling `createSampleProject`. The guard reads the boundary, not the city's name, so it needs no list of cities. The boundaries are the rough boxes the setup script creates, and the check is only as good as they are.
+
 ## Labels (R6)
 
 - `dataset.is_sample boolean not null default false` (migration 0003). The default is `false` because "not sample" is the truth for every dataset that isn't one, not a stand-in for missing information.
@@ -61,7 +65,7 @@ The **City profile** page shows staff a "Sample evidence" panel: what it install
 `scripts/seed-local.ts` is rewritten to use the same modules:
 
 1. Run graphile-worker's migrations (its schema must exist before anything enqueues).
-2. Ensure the Sammamish jurisdiction.
+2. Ensure the three pilot jurisdictions: Sammamish, Redmond, and Bellevue (2026-10-16). Each gets an illustrative profile (`jurisdiction-profile.md` R12); only Sammamish gets sample evidence, because the sample site is there (R10).
 3. Make the named person UPlan staff, and create a synthetic staff reviewer for the profile approval (the no-self-approval constraint is unchanged).
 4. Ensure the illustrative profile through `proposeEdit` and `decideChange`.
 5. Call `installSampleEvidence`.

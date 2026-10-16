@@ -50,11 +50,11 @@ src/app/api/profile/template/route.ts                                  download 
 
 ```ts
 // decisions.ts
-export async function listDecisions(actor: Actor): Promise<Decision[]>; // own, not deleted, newest first (R2)
+export async function listDecisions(actor: Actor, jurisdictionId: string): Promise<Decision[]>; // own, in this city, not deleted, newest first (R2, R11)
 export async function deleteDecision(actor: Actor, decisionId: string, expectedRowVersion: number): Promise<void>; // R5
 ```
 
-- `listDecisions` filters on `created_by = actor.userId and deleted_at is null`. There is no jurisdiction parameter: a person's projects are theirs, whichever city they belong to.
+- `listDecisions` filters on `created_by = actor.userId and jurisdiction_id = $city and deleted_at is null`. The city is a required parameter, not a default: the dashboard lists the current city's projects (R11), and the other cities' projects are untouched and listed when their city is chosen (R12). The filter narrows a list the person already owns; it grants nothing. `listProjectSummaries(actor, jurisdictionId)` passes it through.
 - `getDecision` returns the row only when it is the actor's own and not deleted. Otherwise it throws `NotFoundError`, the same error for "doesn't exist", "isn't yours", and "was deleted", so a caller can't probe (R2, F11).
 - `deleteDecision` is one compare-and-set: `update decision set deleted_at = now(), deleted_by = $actor, row_version = row_version + 1 where id = $id and row_version = $expected and created_by = $actor and deleted_at is null and status <> 'finishing'`. Zero rows means `ConflictError` ("This project changed since you loaded it, or a document is being generated"). Nothing is deleted from any other table (R5). The `decision` row stays, and every list and read filters it out.
 
@@ -92,7 +92,22 @@ src/ui/shell/mobile-nav.client.tsx  client: a disclosure button that opens the r
 - **On a phone** the rail collapses into a top bar with a menu button. The button is a real `<button>` with `aria-expanded` and `aria-controls`. The links are in the DOM in both layouts, so nothing is hidden from a screen reader.
 - The layout calls `requireActor()` and `getCity()`, then hands plain strings to `AppShell`. The shell never queries.
 
-`getCity()` in `src/app/_lib/city.ts` wraps `listJurisdictions()` from `profiles` and applies the one-city rule: exactly one jurisdiction exists in this release (decided 2026-09-26), so it returns it; none is a `NotFoundError` whose message tells UPlan staff to run the setup script; more than one is a `ValidationError` saying this release supports one. There is no default in place of a missing city.
+`getCity()` in `src/app/_lib/city.ts` reads the cities with `listJurisdictions()` from `profiles` and the remembered choice from the `uplan_city` cookie, and hands both to `resolveCity` in `src/app/_lib/city-choice.ts`, a pure function (R13). It returns one of three results: `city` (the current city and the list), `choose` (more than one city and no valid remembered choice), or `problem` (none set up, with the message that tells UPlan staff to run the setup script). Exactly one city is the current city without any choice. A cookie naming a city that no longer exists is treated as no choice and the person is asked, not given another city. The layout renders a `problem` or `choose` result in place of the page.
+
+## Switching cities (R11–R13)
+
+```
+src/app/_lib/city-choice.ts         CITY_COOKIE, resolveCity (pure, unit-tested)
+src/app/_lib/city.ts                getCity: the cities + the cookie → resolveCity
+src/app/(app)/city/actions.ts       switchCityAction (Server Function)
+src/ui/city-switcher.tsx            the City control: a select and a Switch button over an ActionForm
+```
+
+- **Where the choice lives.** In a cookie, `uplan_city`, holding the city's id: `httpOnly`, `sameSite: lax`, `secure` in production, `path: /`, one year. It is a per-browser convenience, so it needs no table, migration, or job. It carries no authority: the id only selects which city's rows a page asks for, and every module function still scopes by the actor (R13). A tampered value is either not a UUID or not a city, and `resolveCity` treats both as no choice.
+- **`switchCityAction`** (`runAction` pattern): `requireActor()`, `requiredUuid(formData, "jurisdictionId")`, `getJurisdiction(id)` (a `NotFoundError` for a city that doesn't exist, shown in the form), then `cookies().set(...)` and `redirect("/dashboard")`. Switching always lands on the dashboard, because the page the person was on may belong to the city they just left.
+- **The control** is in the rail on every page, between **New research** and the navigation, and is the whole page content when `resolveCity` returns `choose`. It is a labelled `<select>` with a submit button, so it works without client script and a keyboard or screen-reader user needs nothing special (R8).
+- **A project opened from another city.** A project page reads its city from the project (F5), so a link or bookmark to a project in a city that isn't current still opens, under its own city's profile (R12). The rail keeps naming the current city; it does not change the cookie on a read.
+- **Sample data** (F23) is placed on the Sammamish site, so it is offered only for a city whose boundary contains that site; see `TechDesign/sample-data.md`.
 
 ## The visual system (R8)
 
@@ -172,6 +187,9 @@ An empty list renders an empty state with the two ways to begin (R1).
 | R8 | The token table, components, accessibility rules, contrast test | Axe checks in the end-to-end specs |
 | R9 | `projects/new`, `createProject`, `createSampleProject` | One form, two submitters |
 | R10 | `ActionForm`, `SubmitButton`, `runAction` | `role="alert"` and `role="status"` |
+| R11 | `CitySwitcher`, `switchCityAction`, `getCity`, `listDecisions(actor, jurisdictionId)` | The `uplan_city` cookie |
+| R12 | `listDecisions` city filter; project pages read the project's own city | Nothing is moved or deleted |
+| R13 | `resolveCity` | One city needs no choice; several with no valid choice ask; none is a problem |
 
 ## Risks and tradeoffs
 
@@ -181,7 +199,7 @@ An empty list renders an empty state with the two ways to begin (R1).
 
 ## Verification
 
-- Vitest unit tests: `runAction` maps each expected error class to `{ error }` and rethrows an unexpected error and a redirect (R10); the token contrast test (R8); `safeNextPath` and `DEFAULT_LANDING_PATH` (R1).
+- Vitest unit tests: `resolveCity` returns the only city without a choice, the chosen city when several exist, `choose` for no choice, a choice that is not a city, and a choice that is not a UUID, and `problem` for none (R13); `runAction` maps each expected error class to `{ error }` and rethrows an unexpected error and a redirect (R10); the token contrast test (R8); `safeNextPath` and `DEFAULT_LANDING_PATH` (R1).
 - Testcontainers integration tests: `listDecisions` returns only the actor's own non-deleted projects, and a second actor gets `NotFoundError` from `getDecision` on the first's project (R2); `deleteDecision` hides the project, leaves its geometry, runs, and reviews in place, and fails with `ConflictError` on a stale `row_version` and while a document is being generated (R5); **a race test** fires two `deleteDecision` calls on one version at once and asserts one succeeds (R5); `listProjectSummaries` for a project in each state (R3, R4).
 - Playwright: sign in, land on the dashboard, see the research table sorted by phases left, expand a row to see its phase status, see the correct actions for an in-progress and a completed project, delete with confirmation, and pass `@axe-core/playwright` at desktop and phone widths (R1–R8).
 

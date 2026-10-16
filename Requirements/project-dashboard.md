@@ -19,7 +19,7 @@ A **project** is a decision (charter). **Research** is the work done on it. See 
 
 **R1. After signing in, a person lands on the dashboard.** A person who registered lands there too. A person with no projects sees an empty state that offers **New research** and **Start with sample data** (F23), not a blank page.
 
-**R2. The dashboard lists the signed-in person's own projects, and only theirs.** It lists them as one table, **My Research Projects**, with the projects that have the most phases left to review first. Deleted projects never appear. Nobody sees another person's project, and a request for one reads as "not found" (F11).
+**R2. The dashboard lists the signed-in person's own projects in the current city (R11), and only theirs.** It lists them as one table, **My Research Projects**, with the projects that have the most phases left to review first. Deleted projects never appear. Nobody sees another person's project, and a request for one reads as "not found" (F11).
 
 **R3. Each project row states: its title, a progress badge, a "Sample data" badge when it uses sample data, a count of phases left for review, and when it was last updated.** The progress badge is counts and words: for example "3 of 6 phases reviewed", or "Completed · version 2" once a document is published. The count of phases left for review sits beside the badge, so it is readable before the row is opened. Opening a row shows each phase's state as a track of six steps, with the number of phases left for review at its top right. None of it is a percentage, score, or rating (F18 R5).
 
@@ -41,12 +41,19 @@ A **project** is a decision (charter). **Research** is the work done on it. See 
 
 **R10. Every action reports what happened.** A successful action shows a confirmation on the next page. A failure shows a message a planner can act on, in the page, not a blank error screen. A button that submits disables itself while the request is in flight.
 
+**R11. A planner can switch between cities _(added 2026-10-16, by request; replaces the one-city rule of 2026-09-26)_.** The navigation rail on every signed-in page has a **City** control that lists every city set up, by name, with the current one selected. It appears when more than one city is set up; with one there is nothing to switch to. Choosing a city makes it the **current city** and opens the dashboard. The current city is the one whose profile **City profile** opens, whose rules **New research** names and applies (R9), and whose projects the dashboard lists (R2). The choice is remembered in the person's browser, so it is the same on the next visit from that browser.
+
+**R12. Switching cities hides nothing and changes nothing.** Projects in other cities are kept and listed again when their city is chosen. A project always opens under the city it was created in, whichever city is current, and it is analyzed under that city's profile (F5).
+
+**R13. The current city is never guessed.** With exactly one city set up, that city is the current one. With more than one, the current city is the one the person chose; if they have not chosen one, or the remembered choice names a city that no longer exists, the page asks them to choose, listing the cities, and shows nothing else. With none set up, the page says so and how UPlan staff fix it. The remembered choice is not a secret and grants no access: every read and write is still scoped by the module function that performs it (F11).
+
 ## Out of scope for this feature
 
 - Sharing a project with another person, and any team view of many people's projects. Both need F12's access model.
 - Search, filters, and sorting controls beyond the fixed order in R2. A list of a planner's own projects is short in the pilot.
 - Purging deleted projects. Purging is a records process (F16), not a planner action.
-- A city switcher. Sammamish is the only city for now (decided 2026-09-26).
+- Per-person limits on which cities someone may switch to. Every signed-in person may read every city's profile (F11 R3), so every city is offered to everyone.
+- A project that moves from one city to another. A project belongs to the city it was created under (F5).
 
 ## Open items
 

@@ -31,6 +31,8 @@ The whole workflow — from a site to a published document — has to be usable,
 
 **R9. Installing the illustrative datasets is a staff action that never overwrites or deletes.** It creates the datasets, their versions, and their features only when they don't exist, and it maps them to the city's profile. It asks for confirmation and says the data is illustrative. It is available only to UPlan staff.
 
+**R10. A sample project is offered, and created, only for a city whose boundary contains the sample site _(added 2026-10-16, with the city switcher — F20 R11)_.** The sample site is a fixed place in Sammamish. In another city it would sit outside the city's rules and evidence, so the dashboard and the new-research form do not offer **Start with sample data** there, and asking for one anyway is refused with a message saying why.
+
 ## Out of scope for this feature
 
 - Sample profiles. A city's profile comes from an upload (F17) or the setup script. This release's setup script creates an illustrative Sammamish profile for a fresh database.

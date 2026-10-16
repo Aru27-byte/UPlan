@@ -23,11 +23,13 @@ export function AppNav({
   items,
   userName,
   userEmail,
+  citySwitcher,
   children,
 }: {
   items: NavItem[];
   userName: string;
   userEmail: string;
+  citySwitcher: ReactNode; // the City control, built by the server shell (F20 R11)
   children: ReactNode; // the page
 }) {
   const pathname = usePathname();
@@ -66,6 +68,7 @@ export function AppNav({
             <Icon name="plus" />
             New research
           </Link>
+          {citySwitcher}
           <nav aria-label="Main">
             <ul className="flex flex-col gap-1">
               {items.map((item) => {

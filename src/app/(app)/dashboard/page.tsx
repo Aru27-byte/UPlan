@@ -3,7 +3,8 @@ import Link from "next/link";
 import { requireActor } from "@/app/_lib/actor";
 import { getCity } from "@/app/_lib/city";
 import { projectHref, publishedVersion } from "@/app/_lib/workflow-labels";
-import { LIST_LIMIT } from "@/modules/decisions";
+import { LIST_LIMIT, SAMPLE_STUDY_AREA } from "@/modules/decisions";
+import { jurisdictionCovers } from "@/modules/profiles";
 import { formatTimestamp } from "@/modules/provenance";
 import { listProjectSummaries, type ProjectSummary } from "@/modules/workflow";
 import { actionClassName } from "@/ui/action-styles";
@@ -32,7 +33,10 @@ export default async function DashboardPage() {
   if (cityResult.kind !== "city") return null; // the layout already shows the problem in place of this page
   const city = cityResult.city;
 
-  const summaries = await listProjectSummaries(actor);
+  const [summaries, hasSampleSite] = await Promise.all([
+    listProjectSummaries(actor, city.id),
+    jurisdictionCovers(city.id, SAMPLE_STUDY_AREA), // F23 R10: the sample site is in Sammamish
+  ]);
   const inProgressCount = summaries.filter((s) => s.state !== "completed").length;
   const completedCount = summaries.length - inProgressCount;
   const sorted = [...summaries].sort((a, b) => phasesLeft(b) - phasesLeft(a) || b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
@@ -62,19 +66,21 @@ export default async function DashboardPage() {
         <Panel title="Start your first research">
           <p className="max-w-prose text-sm text-text">
             A project holds one application&apos;s research, from its site to a final document. Start one from
-            scratch, or start with sample data to see every phase work on a fictional site.
+            scratch{hasSampleSite ? ", or start with sample data to see every phase work on a fictional site" : ""}.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link href="/projects/new" className={actionClassName("primary")}>
               <Icon name="plus" />
               New research
             </Link>
-            <ActionForm action={createSampleProjectAction}>
-              <input type="hidden" name="jurisdictionId" value={city.id} />
-              <SubmitButton variant="secondary" pendingLabel="Creating the sample project…">
-                Start with sample data
-              </SubmitButton>
-            </ActionForm>
+            {hasSampleSite ? (
+              <ActionForm action={createSampleProjectAction}>
+                <input type="hidden" name="jurisdictionId" value={city.id} />
+                <SubmitButton variant="secondary" pendingLabel="Creating the sample project…">
+                  Start with sample data
+                </SubmitButton>
+              </ActionForm>
+            ) : null}
           </div>
         </Panel>
       ) : (

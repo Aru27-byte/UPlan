@@ -157,6 +157,6 @@ Deferred by decision, 2026-09-12.
 
 ## Open questions
 
-**Round 10:** whether vesting settings change which rules a decision uses; who approves profile uploads and edits; whether v1 opens to cities beyond Sammamish; and whether automatic code tracking stays in release 1. Feature-level questions are in `Requirements/features.md`.
+**Round 10:** whether vesting settings change which rules a decision uses; who approves profile uploads and edits; whether v1 opens to cities beyond Sammamish; and whether automatic code tracking stays in release 1. *(On 2026-10-16 the app gained a city switcher and illustrative Redmond and Bellevue profiles, by request, to build and test against. This does not decide the round 10 question: the profiles are not those cities' law, and Sammamish stays the pilot.)* Feature-level questions are in `Requirements/features.md`.
 
 **AI assist** *(2026-10-10)*: whether a city's pilot use of NVIDIA's free inference service is permitted under its terms, which decides whether assist is on for real projects or for evaluation only; and where the code text for retrieval comes from on the new hosting.

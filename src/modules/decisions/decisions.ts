@@ -102,12 +102,17 @@ export async function getDecision(actor: Actor, decisionId: string): Promise<Dec
   return row;
 }
 
-/** The actor's own decisions, newest first — at most LIST_LIMIT (R2). */
-export async function listDecisions(actor: Actor): Promise<Decision[]> {
+/**
+ * The actor's own decisions in one city, newest first — at most LIST_LIMIT (project-dashboard.md R2, R11).
+ * The city narrows what the actor already owns; other cities' decisions are kept and listed under theirs.
+ */
+export async function listDecisions(actor: Actor, jurisdictionId: string): Promise<Decision[]> {
   return db
     .select()
     .from(decision)
-    .where(and(eq(decision.createdBy, actor.userId), isNull(decision.deletedAt)))
+    .where(
+      and(eq(decision.createdBy, actor.userId), eq(decision.jurisdictionId, jurisdictionId), isNull(decision.deletedAt)),
+    )
     .orderBy(desc(decision.createdAt))
     .limit(LIST_LIMIT);
 }

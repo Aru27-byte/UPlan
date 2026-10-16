@@ -4,7 +4,15 @@ import { redirect } from "next/navigation";
 
 import { requireActor } from "@/app/_lib/actor";
 import { optionalText, requiredInt, requiredText, requiredUuid, runAction } from "@/app/_lib/action-state";
-import { ApplicationTypeSchema, createDecision, createSampleProject, deleteDecision, reopen } from "@/modules/decisions";
+import {
+  ApplicationTypeSchema,
+  SAMPLE_STUDY_AREA,
+  createDecision,
+  createSampleProject,
+  deleteDecision,
+  reopen,
+} from "@/modules/decisions";
+import { jurisdictionCovers } from "@/modules/profiles";
 import { ValidationError } from "@/platform/errors";
 import type { ActionState } from "@/ui/action-state";
 
@@ -37,7 +45,12 @@ export async function createProjectAction(_previous: ActionState, formData: Form
 export async function createSampleProjectAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
   return runAction(async () => {
     const { actor } = await requireActor();
-    const project = await createSampleProject(actor, requiredUuid(formData, "jurisdictionId", "The city"));
+    const jurisdictionId = requiredUuid(formData, "jurisdictionId", "The city");
+    // F23 R10: the sample site is in Sammamish. The check lives here because `decisions` cannot import `profiles`.
+    if (!(await jurisdictionCovers(jurisdictionId, SAMPLE_STUDY_AREA))) {
+      throw new ValidationError("Sample data is placed in Sammamish, so it can't be started in this city. Start new research instead.");
+    }
+    const project = await createSampleProject(actor, jurisdictionId);
     redirect(`/projects/${project.id}/overview`);
   });
 }

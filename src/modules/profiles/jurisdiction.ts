@@ -68,6 +68,24 @@ export async function getJurisdictionBoundary(jurisdictionId: string): Promise<G
   return JSON.parse(row.boundary_geojson) as Geometry;
 }
 
+/**
+ * Whether the city's boundary contains the geometry. PostGIS decides (do-not.md: no geometry maths in
+ * JavaScript); a city that doesn't exist is a NotFoundError, never "false".
+ */
+export async function jurisdictionCovers(jurisdictionId: string, geom: Geometry): Promise<boolean> {
+  const [row] = await db
+    .execute<{ covers: boolean }>(
+      sql`
+        select ST_Covers(boundary, ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geom)}), 4326)) as covers
+        from jurisdiction
+        where id = ${jurisdictionId}
+      `,
+    )
+    .then((r) => r.rows);
+  if (!row) throw new NotFoundError("jurisdiction");
+  return row.covers;
+}
+
 /** Internal (system-authority) read for the daily maintenance sweep (apply_effective_dates, flag_retention). */
 export async function listJurisdictionIds(): Promise<string[]> {
   const rows = await db.select({ id: jurisdiction.id }).from(jurisdiction);

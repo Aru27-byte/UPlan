@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { getCity } from "@/app/_lib/city";
 import { APPLICATION_TYPE_LABEL } from "@/app/_lib/labels";
+import { SAMPLE_STUDY_AREA } from "@/modules/decisions";
+import { jurisdictionCovers } from "@/modules/profiles";
 import { ActionForm } from "@/ui/action-form.client";
 import { inputClassName } from "@/ui/action-styles";
 import { PageHeader } from "@/ui/page-header";
@@ -17,6 +19,7 @@ export default async function NewProjectPage() {
   const cityResult = await getCity();
   if (cityResult.kind !== "city") return null;
   const city = cityResult.city;
+  const hasSampleSite = await jurisdictionCovers(city.id, SAMPLE_STUDY_AREA); // F23 R10
 
   return (
     <>
@@ -65,17 +68,19 @@ export default async function NewProjectPage() {
         </ActionForm>
       </Panel>
 
-      <Panel
-        title="Or start with sample data"
-        description="A project with every phase's input filled in from a fictional site, so you can work through the whole workflow."
-      >
-        <ActionForm action={createSampleProjectAction}>
-          <input type="hidden" name="jurisdictionId" value={city.id} />
-          <SubmitButton variant="secondary" pendingLabel="Creating the sample project…">
-            Start with sample data
-          </SubmitButton>
-        </ActionForm>
-      </Panel>
+      {hasSampleSite ? (
+        <Panel
+          title="Or start with sample data"
+          description="A project with every phase's input filled in from a fictional site, so you can work through the whole workflow."
+        >
+          <ActionForm action={createSampleProjectAction}>
+            <input type="hidden" name="jurisdictionId" value={city.id} />
+            <SubmitButton variant="secondary" pendingLabel="Creating the sample project…">
+              Start with sample data
+            </SubmitButton>
+          </ActionForm>
+        </Panel>
+      ) : null}
     </>
   );
 }

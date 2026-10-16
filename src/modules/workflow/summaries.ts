@@ -21,8 +21,8 @@ export type ProjectSummary = {
   lastActivityAt: Date;
 };
 
-export async function listProjectSummaries(actor: Actor): Promise<ProjectSummary[]> {
-  const decisions = await listDecisions(actor);
+export async function listProjectSummaries(actor: Actor, jurisdictionId: string): Promise<ProjectSummary[]> {
+  const decisions = await listDecisions(actor, jurisdictionId);
   return Promise.all(
     decisions.map(async (decision): Promise<ProjectSummary> => {
       const w = await getWorkflow(actor, decision.id);

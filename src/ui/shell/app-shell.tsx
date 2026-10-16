@@ -12,11 +12,13 @@ export function AppShell({
   userName,
   userEmail,
   cityName,
+  citySwitcher,
   children,
 }: {
   userName: string;
   userEmail: string;
   cityName: string;
+  citySwitcher: ReactNode; // already built by the layout, which holds the cities and the action
   children: ReactNode;
 }) {
   const items: NavItem[] = [
@@ -33,7 +35,7 @@ export function AppShell({
       >
         Skip to content
       </a>
-      <AppNav items={items} userName={userName} userEmail={userEmail}>
+      <AppNav items={items} userName={userName} userEmail={userEmail} citySwitcher={citySwitcher}>
         {children}
       </AppNav>
     </div>

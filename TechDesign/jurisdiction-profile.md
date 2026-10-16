@@ -73,6 +73,12 @@ export async function listJurisdictions(): Promise<Jurisdiction[]> {
 
 `current_profile_version_id` starts `null` (R7: no profile exists until a first change is approved) and only ever moves inside the approval transaction that `profile-upload-edit.md` owns, under `SELECT … FOR UPDATE` on the jurisdiction row, per `system-architecture.md`'s _Concurrency and consistency_ rule 4.
 
+## Illustrative profiles for several cities (R12)
+
+`buildSampleProfileDocument(code)` in `profiles/sample-profile.ts` takes the citations a city's rules carry, as a `SampleCityCode` (`{ criticalAreas: Citation; trees: Citation }`). `SAMMAMISH_SAMPLE_CODE` is the default, so every existing caller is unchanged; `REDMOND_SAMPLE_CODE` and `BELLEVUE_SAMPLE_CODE` are the other two. All three produce the same resource types, buffers, triggers, and tree rules, because the point is to have profiles to switch between, not to state three cities' law. Each citation's `codeSection` says the section is illustrative and was not checked, and for Redmond and Bellevue also that the numbers are copied from the Sammamish sample, so a commissioner reading a figure can see it is not that city's. `SAMPLE_PROFILE_REASON` is reworded to name no city, so one constant serves all three.
+
+`scripts/seed-local.ts` creates each city by name if it is missing, with a rough bounding box like Sammamish's, and approves its profile through `applyProfileDocument`. Re-running it skips what exists. `scripts/add-dataset.ts` takes the city's name as an optional last argument and requires it when more than one city exists, instead of refusing to run.
+
 ## `rulesInForce` (R3, R5, R10)
 
 ```ts

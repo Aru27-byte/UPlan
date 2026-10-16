@@ -34,6 +34,8 @@ Every decision is analyzed under a city's rules, and the charter decided those r
 
 **R11. A profile document is self-consistent: no duplicate resource type key, no rule referencing a resource type that doesn't exist, and no two entries for the same rule key in force on the same day.** These are checked on every write, not just on upload.
 
+**R12. Redmond and Bellevue each have an illustrative profile, set up beside Sammamish's _(added 2026-10-16, by request)_.** They exist so the city switcher (F20 R11) has cities to switch between, and they are built the way Sammamish's sample profile is: staff approve them through the setup script, every citation says its code section is illustrative and was not checked against the city's code, and no figure in them is presented as that city's law. They reuse Sammamish's resource types, buffer widths, and tree thresholds, which is stated in each citation. A real profile replaces them by upload (F17). Each is its own city: a rule, setting, or version in one never reaches another (R7, F11).
+
 ## Out of scope for this feature
 
 - How a document reaches the system — upload from Excel, or an edit in UPlan's editor (F17).
@@ -43,4 +45,4 @@ Every decision is analyzed under a city's rules, and the charter decided those r
 ## Open items
 
 - **Round 10 — vesting:** R3's "warn only" fallback (`rulesInForce` running for both today and the filing date, flagging differences, rather than changing which rules apply) is the alternative `system-architecture.md` names if round 10 answers differently. This doc's design isolates that choice to the resolution function.
-- **Round 10 — cities beyond Sammamish:** every table here is already keyed by `jurisdiction_id`; a second city needs evidence coverage and a second profile document, not a schema change.
+- **Round 10 — cities beyond Sammamish:** every table here is already keyed by `jurisdiction_id`; a second city needs evidence coverage and a second profile document, not a schema change. Redmond and Bellevue were added as illustrative profiles on 2026-10-16 (R12); whether v1 opens to them in the pilot is still the round 10 question.

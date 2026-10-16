@@ -1,27 +1,45 @@
-import { SAMMAMISH_RESOURCE_TYPE_KEYS, type ProfileDocument } from "./schema";
+import { SAMMAMISH_RESOURCE_TYPE_KEYS, type Citation, type ProfileDocument } from "./schema";
 
 // TechDesign/sample-data.md ("Out of scope: sample profiles"). A city's profile normally comes from an
-// upload (F17) or a reviewed draft (F2). This is the ILLUSTRATIVE Sammamish profile the setup script
-// proposes for a fresh database and the integration tests approve, so the sample project has rules to run
-// under. Every citation says it was not verified against the current code; the one verified fact is the
-// tree DBH thresholds from the charter's Pilot context. Never approve it in a real deployment.
+// upload (F17) or a reviewed draft (F2). This is the ILLUSTRATIVE profile the setup script proposes for a
+// fresh database and the integration tests approve, so a project has rules to run under. It is built for
+// Sammamish, Redmond, or Bellevue (TechDesign/jurisdiction-profile.md, "Illustrative profiles for several
+// cities"); the three differ only in their citations. Every citation says it was not verified against the
+// current code; the one verified fact is Sammamish's tree DBH thresholds from the charter's Pilot context,
+// and Redmond's and Bellevue's citations say their figures are copied from the Sammamish sample. Never
+// approve it in a real deployment.
 
-const CAO_URL = "https://www.sammamish.us/projects/critical-areas-ordinance-cao-update/";
-const TREES_URL = "https://www.sammamish.us/government/community-development/permit-center/trees/";
-// Both reports are dated 2023-10-20 per the charter's Pilot context — the one real, verified date there
-// is for anything in the Sammamish CAO update, used here rather than inventing an ordinance effective date.
-const EFFECTIVE_ON = "2023-10-20";
+export type SampleCityCode = { criticalAreas: Citation; trees: Citation };
 
-function illustrativeCitation(topic: "critical-areas" | "trees") {
-  return {
-    codeSection:
-      topic === "critical-areas"
-        ? "SMC 21A (critical areas) — exact section not verified"
-        : "SMC 21A.35 (trees) — exact section not verified",
+const COPIED = "illustrative: section not verified, figures copied from the Sammamish sample";
+
+export const SAMMAMISH_SAMPLE_CODE: SampleCityCode = {
+  criticalAreas: {
+    codeSection: "SMC 21A (critical areas) — exact section not verified",
     ordinance: null,
-    sourceUrl: topic === "critical-areas" ? CAO_URL : TREES_URL,
-  };
-}
+    sourceUrl: "https://www.sammamish.us/projects/critical-areas-ordinance-cao-update/",
+  },
+  trees: {
+    codeSection: "SMC 21A.35 (trees) — exact section not verified",
+    ordinance: null,
+    sourceUrl: "https://www.sammamish.us/government/community-development/permit-center/trees/",
+  },
+};
+
+export const REDMOND_SAMPLE_CODE: SampleCityCode = {
+  criticalAreas: { codeSection: `RZC 21.64 (critical areas) — ${COPIED}`, ordinance: null, sourceUrl: "https://www.redmond.gov/" },
+  trees: { codeSection: `RZC 21.72 (trees) — ${COPIED}`, ordinance: null, sourceUrl: "https://www.redmond.gov/" },
+};
+
+export const BELLEVUE_SAMPLE_CODE: SampleCityCode = {
+  criticalAreas: { codeSection: `LUC 20.25H (critical areas) — ${COPIED}`, ordinance: null, sourceUrl: "https://bellevuewa.gov/" },
+  trees: { codeSection: `LUC 20.20.900 (trees) — ${COPIED}`, ordinance: null, sourceUrl: "https://bellevuewa.gov/" },
+};
+
+// Both Sammamish reports are dated 2023-10-20 per the charter's Pilot context — the one real, verified date
+// there is for anything in the Sammamish CAO update, used here rather than inventing an ordinance effective
+// date. Redmond and Bellevue reuse it as a placeholder, which their citations' "illustrative" already says.
+const EFFECTIVE_ON = "2023-10-20";
 
 // Illustrative buffer widths (not cited to a verified SMC section). Two resource types
 // (frequently-flooded-areas, critical-aquifer-recharge-areas) are regulated by elevation/zone rather than
@@ -34,9 +52,9 @@ const BUFFER_WIDTHS_FT: Partial<Record<(typeof SAMMAMISH_RESOURCE_TYPE_KEYS)[num
   "migration-corridors": 50,
 };
 
-export function buildSampleProfileDocument(): ProfileDocument {
-  const critical = illustrativeCitation("critical-areas");
-  const trees = illustrativeCitation("trees");
+export function buildSampleProfileDocument(code: SampleCityCode = SAMMAMISH_SAMPLE_CODE): ProfileDocument {
+  const critical = code.criticalAreas;
+  const trees = code.trees;
 
   const resourceTypes: ProfileDocument["resourceTypes"] = SAMMAMISH_RESOURCE_TYPE_KEYS.map((key) => ({
     key,
@@ -115,4 +133,4 @@ export function buildSampleProfileDocument(): ProfileDocument {
 }
 
 export const SAMPLE_PROFILE_REASON =
-  "Illustrative Sammamish profile for demonstration and local development. Every citation is marked as not verified against the current code; the tree DBH thresholds are the one fact verified in the charter's Pilot context.";
+  "Illustrative profile for demonstration and local development. Every citation is marked as not verified against the current code; Sammamish's tree DBH thresholds are the one fact verified in the charter's Pilot context.";

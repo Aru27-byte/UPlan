@@ -22,6 +22,7 @@ export {
   getJurisdiction,
   getJurisdictionBoundary,
   getProfileOverview,
+  jurisdictionCovers,
   listJurisdictionIds,
   listJurisdictions,
 } from "./jurisdiction";
@@ -31,7 +32,14 @@ export { getCurrentProfile, getProfileVersion, assertNoOrphanedDatasetMapping } 
 
 export { findRuleCitation } from "./citations";
 
-export { buildSampleProfileDocument, SAMPLE_PROFILE_REASON } from "./sample-profile";
+export {
+  BELLEVUE_SAMPLE_CODE,
+  buildSampleProfileDocument,
+  REDMOND_SAMPLE_CODE,
+  SAMMAMISH_SAMPLE_CODE,
+  SAMPLE_PROFILE_REASON,
+} from "./sample-profile";
+export type { SampleCityCode } from "./sample-profile";
 
 export { generateTemplate } from "./template";
 export { parseUpload } from "./upload";
