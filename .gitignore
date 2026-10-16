@@ -16,6 +16,8 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+# the saved sign-in session of the E2E person: cookies, never committed
+tests/e2e/.auth/
 *.tsbuildinfo
 
 # local model files (later, with F2) — pinned by SHA-256 in deploy/setup.sh, not committed
