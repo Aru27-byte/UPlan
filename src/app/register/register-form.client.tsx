@@ -17,11 +17,11 @@ export function RegisterForm() {
 
   if (state.confirmEmail !== undefined) {
     return (
-      <div role="status" className="card-sticker bg-card-green px-6 py-5">
-        <h2 className="text-lg font-bold">Check your email</h2>
-        <p className="mt-2 text-sm">
+      <div role="status" className="rounded-2xl border border-ok/45 bg-ok-soft px-6 py-5">
+        <h2 className="font-display text-xl font-bold text-heading">Check your email</h2>
+        <p className="mt-2 text-sm text-text">
           We sent a confirmation link to <strong>{state.confirmEmail}</strong>. Open it, then{" "}
-          <Link href="/sign-in" className="font-semibold underline underline-offset-4">
+          <Link href="/sign-in" className="font-semibold text-brand underline underline-offset-4 hover:text-accent-gold">
             sign in
           </Link>
           .
@@ -33,7 +33,7 @@ export function RegisterForm() {
   return (
     <Form action={formAction} validationErrors={state.fieldErrors} className="flex flex-col gap-5">
       {state.error === undefined ? null : (
-        <p role="alert" className="rounded-lg border-2 border-red-800 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <p role="alert" className="rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
           {state.error}
         </p>
       )}
@@ -68,7 +68,7 @@ export function RegisterForm() {
         autoComplete="new-password"
         isRequired
       />
-      <Button type="submit" isDisabled={isPending} className="mt-1 w-full py-3 text-ink">
+      <Button type="submit" isDisabled={isPending} size="lg" className="mt-1 w-full">
         {isPending ? "Creating account…" : "Create account"}
       </Button>
     </Form>

@@ -11,6 +11,7 @@ import {
 import { AutoRefresh } from "@/ui/auto-refresh.client";
 import { ConfirmDialog } from "@/ui/confirm-dialog.client";
 import { PageHeader } from "@/ui/page-header";
+import { panelClassName } from "@/ui/panel";
 import { StageRail, type RailStage } from "@/ui/phase/stage-rail.client";
 import { StatusLabel } from "@/ui/status-label";
 
@@ -82,7 +83,7 @@ export async function ProjectFrame({ projectId }: { projectId: string }) {
       ) : null}
 
       {w.decisionStatus === "report_released" ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-cream/70 bg-surface text-text shadow-panel px-4 py-3 text-sm">
+        <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm ${panelClassName}`}>
           <p className="max-w-prose text-text">
             <span className="font-semibold">This research is completed.</span> Version {publishedVersion(w.latestVersion)} of its
             document is published and can&apos;t change. You can still update the research: change what needs
@@ -106,7 +107,7 @@ export async function ProjectFrame({ projectId }: { projectId: string }) {
       {w.decisionStatus === "in_progress" && analysisMatters ? (
         <div
           role={w.facts.status.kind === "failed" ? "alert" : "status"}
-          className="flex flex-col gap-1 rounded-lg border-2 border-cream/70 bg-surface text-text shadow-panel px-4 py-3 text-sm"
+          className={`flex flex-col gap-1 px-4 py-3 text-sm ${panelClassName}`}
         >
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel tone={analysis.tone}>{analysis.text}</StatusLabel>

@@ -11,10 +11,12 @@ import {
   type TextFieldProps,
 } from "react-aria-components";
 
+import { inputClassName } from "./action-styles";
+
 // A labeled field for the sign-in and register forms (TechDesign/accounts-roles.md, R12): a visible
 // label, an optional hint tied to the input, and an error message tied to it too — from native
 // validation or from the server through the Form's `validationErrors`. A password field gets a
-// Show/Hide toggle. The focus ring is a flat ink offset, matching the "sticker" cards.
+// Show/Hide toggle. The input is the same one every other form in UPlan uses (inputClassName).
 export function TextField({
   label,
   hint,
@@ -25,29 +27,27 @@ export function TextField({
 
   return (
     <AriaTextField {...props} type={isPassword && isRevealed ? "text" : props.type} className="flex flex-col gap-1.5">
-      <Label className="text-sm font-semibold">{label}</Label>
+      <Label className="text-sm font-semibold text-text">{label}</Label>
       <div className="relative">
-        <Input
-          className={`w-full rounded-lg border-2 border-ink bg-white px-4 py-3 text-base outline-2 outline-transparent transition-shadow data-[focused]:shadow-[3px_3px_0_0_var(--color-ink)] data-[invalid]:border-red-800 ${isPassword ? "pr-20" : ""}`}
-        />
+        <Input className={`${inputClassName} py-3 text-base ${isPassword ? "pr-20" : ""}`} />
         {isPassword ? (
           <AriaButton
             type="button"
             aria-pressed={isRevealed}
             aria-label={isRevealed ? "Hide password" : "Show password"}
             onPress={() => setIsRevealed((revealed) => !revealed)}
-            className="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-4 text-sm font-semibold underline decoration-2 underline-offset-4 outline-2 outline-transparent data-[focus-visible]:bg-card-yellow"
+            className="absolute inset-y-1 right-1 flex cursor-pointer items-center rounded-lg px-3.5 text-sm font-semibold text-brand underline decoration-2 underline-offset-4 hover:bg-cream/[0.07]"
           >
             {isRevealed ? "Hide" : "Show"}
           </AriaButton>
         ) : null}
       </div>
       {hint ? (
-        <Text slot="description" className="text-xs text-ink/70">
+        <Text slot="description" className="text-xs text-muted">
           {hint}
         </Text>
       ) : null}
-      <FieldError className="text-sm font-medium text-red-800" />
+      <FieldError className="text-sm font-medium text-danger" />
     </AriaTextField>
   );
 }

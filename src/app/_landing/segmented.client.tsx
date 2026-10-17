@@ -26,13 +26,13 @@ export function Segmented<T extends string>({
         const chosen = options.find((option) => keys.has(option.id));
         if (chosen) onChange(chosen.id);
       }}
-      className="inline-flex flex-wrap rounded-full border-2 border-ink bg-white p-0.5"
+      className="inline-flex flex-wrap rounded-full border border-line-strong bg-page p-0.5"
     >
       {options.map((option) => (
         <ToggleButton
           key={option.id}
           id={option.id}
-          className="cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold outline-2 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-ink data-[hovered]:bg-ink/10 data-[selected]:bg-ink data-[selected]:text-cream"
+          className="cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold text-muted outline-3 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-accent-gold data-[hovered]:text-text data-[selected]:bg-accent-green data-[selected]:text-ink"
         >
           {option.label}
         </ToggleButton>

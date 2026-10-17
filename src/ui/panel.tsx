@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 
-// The signed-in app's one container: a white surface with a 1px border, a 12px radius, and a single soft
-// shadow. An optional title row carries the panel's name and its actions; the body is whatever the caller
-// passes. It renders a <section> named by its title, so a screen reader can move between panels.
+// The one container in UPlan: a dark surface with a thin gold edge, an 18px radius, and a deep soft shadow. An
+// optional title row carries the panel's name and its actions; the body is whatever the caller passes. It
+// renders a <section> named by its title, so a screen reader can move between panels.
+export const panelClassName = "rounded-[18px] border border-line bg-surface text-text shadow-panel";
+
 export function Panel({
   title,
   description,
@@ -25,15 +27,11 @@ export function Panel({
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const headingId = id ? `${id}-heading` : undefined;
   return (
-    <section
-      id={id}
-      aria-labelledby={title ? headingId : undefined}
-      className={`rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel ${className}`}
-    >
+    <section id={id} aria-labelledby={title ? headingId : undefined} className={`${panelClassName} ${className}`}>
       {title ? (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-line px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
-            <Heading id={headingId} className="text-base font-semibold text-text">
+            <Heading id={headingId} className="font-display text-lg font-bold tracking-tight text-heading">
               {title}
             </Heading>
             {description ? <p className="mt-0.5 text-sm text-muted">{description}</p> : null}

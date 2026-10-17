@@ -44,8 +44,8 @@ const SCENARIOS: Record<Case, { heading: string; lines: readonly Line[]; result:
 
 const DOT: Record<Line["tone"], string> = {
   present: "bg-status-regulatory",
-  absent: "bg-ink/40",
-  unknown: "border-2 border-dashed border-ink/50 bg-transparent",
+  absent: "bg-cream/40",
+  unknown: "border-2 border-dashed border-cream/55 bg-transparent",
 };
 
 export function GapsPanel() {
@@ -56,26 +56,26 @@ export function GapsPanel() {
     <div className="flex flex-col gap-5">
       <Segmented label="Kind of result" value={chosen} options={CASES} onChange={setChosen} />
 
-      <div key={chosen} className="showcase-in card-sticker flex flex-col gap-4 bg-white p-5 sm:p-6">
+      <div key={chosen} className="showcase-in flex flex-col gap-4 rounded-2xl border border-line bg-canvas p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-lg font-bold">{scenario.heading}</h3>
+          <h3 className="font-display text-lg font-bold text-heading">{scenario.heading}</h3>
           <span className="badge">{scenario.badge}</span>
         </div>
         <ul className="flex flex-col gap-2.5">
           {scenario.lines.map((line) => (
-            <li key={line.source} className="flex items-center gap-3 rounded-lg bg-cream-soft px-4 py-3 text-sm">
+            <li key={line.source} className="flex items-center gap-3 rounded-[10px] border border-line bg-page/60 px-4 py-3 text-sm">
               <span aria-hidden className={`size-3 shrink-0 rounded-full ${DOT[line.tone]}`} />
               <span className="font-semibold">{line.source}</span>
-              <span className="ml-auto text-right text-ink/75">{line.says}</span>
+              <span className="ml-auto text-right text-muted">{line.says}</span>
             </li>
           ))}
         </ul>
-        <p className="text-sm leading-relaxed" aria-live="polite">
+        <p className="text-sm leading-relaxed text-[#dcd6c4]" aria-live="polite">
           {scenario.result}
         </p>
       </div>
 
-      <p className="text-xs text-ink/75">
+      <p className="text-xs text-muted">
         Where a dataset has a known blind spot, such as canopy data that can&rsquo;t show individual trees,
         that limit is stated wherever the resource appears.
       </p>

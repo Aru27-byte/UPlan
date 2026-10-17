@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { actionClassName } from "../action-styles";
+import { Brand } from "../brand";
 import { Icon, type IconName } from "../icons";
 
 // The signed-in app's navigation rail (project-dashboard.md, "The shell"). On a desktop it is a fixed
@@ -37,17 +38,16 @@ export function AppNav({
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      <header data-nav className="flex items-center justify-between bg-nav px-4 py-3 text-nav-text lg:hidden">
-        <Link href="/dashboard" className="flex items-center gap-2 font-serif text-xl font-bold">
+      <header className="flex items-center justify-between border-b border-line bg-nav/90 px-4 py-3 text-nav-text backdrop-blur lg:hidden">
+        <Link href="/dashboard" className="flex items-center rounded-lg">
           <Brand />
-          UPlan
         </Link>
         <button
           type="button"
           aria-expanded={open}
           aria-controls="app-nav"
           onClick={() => setOpen((o) => !o)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border-2 border-nav-text/40 px-3 text-sm font-semibold"
+          className={actionClassName("secondary")}
         >
           <Icon name="menu" />
           Menu
@@ -56,13 +56,11 @@ export function AppNav({
 
       <aside
         id="app-nav"
-        data-nav
-        className={`${open ? "flex" : "hidden"} w-full flex-col justify-between gap-6 bg-nav px-4 py-5 text-nav-text border-r-2 border-nav-text/15 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0`}
+        className={`${open ? "flex" : "hidden"} w-full flex-col justify-between gap-6 border-r border-line bg-nav/90 px-4 py-5 text-nav-text backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0`}
       >
         <div className="flex flex-col gap-6">
-          <Link href="/dashboard" className="hidden items-center gap-2 px-2 font-serif text-xl font-bold lg:flex">
+          <Link href="/dashboard" className="hidden items-center rounded-lg px-2 lg:flex">
             <Brand />
-            UPlan
           </Link>
           <Link href="/projects/new" className={actionClassName("primary", "w-full")} onClick={() => setOpen(false)}>
             <Icon name="plus" />
@@ -79,14 +77,16 @@ export function AppNav({
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
-                        active ? "bg-accent-green font-semibold text-ink" : "text-nav-text hover:bg-white/10"
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium ${
+                        active
+                          ? "border-accent-green/45 bg-accent-green/[0.14] font-semibold text-accent-lime"
+                          : "border-transparent text-nav-text hover:bg-cream/[0.06]"
                       }`}
                     >
                       <Icon name={item.icon} />
                       <span className="flex flex-col leading-tight">
                         {item.label}
-                        {item.detail ? <span className={`text-xs font-normal ${active ? "text-ink" : "text-nav-muted"}`}>{item.detail}</span> : null}
+                        {item.detail ? <span className="text-xs font-normal text-nav-muted">{item.detail}</span> : null}
                       </span>
                     </Link>
                   </li>
@@ -95,10 +95,10 @@ export function AppNav({
             </ul>
           </nav>
         </div>
-        <div className="flex items-center gap-3 border-t border-nav-line px-2 pt-4">
+        <div className="flex items-center gap-3 border-t border-line px-2 pt-4">
           <span
             aria-hidden="true"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-accent-gold text-sm font-bold text-ink"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-green to-accent-steel text-sm font-bold text-ink"
           >
             {initials(userName)}
           </span>
@@ -109,18 +109,10 @@ export function AppNav({
         </div>
       </aside>
 
-      <main id="main" data-on-dark className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
+      <main id="main" className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6">{children}</div>
       </main>
     </div>
-  );
-}
-
-function Brand() {
-  return (
-    <span aria-hidden="true" className="text-2xl">
-      🌰
-    </span>
   );
 }
 

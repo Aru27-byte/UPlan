@@ -53,17 +53,17 @@ export function RulebookPanel() {
           return (
             <li
               key={type.id}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border-2 border-ink bg-white px-4 py-2.5"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-canvas px-4 py-2.5"
             >
               <span
                 aria-hidden
-                className="size-5 shrink-0 rounded border border-ink/50"
+                className="size-5 shrink-0 rounded border border-cream/40"
                 style={{
                   backgroundColor: layerColor(type.color),
                   backgroundImage: status === "approximate" ? HATCH : "none",
                 }}
               />
-              <span className="min-w-0 flex-1 text-sm font-semibold">{type.name}</span>
+              <span className="min-w-0 flex-1 text-sm font-semibold text-text">{type.name}</span>
               <Segmented
                 label={`Map status for ${type.name}`}
                 value={status}
@@ -75,15 +75,15 @@ export function RulebookPanel() {
         })}
       </ul>
 
-      <p className="text-sm text-ink/75">
+      <p className="text-sm text-muted">
         Every rule cites its code section and the date it took effect. A planner sets each boundary as
         regulatory or approximate; approximate ones are always hatched, never distinguished by color alone.
       </p>
 
       <ol className="flex flex-wrap gap-2 text-xs font-semibold" aria-label="How a city's rules get into UPlan">
         {STEPS.map((step, index) => (
-          <li key={step} className="flex items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-cream">
-            <span className="text-accent-green">{index + 1}</span>
+          <li key={step} className="flex items-center gap-2 rounded-full border border-line-strong bg-page px-3 py-1.5 text-text">
+            <span className="font-mono text-accent-lime">{index + 1}</span>
             {step}
           </li>
         ))}

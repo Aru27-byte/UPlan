@@ -12,18 +12,18 @@ export const metadata: Metadata = { title: "Register · UPlan" };
 export default function RegisterPage() {
   return (
     <AuthShell>
-      <p className="eyebrow text-ink/70">Get started</p>
-      <h1 className="mt-2 text-3xl font-bold">Register for UPlan</h1>
-      <p className="text-ink/75 mt-2 mb-8">
+      <p className="eyebrow text-accent-lime">Get started</p>
+      <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.03em] text-heading">Register for UPlan</h1>
+      <p className="mt-2 mb-8 text-muted">
         Registering creates your account. It doesn&rsquo;t open a city&rsquo;s data: UPlan staff give you
         access to your city afterward.
       </p>
 
       <RegisterForm />
 
-      <p className="mt-8 text-center text-sm">
+      <p className="mt-8 text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-semibold underline decoration-2 underline-offset-4">
+        <Link href="/sign-in" className="font-semibold text-brand underline decoration-2 underline-offset-4 hover:text-accent-gold">
           Sign in
         </Link>
       </p>

@@ -2,8 +2,9 @@
 
 import { useId, useState } from "react";
 
-import { actionClassName } from "@/ui/action-styles";
+import { actionClassName, inputClassName } from "@/ui/action-styles";
 import { Icon } from "@/ui/icons";
+import { panelClassName } from "@/ui/panel";
 import { StatBox } from "@/ui/stat-box";
 import { StatusLabel } from "@/ui/status-label";
 
@@ -63,11 +64,11 @@ export function ResourceTypePanel({
   }
 
   return (
-    <section aria-labelledby="resource-types-heading" className="overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel">
-      <header className="flex flex-col gap-4 border-b-2 border-line bg-canvas px-5 py-4">
+    <section aria-labelledby="resource-types-heading" className={`overflow-hidden ${panelClassName}`}>
+      <header className="flex flex-col gap-4 border-b border-line px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <h2 id="resource-types-heading" className="text-xl font-bold text-text">
+            <h2 id="resource-types-heading" className="font-display text-2xl font-extrabold tracking-[-0.02em] text-heading">
               City Resource Types
             </h2>
             <p className="mt-0.5 text-sm text-muted">Each resource type opens to the regulations that apply to it, with their code citations.</p>
@@ -93,7 +94,7 @@ export function ResourceTypePanel({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search resource types and regulations"
               autoComplete="off"
-              className="w-full rounded-lg border-2 border-ink bg-white py-2 pr-3 pl-9 text-sm text-text placeholder:text-muted focus:shadow-[3px_3px_0_0_var(--color-ink)]"
+              className={`${inputClassName} pl-9`}
             />
           </div>
           {/* The button's behavior is not specified yet (decided 2026-10-04: details to follow), so it is shown but
@@ -111,7 +112,7 @@ export function ResourceTypePanel({
             {needle === "" ? `${items.length} resource types` : `Showing ${visible.length} of ${items.length} resource types`}
           </p>
           {visible.length > 0 ? (
-            <button type="button" onClick={toggleAll} className="rounded font-semibold text-brand underline underline-offset-2 hover:text-brand-strong">
+            <button type="button" onClick={toggleAll} className="rounded font-semibold text-brand underline underline-offset-2 hover:text-accent-gold">
               {areAllOpen ? "Collapse all" : "Expand all"}
             </button>
           ) : null}
@@ -158,14 +159,14 @@ function ResourceTypeRow({
 }) {
   const bodyId = useId();
   return (
-    <li className={`overflow-hidden rounded-lg border-2 bg-surface ${isOpen ? "border-ink" : "border-line"}`}>
+    <li className={`overflow-hidden rounded-2xl border bg-canvas ${isOpen ? "border-accent-green/50" : "border-line"}`}>
       <h3>
         <button
           type="button"
           aria-expanded={isOpen}
           aria-controls={bodyId}
           onClick={onToggle}
-          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left hover:bg-canvas"
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left hover:bg-raised"
         >
           <span className={`transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`}>
             <Icon name="chevron-down" />
@@ -175,12 +176,12 @@ function ResourceTypeRow({
           <StatusLabel tone={item.isApproximate ? "warn" : "neutral"}>
             {item.isApproximate ? "Approximate boundary" : "Regulatory boundary"}
           </StatusLabel>
-          <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand-strong">
+          <span className="rounded-full border border-brand/40 bg-brand-soft px-2.5 py-0.5 font-mono text-xs font-bold text-brand">
             {item.rules.length === 1 ? "1 rule" : `${item.rules.length} rules`}
           </span>
         </button>
       </h3>
-      <div id={bodyId} hidden={!isOpen} className="border-t-2 border-line bg-canvas px-4 py-3">
+      <div id={bodyId} hidden={!isOpen} className="border-t border-line bg-surface px-4 py-3">
         {item.rules.length === 0 ? (
           // P2: an empty list is a fact about the profile, not a clearance.
           <p className="text-sm text-muted">No buffer, study-trigger, or tree rule is recorded for this resource type.</p>

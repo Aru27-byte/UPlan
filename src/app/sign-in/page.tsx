@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { actionClassName } from "@/ui/action-styles";
 import { AuthShell } from "@/ui/auth-shell";
-import { buttonClassName } from "@/ui/button-styles";
 
 import { SignInForm } from "./sign-in-form.client";
 
@@ -28,12 +28,12 @@ export default async function SignInPage({
 
   return (
     <AuthShell>
-      <p className="eyebrow text-ink/70">Welcome back</p>
-      <h1 className="mt-2 text-3xl font-bold">Sign in to UPlan</h1>
-      <p className="text-ink/75 mt-2 mb-8">Use the email and password you registered with.</p>
+      <p className="eyebrow text-accent-lime">Welcome back</p>
+      <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.03em] text-heading">Sign in to UPlan</h1>
+      <p className="mt-2 mb-8 text-muted">Use the email and password you registered with.</p>
 
       {noticeText === undefined ? null : (
-        <p role="status" className="bg-card-yellow mb-6 rounded-lg border-2 border-ink px-4 py-3 text-sm font-medium">
+        <p role="status" className="mb-6 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm font-medium text-text">
           {noticeText}
         </p>
       )}
@@ -41,12 +41,12 @@ export default async function SignInPage({
       <SignInForm next={nextPath} />
 
       <div className="my-8 flex items-center gap-4" aria-hidden>
-        <span className="bg-ink/20 h-px flex-1" />
-        <span className="eyebrow text-ink/60">New to UPlan?</span>
-        <span className="bg-ink/20 h-px flex-1" />
+        <span className="h-px flex-1 bg-line-strong" />
+        <span className="eyebrow text-faint">New to UPlan?</span>
+        <span className="h-px flex-1 bg-line-strong" />
       </div>
 
-      <Link href="/register" className={buttonClassName("secondary", "block w-full py-3 text-center text-ink")}>
+      <Link href="/register" className={actionClassName("secondary", "w-full", "lg")}>
         Register
       </Link>
     </AuthShell>

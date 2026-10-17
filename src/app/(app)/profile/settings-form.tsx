@@ -23,14 +23,14 @@ const EXPORT_FORMATS = [
   { value: "xlsx", label: "Excel" },
 ] as const;
 
-// Each section's title sits on its own colored badge. Ink on each of these fills is one of the app's checked pairs.
+// Each section's title sits on its own colored chip, in the design's accents. Ink text passes 4.5:1 on every one.
 type BadgeTone = "gold" | "blue" | "green" | "yellow";
-const BADGE_BASE = "mx-1 rounded-md border-2 border-ink px-2.5 py-0.5 text-sm font-bold text-ink shadow-[2px_2px_0_0_var(--color-ink)]";
+const BADGE_BASE = "mx-1 rounded-full px-3 py-0.5 font-mono text-xs font-bold tracking-wide text-ink uppercase";
 const BADGE_TONE: Record<BadgeTone, string> = {
   gold: "bg-accent-gold",
-  blue: "bg-card-blue",
-  green: "bg-card-green",
-  yellow: "bg-card-yellow",
+  blue: "bg-accent-blue",
+  green: "bg-accent-lime",
+  yellow: "bg-accent-butter",
 };
 
 // The settings planners choose, in place of confirming them with the city for each project (charter, "Settings
@@ -94,12 +94,12 @@ export function SettingsForm({ jurisdictionId, versionId, profile }: { jurisdict
         ))}
       </Group>
 
-      <fieldset className="rounded-lg border-2 border-line bg-surface p-4">
+      <fieldset className="rounded-lg border border-line bg-surface p-4">
         <legend className={`${BADGE_BASE} ${BADGE_TONE.yellow}`}>Export formats</legend>
         <p className="mb-3 text-xs text-muted">The formats a records export can be downloaded in. Keep at least one.</p>
         <div className="grid grid-cols-2 gap-2">
           {EXPORT_FORMATS.map((f) => (
-            <label key={f.value} className="flex items-center gap-2 rounded-lg border-2 border-line px-3 py-2 text-sm font-medium has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
+            <label key={f.value} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
               <input
                 type="checkbox"
                 name="exportFormats"
@@ -113,7 +113,7 @@ export function SettingsForm({ jurisdictionId, versionId, profile }: { jurisdict
         </div>
       </fieldset>
 
-      <div className="sticky bottom-0 -mx-5 -mb-5 flex items-center justify-between gap-3 border-t-2 border-line bg-canvas px-5 py-3">
+      <div className="sticky bottom-0 -mx-5 -mb-5 flex items-center justify-between gap-3 border-t border-line bg-canvas px-5 py-3">
         <p className="text-xs text-muted">Saving applies the settings at once and re-analyzes open projects.</p>
         <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>
       </div>
@@ -123,7 +123,7 @@ export function SettingsForm({ jurisdictionId, versionId, profile }: { jurisdict
 
 function Group({ title, tone, description, children }: { title: string; tone: BadgeTone; description: string; children: ReactNode }) {
   return (
-    <fieldset className="rounded-lg border-2 border-line bg-surface p-4">
+    <fieldset className="rounded-lg border border-line bg-surface p-4">
       <legend className={`${BADGE_BASE} ${BADGE_TONE[tone]}`}>{title}</legend>
       <p className="mb-3 mt-1 text-xs text-muted">{description}</p>
       <div className="flex flex-col gap-3">{children}</div>

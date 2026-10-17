@@ -114,7 +114,7 @@ export function GeometryEditor({
           id: "reference-geometry",
           type: "line",
           source: "reference-geometry",
-          paint: { "line-color": "#000000", "line-width": 2, "line-dasharray": [2, 2] },
+          paint: { "line-color": "#f6f3ec", "line-width": 2, "line-dasharray": [2, 2] }, // --color-cream, on the dark basemap
         });
       }
 

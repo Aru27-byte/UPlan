@@ -88,7 +88,7 @@ export async function SectionPreview({ workflow: w, step }: { workflow: Workflow
       role="region"
       aria-label="Report section preview"
       tabIndex={0}
-      className="report-paper max-h-[32rem] min-w-0 overflow-auto rounded-lg border-2 border-ink bg-white p-5 shadow-button"
+      className="report-paper max-h-[32rem] min-w-0 overflow-auto rounded-xl border border-line-strong bg-white p-5 shadow-panel"
     >
       <style>{REPORT_CONTENT_STYLES}</style>
       {body()}

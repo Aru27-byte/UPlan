@@ -79,23 +79,23 @@ export function ImpactPanel() {
           <Disclosure
             key={row.id}
             id={row.id}
-            className="group rounded-xl border-2 border-ink bg-white data-[expanded]:shadow-[4px_4px_0_0_var(--color-ink)]"
+            className="group rounded-xl border border-line bg-canvas data-[expanded]:border-accent-green/50"
           >
             <Heading className="m-0">
               <Button
                 slot="trigger"
-                className="flex w-full cursor-pointer flex-col gap-2.5 rounded-[0.65rem] px-4 py-3 text-left outline-2 outline-offset-2 outline-transparent data-[focus-visible]:outline-ink"
+                className="flex w-full cursor-pointer flex-col gap-2.5 rounded-[0.7rem] px-4 py-3 text-left outline-3 outline-offset-2 outline-transparent data-[focus-visible]:outline-accent-gold"
               >
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="font-semibold">{row.name}</span>
+                  <span className="font-semibold text-text">{row.name}</span>
                   <Badge tone={row.status}>{row.status === "approximate" ? "Approximate" : "Regulatory"}</Badge>
-                  <span className="ml-auto font-mono text-base font-semibold tabular-nums">{row.value}</span>
-                  <span aria-hidden className="text-ink/75 transition-transform group-data-[expanded]:rotate-180">
+                  <span className="ml-auto font-mono text-base font-bold text-heading tabular-nums">{row.value}</span>
+                  <span aria-hidden className="text-muted transition-transform group-data-[expanded]:rotate-180">
                     ▾
                   </span>
                 </span>
-                <span aria-hidden className="relative h-2.5 rounded-full bg-ink/10">
-                  <span className="showcase-grow absolute inset-y-0 left-0 rounded-full bg-ink" style={{ width: `${row.from}%` }} />
+                <span aria-hidden className="relative h-2.5 rounded-full bg-cream/10">
+                  <span className="showcase-grow absolute inset-y-0 left-0 rounded-full bg-accent-lime" style={{ width: `${row.from}%` }} />
                   {row.to > row.from ? (
                     <span
                       className="showcase-grow showcase-range absolute inset-y-0 rounded-r-full"
@@ -106,12 +106,12 @@ export function ImpactPanel() {
               </Button>
             </Heading>
             <DisclosurePanel>
-              <p className="px-4 pb-4 text-sm leading-relaxed text-ink/80">{row.detail}</p>
+              <p className="px-4 pb-4 text-sm leading-relaxed text-muted">{row.detail}</p>
             </DisclosurePanel>
           </Disclosure>
         ))}
       </DisclosureGroup>
-      <p className="text-xs text-ink/75">
+      <p className="text-xs text-muted">
         Computed in the database, and repeatable: the same inputs always give the same numbers. No row says
         &ldquo;acceptable,&rdquo; &ldquo;significant,&rdquo; or &ldquo;minor&rdquo; &mdash; only a quantity, its unit, and what it&rsquo;s
         measured against.

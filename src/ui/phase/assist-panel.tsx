@@ -19,7 +19,7 @@ const STATUS_TONE = { ready: "info", rejected: "warn", failed: "danger", running
 function Control({ control }: { control: AssistControlModel }) {
   const subjectId = `assist-${control.id}-subject`;
   return (
-    <li className="rounded-lg border-2 border-line bg-canvas/40 p-3">
+    <li className="rounded-lg border border-line bg-canvas/40 p-3">
       <ActionForm action={control.action} className="flex flex-col gap-2.5">
         <div>
           <p className="text-sm font-semibold text-text">{control.label}</p>
@@ -101,7 +101,7 @@ function Control({ control }: { control: AssistControlModel }) {
 
 function Card({ card }: { card: AssistCardModel }) {
   return (
-    <article aria-labelledby={`assist-card-${card.id}`} className="rounded-lg border-2 border-line bg-surface p-4">
+    <article aria-labelledby={`assist-card-${card.id}`} className="rounded-lg border border-line bg-surface p-4">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 id={`assist-card-${card.id}`} className="text-sm font-semibold text-text">
@@ -183,7 +183,7 @@ function Card({ card }: { card: AssistCardModel }) {
       ) : null}
 
       {card.confirm ? (
-        <ActionForm action={card.confirm.action} className="mt-3 flex flex-col gap-3 rounded-lg border-2 border-ink bg-canvas/50 p-3">
+        <ActionForm action={card.confirm.action} className="mt-3 flex flex-col gap-3 rounded-xl border border-accent-gold/40 bg-canvas p-3">
           <input type="hidden" name="suggestionId" value={card.id} />
           <div>
             <p className="text-sm font-semibold text-text">{card.confirm.label}</p>

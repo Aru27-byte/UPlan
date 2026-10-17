@@ -47,8 +47,11 @@ export type MapWorkspaceProps = {
 
 const STUDY_AREA_ID = "study-area";
 const FOOTPRINT_ID = "footprint";
-const STUDY_AREA_COLOR = "#16202a"; // --color-text (globals.css) — the drawn boundary, not a data layer
-const FOOTPRINT_COLOR = "#dc2626";
+// The drawn boundaries, not data layers, in the app's palette (globals.css): the study area in cream, dashed, and
+// the footprint in gold, as the design draws them. A dark casing under each keeps it legible over the dark basemap.
+const STUDY_AREA_COLOR = "#f6f3ec"; // --color-cream
+const FOOTPRINT_COLOR = "#eec975"; // --color-accent-gold
+const CASING_COLOR = "#120f08"; // --color-ink
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -192,7 +195,7 @@ export function MapWorkspace({
         });
       }
 
-      // A white "casing" beneath each drawn boundary is a standard cartographic technique for
+      // A dark "casing" beneath each drawn boundary is a standard cartographic technique for
       // keeping a line legible over both the basemap and any evidence fill beneath it.
       if (studyAreaGeoJson) {
         map.addSource(STUDY_AREA_ID, { type: "geojson", data: studyAreaGeoJson });
@@ -200,7 +203,7 @@ export function MapWorkspace({
           id: `${STUDY_AREA_ID}-casing`,
           type: "line",
           source: STUDY_AREA_ID,
-          paint: { "line-color": "#ffffff", "line-width": 5, "line-opacity": 0.85 },
+          paint: { "line-color": CASING_COLOR, "line-width": 5, "line-opacity": 0.85 },
         });
         map.addLayer({
           id: STUDY_AREA_ID,
@@ -215,7 +218,7 @@ export function MapWorkspace({
           id: `${FOOTPRINT_ID}-casing`,
           type: "line",
           source: FOOTPRINT_ID,
-          paint: { "line-color": "#ffffff", "line-width": 5.5, "line-opacity": 0.85 },
+          paint: { "line-color": CASING_COLOR, "line-width": 5.5, "line-opacity": 0.85 },
         });
         map.addLayer({
           id: FOOTPRINT_ID,
@@ -352,9 +355,9 @@ function LayerToggle({
       <span className="sr-only">{label}</span>
       <span
         aria-hidden="true"
-        className="h-5 w-9 shrink-0 rounded-full border-2 border-muted bg-surface transition-colors group-data-[selected]:border-brand group-data-[selected]:bg-brand group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-offset-1 group-data-[focus-visible]:ring-brand"
+        className="h-5 w-9 shrink-0 rounded-full border border-line-strong bg-page transition-colors group-data-[selected]:border-accent-green group-data-[selected]:bg-accent-green group-data-[focus-visible]:outline-3 group-data-[focus-visible]:outline-offset-2 group-data-[focus-visible]:outline-accent-gold"
       >
-        <span className="block h-3 w-3 translate-x-0.5 translate-y-0.5 rounded-full bg-muted transition-transform group-data-[selected]:translate-x-4 group-data-[selected]:bg-white" />
+        <span className="block h-3 w-3 translate-x-0.5 translate-y-0.5 rounded-full bg-muted transition-transform group-data-[selected]:translate-x-4 group-data-[selected]:bg-ink" />
       </span>
     </Switch>
   );

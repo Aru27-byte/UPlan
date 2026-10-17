@@ -13,7 +13,7 @@ import { ActionForm } from "@/ui/action-form.client";
 import { ConfirmDialog } from "@/ui/confirm-dialog.client";
 import { Icon } from "@/ui/icons";
 import { PageHeader } from "@/ui/page-header";
-import { Panel } from "@/ui/panel";
+import { Panel, panelClassName } from "@/ui/panel";
 import { StatBox } from "@/ui/stat-box";
 import { StatusLabel } from "@/ui/status-label";
 import { SubmitButton } from "@/ui/submit-button.client";
@@ -47,7 +47,7 @@ export default async function DashboardPage() {
       <AutoRefresh active={summaries.some((s) => s.state === "finishing")} />
       <PageHeader
         title={`Welcome back, ${firstName}`}
-        meta={<span className="text-lg font-semibold text-page-text">Your {city.name} research</span>}
+        meta={<span className="text-lg font-semibold text-heading">Your {city.name} research</span>}
         actions={
           <>
             <Link href="/profile" className={actionClassName("secondary")}>
@@ -84,10 +84,10 @@ export default async function DashboardPage() {
           </div>
         </Panel>
       ) : (
-        <section aria-labelledby="research-heading" className="overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel">
-          <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b-2 border-line bg-canvas px-5 py-4">
+        <section aria-labelledby="research-heading" className={`overflow-hidden ${panelClassName}`}>
+          <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-line px-5 py-4">
             <div className="min-w-0">
-              <h2 id="research-heading" className="text-xl font-bold text-text">
+              <h2 id="research-heading" className="font-display text-2xl font-extrabold tracking-[-0.02em] text-heading">
                 My Research Projects
               </h2>
               <p className="mt-0.5 text-sm text-muted">Projects with the most phases left to review come first. Open one to see where each phase stands.</p>
@@ -135,7 +135,7 @@ function ProjectRow({ project: p, timeZone }: { project: ProjectSummary; timeZon
           {/* The count of phases still waiting for review, readable before the row is opened. */}
           <span
             title={`${left} ${left === 1 ? "phase" : "phases"} left for review`}
-            className={`inline-flex min-w-6 items-center justify-center rounded-full border-2 px-1.5 text-xs font-bold tabular-nums ${left === 0 ? "border-ok bg-ok-soft text-ok" : "border-ink bg-accent-gold text-ink"}`}
+            className={`inline-flex min-w-6 items-center justify-center rounded-full border px-1.5 font-mono text-xs font-bold tabular-nums ${left === 0 ? "border-ok/45 bg-ok-soft text-ok" : "border-transparent bg-accent-gold text-ink"}`}
           >
             <span aria-hidden="true">{left}</span>
             <span className="sr-only">
@@ -193,7 +193,7 @@ function ProjectRow({ project: p, timeZone }: { project: ProjectSummary; timeZon
       }
     >
       <PhaseStatus project={p} />
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t-2 border-line pt-3">
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <Link href={projectHref(d.id, "overview")} aria-label={`Open overview: ${title}`} className={actionClassName("ghost")}>
           Open overview
           <Icon name="arrow-right" />

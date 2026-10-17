@@ -60,7 +60,7 @@ src/app/register/register-form.client.tsx
 src/app/register/actions.ts                  register(prevState, formData)
 src/app/auth/callback/route.ts               exchanges the emailed confirmation code for a session
 src/app/_lib/auth-form.ts                    form schemas, safeNextPath, describeAuthError, AuthFormState
-src/ui/auth-shell.tsx                        full-viewport layout, centered card, animated contour background
+src/ui/auth-shell.tsx                        full-viewport layout, centered card, the shared Backdrop
 src/ui/text-field.client.tsx                 labeled input with error text and a show-password toggle
 ```
 
@@ -76,10 +76,11 @@ src/ui/text-field.client.tsx                 labeled input with error text and a
 `AuthShell` is the one layout both pages use, in `src/ui/` because two routes need it.
 
 - **Fills the page.** `min-h-dvh`, no max-width wrapper around the background. A single card, about 36rem wide, sits in the centre and holds only the form: the logo link, a heading, the fields, and the buttons. There is no side panel.
-- **Background.** Two layers on `--color-ink`, both pure CSS animation with no JavaScript: (1) two sets of topographic contour lines, drawn as SVG paths whose radii vary smoothly, cream at about 7% opacity, drifting and turning over 90–140 seconds; (2) two large blurred radial glows in the palette's green and gold, moving over 40–60 seconds. Under `prefers-reduced-motion: reduce` the animations are switched off and the layers stay as a still image. The contour paths are generated once, on the server, from fixed sine terms, so there is no randomness and no hydration mismatch. The layers are `aria-hidden` and `pointer-events-none`.
-- **Sign-in page:** heading, email, password with a show toggle, a gold "Sign in" button, then a divider and a full-width green "Register" button under "New to UPlan?". The Register button is a `Link` styled by `buttonClassName`, per that file's rule for links that look like buttons.
-- **Register page:** the same shell, four fields, a hint under the password, a gold "Create account" button, a plain sentence saying a new account can start research right away and that UPlan staff hold the extra rights (R2), and a link back to sign-in.
-- **Contrast.** Text sits on the white card, ink on white. The only text over the animated background is the footer line, cream on ink, with the glows kept dark enough that it stays above 4.5:1.
+- **Background.** The `Backdrop` every page shares (`src/ui/backdrop.tsx`, see `project-dashboard.md`, "The visual system"): a faint gold grid that fades out downward and three soft glows in green, blue, and gold, pure CSS with no JavaScript, drifting over 46–64 seconds. Under `prefers-reduced-motion: reduce` the drift is switched off. The layers are `aria-hidden` and `pointer-events-none`.
+- **The card** is the design's window (`.frame-glow`): a dark surface with a green-gold-blue gradient edge and a deep shadow, holding the UPlan mark, a mono caption, a Bricolage Grotesque heading, and the form.
+- **Sign-in page:** heading, email, password with a show toggle, a full-width green "Sign in" pill, then a divider and a full-width secondary "Register" pill under "New to UPlan?". The Register button is a `Link` styled by `actionClassName`, the one source of every button's look.
+- **Register page:** the same shell, four fields, a hint under the password, a green "Create account" pill, a plain sentence saying a new account can start research right away and that UPlan staff hold the extra rights (R2), and a link back to sign-in.
+- **Contrast.** Light text on the dark card, every pair checked at 4.5:1 or better by `src/ui/tokens.test.ts`. The footer line under the card sits on the page itself, never on a glow bright enough to drop it below 4.5:1.
 
 ## Types
 

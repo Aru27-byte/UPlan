@@ -73,12 +73,12 @@ test.describe("landing page", () => {
   test("the page states the pilot, the spine, and what UPlan never does", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Develop or preserve.");
-    await expect(page.getByText("Pilot · Sammamish, WA")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Develop or preserve. Decide with the evidence.");
+    await expect(page.getByText("Piloting with the City of Sammamish, WA")).toBeVisible();
     await expect(page.getByText("Never clears land")).toBeVisible();
     await expect(page.getByText("Never makes the call")).toBeVisible();
     await expect(page.getByText("Provenance on every figure")).toBeVisible();
-    await expect(page.getByText("0 verdicts rendered")).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ hasText: "Verdicts rendered" })).toHaveText(/^0\s*Verdicts rendered$/);
   });
 
   test("every call to action leads to sign-in or register", async ({ page }) => {

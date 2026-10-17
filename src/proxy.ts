@@ -32,5 +32,5 @@ export const config = {
   // place leaves the map blank. Also public static code, not decision data. This still isn't a
   // security boundary (see the comment above): every module function checks access itself
   // regardless of what this matcher does or doesn't cover.
-  matcher: ["/((?!api/health|api/tiles|basemap|maplibre|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/health|api/tiles|basemap|maplibre|brand|_next/static|_next/image|favicon.ico).*)"],
 };

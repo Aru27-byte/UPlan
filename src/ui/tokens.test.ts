@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-// TechDesign/project-dashboard.md, "The visual system" (R8): every text/fill pair the signed-in app uses meets
+// TechDesign/project-dashboard.md, "The visual system" (R8): every text/fill pair UPlan's pages use meets
 // WCAG 2.1 AA (4.5:1 for text). The values are read from globals.css, so changing a token that breaks a pair
 // fails here rather than in front of a person.
 
@@ -30,17 +30,24 @@ function contrast(a: string, b: string): number {
 }
 
 const PAIRS: [text: string, fill: string][] = [
-  // What sits directly on the ink page
-  ["page-text", "page"],
-  ["page-muted", "page"],
-  // What sits on a white or cream surface
-  ["text", "canvas"],
+  // Text on the page, a panel, a quiet block inside one, and a hovered row
+  ["heading", "page"],
+  ["text", "page"],
+  ["muted", "page"],
+  ["faint", "page"],
+  ["heading", "surface"],
   ["text", "surface"],
-  ["muted", "canvas"],
   ["muted", "surface"],
+  ["faint", "surface"],
+  ["text", "canvas"],
+  ["muted", "canvas"],
+  ["faint", "canvas"],
+  ["text", "raised"],
+  ["muted", "raised"],
   ["brand", "surface"],
   ["brand", "canvas"],
   ["brand", "brand-soft"],
+  // The four states, on their own tint and on a panel
   ["info", "info-soft"],
   ["info", "surface"],
   ["warn", "warn-soft"],
@@ -49,20 +56,32 @@ const PAIRS: [text: string, fill: string][] = [
   ["danger", "surface"],
   ["danger", "canvas"],
   ["ok", "ok-soft"],
+  ["ok", "surface"],
   ["text", "warn-soft"],
   ["text", "info-soft"],
   ["text", "ok-soft"],
-  // Buttons and the active navigation item: ink on the palette's gold and green
-  ["ink", "accent-gold"],
-  ["ink", "accent-gold-deep"],
+  ["text", "danger-soft"],
+  // Ink on every accent fill: the primary button, chips, and stage numbers
   ["ink", "accent-green"],
-  ["ink", "card-yellow"],
+  ["ink", "accent-lime"],
+  ["ink", "accent-gold"],
+  ["ink", "accent-blue"],
+  ["ink", "accent-steel"],
+  ["ink", "accent-tan"],
+  ["ink", "accent-teal"],
+  ["ink", "accent-butter"],
+  // Accents used as text: the research groups' captions and the landing page's labels
+  ["accent-lime", "surface"],
+  ["accent-gold", "surface"],
+  ["accent-blue", "surface"],
+  ["accent-tan", "surface"],
+  ["accent-green", "page"],
   // The navigation
   ["nav-text", "nav"],
   ["nav-muted", "nav"],
 ];
 
-describe("R8: the signed-in app's colors meet WCAG 2.1 AA", () => {
+describe("R8: UPlan's colors meet WCAG 2.1 AA", () => {
   it.each(PAIRS)("R8: %s on %s is at least 4.5:1", (text, fill) => {
     expect(contrast(token(text), token(fill))).toBeGreaterThanOrEqual(4.5);
   });
@@ -71,7 +90,7 @@ describe("R8: the signed-in app's colors meet WCAG 2.1 AA", () => {
 describe("P1: measured numbers are rounded only by the provenance formatter", () => {
   it("R2: no page or component rounds a number with toFixed", async () => {
     const { globSync } = await import("node:fs");
-    const files = [...globSync("src/app/**/*.{ts,tsx}"), ...globSync("src/ui/**/*.{ts,tsx}")].filter((f) => !f.endsWith(".test.ts") && !f.endsWith("auth-shell.tsx")); // auth-shell rounds decorative SVG coordinates, not a measurement
+    const files = [...globSync("src/app/**/*.{ts,tsx}"), ...globSync("src/ui/**/*.{ts,tsx}")].filter((f) => !f.endsWith(".test.ts"));
     const offenders = files.filter((f) => readFileSync(f, "utf8").includes(".toFixed("));
     expect(offenders).toEqual([]);
   });

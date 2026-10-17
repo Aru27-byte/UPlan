@@ -7,11 +7,11 @@ import { Icon, type IconName } from "./icons";
 export type StatusTone = "neutral" | "info" | "warn" | "danger" | "ok";
 
 const TONE: Record<StatusTone, { icon: IconName; classes: string }> = {
-  neutral: { icon: "circle", classes: "bg-canvas text-ink border-ink/50" },
-  info: { icon: "dot", classes: "bg-info-soft text-info border-info/60" },
-  warn: { icon: "alert", classes: "bg-warn-soft text-warn border-warn/60" },
-  danger: { icon: "x", classes: "bg-danger-soft text-danger border-danger/60" },
-  ok: { icon: "check", classes: "bg-ok-soft text-ok border-ok/60" },
+  neutral: { icon: "circle", classes: "bg-cream/[0.07] text-text border-cream/25" },
+  info: { icon: "dot", classes: "bg-info-soft text-info border-info/45" },
+  warn: { icon: "alert", classes: "bg-warn-soft text-warn border-warn/45" },
+  danger: { icon: "x", classes: "bg-danger-soft text-danger border-danger/45" },
+  ok: { icon: "check", classes: "bg-ok-soft text-ok border-ok/45" },
 };
 
 export function StatusLabel({ tone = "neutral", children }: { tone?: StatusTone; children: ReactNode }) {

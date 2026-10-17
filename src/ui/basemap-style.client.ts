@@ -1,6 +1,6 @@
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
-import { layers, LIGHT } from "@protomaps/basemaps";
+import { DARK, layers } from "@protomaps/basemaps";
 import type { StyleSpecification } from "maplibre-gl";
 
 // TechDesign/map-workspace.md ("Basemap", R6/R7) + TechDesign/alternatives-and-tradeoffs.md (D10):
@@ -48,6 +48,8 @@ export function basemapStyle(basemapUrl: string): StyleSpecification {
     sources: {
       basemap: { type: "vector", url: `pmtiles://${basemapUrl}`, attribution: "© OpenStreetMap" },
     },
-    layers: layers("basemap", LIGHT, { lang: "en" }).filter((layer) => layer.type !== "symbol"),
+    // Protomaps' dark flavor, so the map sits in UPlan's dark page instead of glaring out of it. The evidence
+    // palette (map-styles.ts) is validated for dark backgrounds.
+    layers: layers("basemap", DARK, { lang: "en" }).filter((layer) => layer.type !== "symbol"),
   };
 }

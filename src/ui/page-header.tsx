@@ -19,14 +19,14 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header data-on-dark className="flex flex-col gap-3">
+    <header className="flex flex-col gap-3">
       {breadcrumb && breadcrumb.length > 0 ? (
         <nav aria-label="Breadcrumb">
-          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-page-muted">
+          <ol className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-muted">
             {breadcrumb.map((crumb, i) => (
               <li key={crumb.href} className="flex items-center gap-1.5">
                 {i > 0 ? <span aria-hidden="true">/</span> : null}
-                <Link href={crumb.href} className="rounded text-page-muted underline underline-offset-2 hover:text-page-text">
+                <Link href={crumb.href} className="rounded text-muted underline underline-offset-2 hover:text-accent-gold">
                   {crumb.label}
                 </Link>
               </li>
@@ -36,12 +36,12 @@ export function PageHeader({
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          {eyebrow ? <p className="eyebrow text-accent-green">{eyebrow}</p> : null}
+          {eyebrow ? <p className="eyebrow mb-1 text-accent-lime">{eyebrow}</p> : null}
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold text-page-text">{title}</h1>
+            <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-heading sm:text-4xl">{title}</h1>
             {status}
           </div>
-          {meta ? <p className="mt-1 text-sm text-page-muted">{meta}</p> : null}
+          {meta ? <p className="mt-1.5 text-sm text-muted">{meta}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>

@@ -37,7 +37,7 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
         aria-haspopup="dialog"
         title="Profile settings"
         onClick={() => dialogRef.current?.showModal()}
-        className="inline-flex size-11 items-center justify-center rounded-lg border-2 border-accent-gold text-accent-gold hover:bg-accent-gold hover:text-ink [&_svg]:size-5"
+        className="inline-flex size-11 items-center justify-center rounded-full border border-accent-gold/50 bg-accent-gold/[0.08] text-accent-gold hover:bg-accent-gold hover:text-ink [&_svg]:size-5"
       >
         <Icon name="gear" />
       </button>
@@ -49,14 +49,14 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
           // A click on the backdrop lands on the dialog element itself; one inside lands on a child.
           if (event.target === event.currentTarget) dialogRef.current?.close();
         }}
-        className="flyout m-0 ml-auto h-dvh max-h-none w-[min(34rem,100vw)] max-w-none border-l-2 border-ink bg-canvas p-0 text-text backdrop:bg-black/55"
+        className="flyout m-0 ml-auto h-dvh max-h-none w-[min(34rem,100vw)] max-w-none border-l border-line-strong bg-canvas p-0 text-text shadow-float backdrop:bg-black/60 backdrop:backdrop-blur-sm"
       >
         <div className="flex h-full flex-col">
           <header className="bg-nav px-5 pt-4 text-nav-text">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="eyebrow text-accent-gold">City profile</p>
-                <h2 id={titleId} className="text-xl font-bold">
+                <h2 id={titleId} className="font-display text-2xl font-extrabold tracking-tight text-heading">
                   Profile settings
                 </h2>
               </div>
@@ -64,7 +64,7 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
                 type="button"
                 aria-label="Close profile settings"
                 onClick={() => dialogRef.current?.close()}
-                className="inline-flex size-9 items-center justify-center rounded-lg border-2 border-nav-line text-nav-text hover:border-accent-gold hover:text-accent-gold"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-line-strong text-nav-text hover:border-accent-gold hover:text-accent-gold"
               >
                 <Icon name="close" />
               </button>
@@ -84,13 +84,13 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => setView(v.id)}
                     onKeyDown={onTabKeyDown}
-                    className={`inline-flex items-center gap-2 rounded-t-lg border-x-2 border-t-2 px-4 py-2 text-sm font-semibold ${
-                      isActive ? "border-canvas bg-canvas text-text" : "border-transparent text-nav-muted hover:text-nav-text"
+                    className={`inline-flex items-center gap-2 rounded-t-xl border-x border-t px-4 py-2 text-sm font-semibold ${
+                      isActive ? "border-line bg-canvas text-accent-lime" : "border-transparent text-nav-muted hover:text-nav-text"
                     }`}
                   >
                     {v.label}
                     {v.id === "sources" ? (
-                      <span className={`rounded-full px-2 text-xs font-bold ${isActive ? "bg-brand-soft text-brand-strong" : "bg-nav-line text-nav-text"}`}>
+                      <span className={`rounded-full px-2 text-xs font-bold ${isActive ? "bg-brand-soft text-brand" : "bg-line text-nav-text"}`}>
                         {sourceCount}
                       </span>
                     ) : null}

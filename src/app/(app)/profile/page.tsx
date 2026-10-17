@@ -136,10 +136,10 @@ export default async function ProfilePage() {
             ) : (
               <span className="rounded-full bg-accent-gold px-3 py-1 text-sm font-bold text-ink">Version {overview.versionNumber}</span>
             )}
-            <span className="text-lg font-semibold text-page-text">
+            <span className="text-lg font-semibold text-heading">
               {city.name}, {city.stateCode}
             </span>
-            <span className="text-base text-page-muted">
+            <span className="text-base text-muted">
               {overview.changedAt ? `Last changed ${formatTimestamp(overview.changedAt, city.timeZone)}` : "Upload the city's rules from Sources to begin"}
             </span>
           </span>

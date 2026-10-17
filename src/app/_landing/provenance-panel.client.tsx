@@ -39,6 +39,8 @@ export function ProvenancePanel() {
     ["Source date", "2021-06-01 — the publisher's date"],
     ["Retrieved by UPlan", "2026-09-12 — when we fetched it"],
   ];
+  // On screen the figure sits on a dark card; in the report it is printed on white paper.
+  const quiet = mode === "screen" ? "text-muted" : "text-ink/75";
 
   return (
     <div className="flex flex-col gap-5">
@@ -50,23 +52,25 @@ export function ProvenancePanel() {
       <div
         className={
           mode === "screen"
-            ? "card-sticker bg-white p-5 transition-all sm:p-6"
-            : "rounded-sm border border-ink/40 bg-white p-5 font-serif shadow-[0_2px_10px_rgb(0_0_0/0.15)] transition-all sm:p-6"
+            ? "rounded-2xl border border-line bg-canvas p-5 text-text transition-all sm:p-6"
+            : "rounded-sm border border-line bg-white p-5 font-serif text-ink shadow-panel transition-all sm:p-6"
         }
       >
-        <p className="eyebrow text-ink/75">Forest canopy inside the footprint</p>
+        <p className={`eyebrow ${quiet}`}>Forest canopy inside the footprint</p>
         <p className="mt-1 font-mono text-5xl font-bold tabular-nums">3.1 ac</p>
 
         <dl className="mt-5 grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-[auto_1fr]">
           {rows.map(([term, description]) => (
             <div key={term} className="contents">
-              <dt className="font-semibold text-ink/75">{term}</dt>
+              <dt className={`font-semibold ${quiet}`}>{term}</dt>
               <dd>{description}</dd>
             </div>
           ))}
-          <dt className="font-semibold text-ink/75">Confidence</dt>
+          <dt className={`font-semibold ${quiet}`}>Confidence</dt>
           <dd>
-            <span className="badge">{CONFIDENCE_LABEL[confidence]}</span>
+            <span className={mode === "screen" ? "badge" : "rounded-full border border-ink/50 px-3 py-0.5 font-sans text-xs font-semibold"}>
+              {CONFIDENCE_LABEL[confidence]}
+            </span>
             <span className="mt-2 block" aria-live="polite">
               {CONFIDENCE_MEANING[confidence]}
             </span>
@@ -74,7 +78,7 @@ export function ProvenancePanel() {
         </dl>
       </div>
 
-      <p className="text-xs text-ink/75">
+      <p className="text-xs text-muted">
         The source date and the retrieval date are never mixed up. A figure built from several sources
         lists every one and shows the lowest confidence among them.
       </p>

@@ -77,7 +77,7 @@ test("R12: the background stops moving for a visitor who prefers reduced motion"
   await page.goto("/sign-in");
 
   const animationName = await page
-    .locator(".auth-glow-green")
+    .locator(".backdrop-glow-green")
     .evaluate((element) => getComputedStyle(element).animationName);
   expect(animationName).toBe("none");
   await context.close();

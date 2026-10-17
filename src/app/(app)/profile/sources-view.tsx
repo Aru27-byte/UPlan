@@ -27,7 +27,7 @@ export function SourcesView({
   const baseVersionId = versionId ?? "";
   return (
     <div className="flex flex-col gap-5">
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-line bg-surface p-4">
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface p-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold text-text">Excel template</h3>
           <p className="mt-0.5 text-xs text-muted">Fill it in with the city&apos;s rules, then upload it below. It is built from the same schema UPlan checks uploads against.</p>
@@ -111,10 +111,10 @@ function SourceItem({
   // profile_source_url_shape guarantees a web source has an address; a row without one is a defect to surface.
   if (isWeb && source.url === null) throw new Error(`web source ${source.id} has no address`);
   return (
-    <li className="flex items-start gap-2 rounded-lg border-2 border-line bg-surface p-3 has-[details[open]]:border-ink">
+    <li className="flex items-start gap-2 rounded-xl border border-line bg-surface p-3 has-[details[open]]:border-accent-green/50">
       <details className="group min-w-0 flex-1">
         <summary className="flex cursor-pointer list-none items-center gap-3 rounded [&::-webkit-details-marker]:hidden">
-          <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${isWeb ? "bg-info-soft text-info" : "bg-brand-soft text-brand-strong"}`}>
+          <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${isWeb ? "bg-info-soft text-info" : "bg-brand-soft text-brand"}`}>
             <Icon name={isWeb ? "link" : "spreadsheet"} />
           </span>
           <span className="min-w-0 flex-1">
@@ -133,7 +133,7 @@ function SourceItem({
         <ActionForm
           action={updateSourceAction.bind(null, jurisdictionId)}
           encType={isWeb ? undefined : "multipart/form-data"}
-          className="mt-3 flex flex-col gap-3 border-t-2 border-line pt-3"
+          className="mt-3 flex flex-col gap-3 border-t border-line pt-3"
         >
           <input type="hidden" name="sourceId" value={source.id} />
           <input type="hidden" name="baseVersionId" value={baseVersionId} />
@@ -195,7 +195,7 @@ function WorkbookWarning() {
 
 function Card({ title, icon, description, children }: { title: string; icon: "link" | "spreadsheet"; description: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border-2 border-line bg-surface p-4">
+    <div className="rounded-lg border border-line bg-surface p-4">
       <div className="mb-3 flex items-start gap-2.5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-canvas text-text">
           <Icon name={icon} />

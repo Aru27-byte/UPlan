@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Icon } from "./icons";
+import { panelClassName } from "./panel";
 import { GROUP_TONE, type StepGroup } from "./phase/group-tones";
 
 // A section of a step page's data that is closed until the planner opens it (research-phases.md R16). It is a
@@ -28,18 +29,18 @@ export function Accordion({
   return (
     <details
       id={id}
-      className="group overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel open:border-line"
+      className={`group overflow-hidden ${panelClassName} open:border-line-strong`}
     >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 hover:bg-canvas/60 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 hover:bg-raised [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true" className={`h-9 w-1.5 shrink-0 rounded-full ${GROUP_TONE[group].bar}`} />
         <span className="min-w-0 flex-1">
-          <Heading className="text-base font-semibold text-text">{title}</Heading>
+          <Heading className="font-display text-base font-bold text-heading">{title}</Heading>
           {summary ? <span className="mt-0.5 block text-sm text-muted">{summary}</span> : null}
         </span>
         {status ? <span className="shrink-0">{status}</span> : null}
         <Icon name="chevron-down" className="transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t-2 border-line px-5 py-4">{children}</div>
+      <div className="border-t border-line px-5 py-4">{children}</div>
     </details>
   );
 }

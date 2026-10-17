@@ -89,17 +89,17 @@ export function FeatureShowcase() {
     >
       <TabList
         aria-label="UPlan features"
-        className="-mx-6 flex snap-x gap-3 overflow-x-auto px-6 pt-1 pb-3 sm:-mx-12 sm:px-12 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
+        className="-mx-6 flex snap-x gap-3 overflow-x-auto px-6 pt-1 pb-3 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
       >
         {FEATURES.map((feature, index) => (
           <Tab
             key={feature.id}
             id={feature.id}
-            className="w-64 shrink-0 cursor-pointer snap-start rounded-xl border border-white/15 bg-white/[0.04] px-5 py-4 text-left outline-2 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-accent-green data-[hovered]:bg-white/[0.09] data-[selected]:border-accent-green data-[selected]:bg-white/[0.12] data-[selected]:shadow-[inset_4px_0_0_0_var(--color-accent-green)] lg:w-auto"
+            className="w-64 shrink-0 cursor-pointer snap-start rounded-2xl border border-line bg-surface/80 px-5 py-4 text-left outline-3 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-accent-gold data-[hovered]:bg-raised data-[selected]:border-accent-green/60 data-[selected]:bg-accent-green/[0.1] data-[selected]:shadow-[inset_4px_0_0_0_var(--color-accent-green)] lg:w-auto"
           >
-            <span className="eyebrow text-accent-green">{String(index + 1).padStart(2, "0")}</span>
-            <span className="text-cream mt-1 block leading-snug font-semibold">{feature.title}</span>
-            <span className="text-cream/70 mt-1 block text-sm leading-snug">{feature.blurb}</span>
+            <span className="eyebrow text-accent-lime">{String(index + 1).padStart(2, "0")}</span>
+            <span className="mt-1 block font-display leading-snug font-bold text-heading">{feature.title}</span>
+            <span className="mt-1 block text-sm leading-snug text-muted">{feature.blurb}</span>
           </Tab>
         ))}
       </TabList>
@@ -108,20 +108,20 @@ export function FeatureShowcase() {
         <TabPanel
           key={id}
           id={id}
-          className="showcase-in min-w-0 rounded-2xl outline-2 outline-offset-4 outline-transparent data-[focus-visible]:outline-accent-green"
+          className="showcase-in min-w-0 rounded-[22px] outline-3 outline-offset-4 outline-transparent data-[focus-visible]:outline-accent-gold"
         >
-          <div className="text-ink border-cream/70 bg-cream overflow-hidden rounded-2xl border-2 shadow-[10px_10px_0_0_rgb(139_195_74/0.35)]">
-            <div className="bg-cream-soft border-ink/15 flex items-center gap-3 border-b-2 px-4 py-2.5">
+          <div className="frame-glow text-text">
+            <div className="frame-bar">
               <span aria-hidden className="flex gap-1.5">
-                <i className="bg-ink/25 size-2.5 rounded-full" />
-                <i className="bg-ink/25 size-2.5 rounded-full" />
-                <i className="bg-ink/25 size-2.5 rounded-full" />
+                <i className="size-[11px] rounded-full bg-[#4a3e24]" />
+                <i className="size-[11px] rounded-full bg-[#4a3e24]" />
+                <i className="size-[11px] rounded-full bg-[#4a3e24]" />
               </span>
-              <span className="eyebrow text-ink/70">{windowTitle}</span>
+              <span className="font-mono text-xs text-muted">{windowTitle}</span>
               <span className="badge ml-auto">Illustrative example</span>
             </div>
             <div className="flex flex-col gap-5 p-5 sm:p-7">
-              <p className="text-ink/80 max-w-prose leading-relaxed">{detail}</p>
+              <p className="max-w-prose leading-relaxed text-[#dcd6c4]">{detail}</p>
               <Panel />
             </div>
           </div>

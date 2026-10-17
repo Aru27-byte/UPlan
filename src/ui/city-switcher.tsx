@@ -21,7 +21,7 @@ export function CitySwitcher({
   return (
     <ActionForm action={action} className="flex flex-col gap-2">
       <label className="flex flex-col gap-1.5 text-sm font-medium">
-        <span className={onDark ? "text-xs text-nav-muted" : "text-text"}>City</span>
+        <span className={onDark ? "eyebrow text-nav-muted" : "text-text"}>City</span>
         <select name="jurisdictionId" required defaultValue={currentId ?? ""} className={inputClassName}>
           {currentId === null ? (
             <option value="" disabled>

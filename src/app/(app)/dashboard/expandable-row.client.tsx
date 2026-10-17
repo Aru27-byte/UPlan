@@ -11,8 +11,8 @@ export function ExpandableRow({ summary, actions, children }: { summary: ReactNo
   const [isOpen, setIsOpen] = useState(false);
   const bodyId = useId();
   return (
-    <li className={`overflow-hidden rounded-lg border-2 bg-surface ${isOpen ? "border-ink" : "border-line"}`}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-canvas">
+    <li className={`overflow-hidden rounded-2xl border bg-canvas ${isOpen ? "border-accent-green/50" : "border-line"}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-raised">
         <h3 className="min-w-0 flex-1 basis-80">
           <button
             type="button"
@@ -29,7 +29,7 @@ export function ExpandableRow({ summary, actions, children }: { summary: ReactNo
         </h3>
         <div className="flex flex-wrap items-center gap-2">{actions}</div>
       </div>
-      <div id={bodyId} hidden={!isOpen} className="border-t-2 border-line bg-canvas px-4 py-4">
+      <div id={bodyId} hidden={!isOpen} className="border-t border-line bg-surface px-4 py-4">
         {children}
       </div>
     </li>

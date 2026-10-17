@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PHASE_TITLE, projectHref, reviewStateLabel } from "@/app/_lib/workflow-labels";
 import type { ProjectSummary } from "@/modules/workflow";
 import { Icon, type IconName } from "@/ui/icons";
+import { StatBox } from "@/ui/stat-box";
 import type { StatusTone } from "@/ui/status-label";
 
 // Each tone gets its own icon as well as its own colors, so a phase's state is never color alone (WCAG 1.4.1).
@@ -11,7 +12,7 @@ const NODE: Record<StatusTone, { icon: IconName; circle: string }> = {
   warn: { icon: "alert", circle: "border-warn bg-warn-soft text-warn" },
   info: { icon: "clock", circle: "border-info bg-info-soft text-info" },
   danger: { icon: "x", circle: "border-danger bg-danger-soft text-danger" },
-  neutral: { icon: "circle", circle: "border-line bg-white text-muted" },
+  neutral: { icon: "circle", circle: "border-line-strong bg-page text-muted" },
 };
 
 // The six research phases in order as a track of numbered nodes, each linking to its page, with the count of
@@ -23,10 +24,7 @@ export function PhaseStatus({ project }: { project: ProjectSummary }) {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <p className="eyebrow text-muted">Phase status</p>
         <dl>
-          <div className="rounded-lg border-2 border-ink bg-white px-4 py-1.5 text-center shadow-button">
-            <dt className="eyebrow text-muted">Phases left for review</dt>
-            <dd className="text-2xl leading-tight font-bold text-text tabular-nums">{phasesLeft}</dd>
-          </div>
+          <StatBox label="Phases left for review" value={phasesLeft} />
         </dl>
       </div>
       <ol className="grid grid-cols-2 gap-x-2 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">

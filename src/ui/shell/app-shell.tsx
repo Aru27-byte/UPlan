@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Backdrop } from "../auth-shell";
+import { Backdrop } from "../backdrop";
 
 import { AppNav, type NavItem } from "./app-nav.client";
 
@@ -31,7 +31,7 @@ export function AppShell({
       <Backdrop className="fixed" />
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:border-2 focus:border-ink focus:bg-accent-gold focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink focus:shadow-button"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-full focus:bg-accent-green focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-ink"
       >
         Skip to content
       </a>

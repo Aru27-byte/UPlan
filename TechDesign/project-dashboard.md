@@ -8,7 +8,7 @@
 
 ## Approach
 
-The dashboard is a read model plus a handful of actions. It adds no table of its own. Two existing modules gain functions (`decisions`: list and delete; `workflow`: a per-project summary), and the signed-in app gets one visual system, built from the same palette and "sticker" treatment as the public landing, sign-in, and register pages so the two read as one product.
+The dashboard is a read model plus a handful of actions. It adds no table of its own. Two existing modules gain functions (`decisions`: list and delete; `workflow`: a per-project summary), and the signed-in app gets one visual system, the same one the public landing, sign-in, and register pages use, so the two read as one product.
 
 **Rejected:** a `project` table separate from `decision`. The charter has one core object, and a second table would need to be kept in step with the first. The product word "project" lives in screens and routes, and the code keeps `decision`.
 
@@ -111,43 +111,51 @@ src/ui/city-switcher.tsx            the City control: a select and a Switch butt
 
 ## The visual system (R8)
 
-The signed-in app looks like the landing and sign-in pages: the same ink page, cream text, white cards with a cream edge and a flat green offset shadow (the sign-in card's), gold primary actions, green for the current item, the serif "UPlan" mark, mono uppercase captions, and the slowly moving contour-line backdrop (`Backdrop` in `src/ui/auth-shell.tsx`, used by both). One set of design tokens in `src/app/globals.css`, declared in Tailwind's `@theme`. Tokens carry meaning, and components never use a raw color. `page*` is what sits directly on the ink page; everything else is for what sits on a white or cream surface.
+Every page in UPlan, public and signed in, uses one visual system, taken from the "UPlan AI Website" landing design (decided 2026-10-16): a near-black warm page under a faint gold grid and soft green, blue, and gold glows (`Backdrop` in `src/ui/backdrop.tsx`); dark panels with a thin gold edge; a green pill for the primary action; gold, blue, lime, and tan accents; Bricolage Grotesque headings, Public Sans body text, and Space Mono captions and figures; and the UPlan mark, two oak leaves forming the "U" followed by "plan" in Chewy (`Brand` in `src/ui/brand.tsx`). One set of design tokens in `src/app/globals.css`, declared in Tailwind's `@theme`. Tokens carry meaning, and components use them rather than raw colors.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `page`, `page-text`, `page-muted` | `#211c14`, `#f2ecd8`, `#cdc4a8` | The ink page, and the headings, breadcrumbs, and meta text set directly on it |
-| `canvas` | `#f2ecd8` | A quiet cream block inside a card (an inner panel, a disabled field) |
-| `surface` | `#ffffff` | Cards, tables, forms |
-| `line` | `#d8cfb3` | Dividers inside a card |
-| `text`, `muted` | `#211c14`, `#5b5340` | Body and secondary text on a surface |
-| `nav`, `nav-text`, `nav-muted` | `#332c1a`, `#f2ecd8`, `#cdc4a8` | The navigation rail |
-| `brand`, `brand-strong`, `brand-soft` | `#3c6317`, `#2d4a11`, `#e4efd0` | Links and quiet accents on a surface |
-| `info`, `warn`, `danger`, `ok` and their `-soft` fills | blue `#0f3f8a` on `#b6dde3`, amber `#5e3a00` on `#ecdf9a`, red `#8a1a10` on `#f4c7c0`, green `#1f4d0f` on `#a9cf78` | The four states below, using the landing's card fills |
-| `accent-gold`, `accent-green` | `#eab676`, `#8bc34a` | Primary actions (gold, ink text) and the current navigation item (green, ink text) |
+| `page` | `#120f08` | The page behind everything |
+| `surface`, `canvas`, `raised` | `#1a1509`, `#221d12`, `#2a2618` | A panel; a quieter block inside one (a row, an inner panel, a disabled field); a hovered or selected row |
+| `line`, `line-strong` | gold at 14% and 30% | A panel's edge and its dividers; an input's edge |
+| `heading`, `text`, `muted`, `faint` | `#ffffff`, `#f6f3ec`, `#c9bfa0`, `#a39a7e` | Headings, body text, secondary text, footnotes |
+| `nav`, `nav-text`, `nav-muted` | `#16120a`, `#f6f3ec`, `#c9bfa0` | The navigation rail |
+| `brand`, `brand-soft` | `#aadc6e`, `#313519` | Links and quiet accents |
+| `accent-green`, `-lime`, `-gold`, `-blue`, `-steel`, `-tan`, `-teal`, `-butter` | `#82b45a`, `#aadc6e`, `#eec975`, `#8fc3d6`, `#5c8fa8`, `#d9b07a`, `#6fb5aa`, `#eee6a0` | The primary action (green, ink text), the four research groups, and the landing page's sections |
+| `info`, `warn`, `danger`, `ok` and their `-soft` fills | blue `#8fc3d6`, gold `#eec975`, coral `#f2917f`, lime `#aadc6e`, each on a 16% tint of itself over a surface | The four states below |
+| `ink`, `cream` | `#120f08`, `#f6f3ec` | Dark text on a bright fill; light text |
 
 `src/ui/tokens.test.ts` reads these values and asserts at least 4.5:1 for every text and fill pair.
 
-- **Type.** The system UI font stack, so nothing is fetched from a font service (`tech-stack.md`). The brand mark is serif. Page titles are bold, captions and table headers are the mono uppercase `eyebrow`, numbers use tabular figures, body text is 15px on a 1.5 line height, and no text is smaller than 12px.
-- **Cards.** White, a 2px cream/70 edge, a 12px radius, and a 5px flat green offset shadow. Buttons are 2px ink-bordered with a 3px ink offset shadow that flattens when pressed; inputs are 2px ink-bordered.
-- **Status.** A pill with a shape and words, never color alone, filled from the landing's card colors.
-- **Motion.** A 150ms color transition on interactive elements. The backdrop drifts slowly, and under `prefers-reduced-motion: reduce` it and the transitions are off.
-- **Focus.** A 3px ink outline offset by 2px, drawn in gold on the ink page and the navigation (`data-on-dark`), where ink would vanish. It is never removed.
-- **The stage rail** wraps instead of scrolling: two stages across on a phone, four on a laptop, eight on a wide screen, so none is ever hidden.
+- **Type.** The four families are self-hosted with `next/font/local` from `src/app/fonts/` (latin subsets, licenses in `LICENSES.txt` there), so nothing is fetched from a font service at runtime (`tech-stack.md`). Page titles are Bricolage Grotesque, extra bold, with tight tracking; captions and table headers are the Space Mono uppercase `eyebrow`; numbers use tabular figures; body text is 15px on a 1.5 line height, and no text is smaller than 11px.
+- **Panels.** `surface`, a 1px `line` edge, an 18px radius, and a soft deep shadow (`panelClassName` in `src/ui/panel.tsx`). Rows inside a panel are `canvas` with a 1px edge that turns green when open. The landing page's product views, the sign-in card, and dialogs use the design's window, `.frame-glow`: a gradient green-gold-blue edge and a deeper shadow.
+- **Buttons.** Pills, from `actionClassName` in `src/ui/action-styles.ts` and nowhere else: `primary` green with ink text, `secondary` a translucent cream outline, `danger` a coral outline, `ghost` a text link; `md` for the app and `lg` for the public pages' calls to action.
+- **Inputs and dropdowns.** `inputClassName`: the page color inside a 1px `line-strong` edge with a 12px radius, gold on hover and green on focus. `color-scheme: dark` makes the browser draw a select's list and the date picker dark to match.
+- **Status.** A pill with a shape and words, never color alone, on its state's tint.
+- **Research groups.** Set up, Assemble, Analyze, and Report are blue, lime, gold, and tan (`src/ui/phase/group-tones.ts`): a faint tint with a 4px top edge in the group's color, as the landing page's step cards are drawn.
+- **Maps.** The Protomaps dark basemap flavor. The study area is a dashed cream line and the footprint a gold one, each over a dark casing; the evidence palette in `map-styles.ts` is validated for dark backgrounds.
+- **The report stays paper.** The released document and its in-app section preview keep their own print styling (white paper, serif), because the report is a document, not a screen (P3).
+- **Motion.** A 150ms color transition on interactive elements. The backdrop's glows drift slowly, and under `prefers-reduced-motion: reduce` they and the transitions are off.
+- **Focus.** A 3px gold outline offset by 2px on every interactive element. It is never removed.
+- **The stage rail** wraps instead of scrolling: one column on a narrow container, the four groups side by side on a wide one, so no stage is ever hidden.
 
 ### Components (`src/ui/`)
 
 | Component | Replaces | Notes |
 | --- | --- | --- |
-| `Panel` | `Card` | Titled surface with optional actions and footer |
+| `Panel`, `panelClassName` | `Card` | Titled surface with optional actions and footer; the class string for a section that needs its own header |
 | `StatusLabel` | `Badge`, `StatusPill` | Text plus a shape and an icon, in one of `neutral`, `info`, `warn`, `danger`, `ok`. Color is never the only signal (R8) |
-| `StatBox` | `StatTile`, `Metric` | A label and an integer, for a panel header (the dashboard's table and the profile's resource-type list) |
+| `StatBox` | `StatTile`, `Metric` | A label and an integer, for a panel header (the dashboard's table, a project row's phases left, and the profile's resource-type list) |
 | `PageHeader` | itself | Breadcrumb, title, meta line, actions |
-| `actionClassName(variant)` | — | `primary`, `secondary`, `danger`, `ghost` class strings, for a link or a plain button, mirroring the split `button-styles.ts` makes |
+| `Brand` | the emoji mark | The leaf "U" and the Chewy "plan", named "UPlan" for a screen reader |
+| `Backdrop` | the contour-line background | The grid and glows behind every page |
+| `actionClassName(variant, className, size)` | `buttonClassName` | `primary`, `secondary`, `danger`, `ghost` class strings, for a link or a plain button, in `md` or `lg` |
+| `Button` (client) | — | A React Aria button with `actionClassName`'s look, for the sign-in and register forms and the landing showcase |
 | `SubmitButton` (client) | — | A submit button that reads `useFormStatus`, disables itself while pending, and says what it is doing (R10) |
 | `ActionForm` (client) | — | Wraps `useActionState` around a Server Function, and shows its error in a `role="alert"` region and its notice in a `role="status"` region (R10) |
 | `ConfirmDialog` (client) | — | A native `<dialog>` opened by a button, with a title, a body, and Cancel and confirm buttons. It focuses the cancel button first, closes on Escape, and returns focus to the button that opened it. Used by Delete research |
 
-`Card`, `Badge`, `StatTile`, `StatusPill`, and the sticker `PageHeader` and `TabNav` are rewritten or removed in the same change, not kept beside their replacements. `button.client.tsx` and `button-styles.ts` stay for the public pages.
+`Card`, `Badge`, `StatTile`, `StatusPill`, the sticker `PageHeader` and `TabNav`, and `button-styles.ts` were rewritten or removed when they were replaced, not kept beside their replacements.
 
 **Server Function pattern.** A Server Function in the app returns `ActionState = { error?: string; notice?: string }`. A shared helper, `runAction(fn)` in `src/app/_lib/action-state.ts`, calls it and turns the four expected error classes (`ValidationError`, `ConflictError`, `ForbiddenError`, `NotFoundError`) into `{ error: message }`, and lets everything else, including `redirect()`, propagate (conventions: catch only at a boundary, and rethrow what you can't handle). A success returns `{ notice }` and calls `refresh()` from `next/cache`, so the current page re-renders without a redirect. Redirecting actions (create) call `redirect()` after success.
 

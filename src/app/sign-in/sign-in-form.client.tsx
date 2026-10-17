@@ -18,7 +18,7 @@ export function SignInForm({ next }: { next?: string }) {
     <Form action={formAction} validationErrors={state.fieldErrors} className="flex flex-col gap-5">
       {next === undefined ? null : <input type="hidden" name="next" value={next} />}
       {state.error === undefined ? null : (
-        <p role="alert" className="rounded-lg border-2 border-red-800 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <p role="alert" className="rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
           {state.error}
         </p>
       )}
@@ -31,7 +31,7 @@ export function SignInForm({ next }: { next?: string }) {
         defaultValue={state.values?.email}
       />
       <TextField label="Password" name="password" type="password" autoComplete="current-password" isRequired />
-      <Button type="submit" isDisabled={isPending} className="mt-1 w-full py-3 text-ink">
+      <Button type="submit" isDisabled={isPending} size="lg" className="mt-1 w-full">
         {isPending ? "Signing in…" : "Sign in"}
       </Button>
     </Form>

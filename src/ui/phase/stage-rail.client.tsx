@@ -7,6 +7,8 @@ import { Fragment } from "react";
 import { Icon } from "../icons";
 import { StatusLabel, type StatusTone } from "../status-label";
 
+import { panelClassName } from "../panel";
+
 import { GROUP_TONE, type StepGroup } from "./group-tones";
 
 // The stage rail on every project page (decision-overview.md F18 R1–R3, research-phases.md R17): one linear
@@ -49,11 +51,11 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
   return (
     <nav
       aria-label="Research stages"
-      className="@container flex flex-col gap-3 rounded-xl border-2 border-cream/70 bg-surface p-3 text-text shadow-panel"
+      className={`@container flex flex-col gap-3 p-3 ${panelClassName}`}
     >
       <div aria-hidden="true" className="eyebrow flex items-center gap-2 px-1 text-muted">
         <span>Start</span>
-        <span className="h-0.5 flex-1 rounded-full bg-ink/30" />
+        <span className="h-px flex-1 rounded-full bg-line-strong" />
         <Icon name="arrow-right" />
         <span>Finish</span>
       </div>
@@ -63,12 +65,12 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
           return (
             <Fragment key={group.name}>
               {groupIndex > 0 ? (
-                <li aria-hidden="true" className="flex items-center justify-center py-0.5 text-ink @4xl:px-0.5 @4xl:py-0">
+                <li aria-hidden="true" className="flex items-center justify-center py-0.5 text-faint @4xl:px-0.5 @4xl:py-0">
                   <Icon name="arrow-right" className="size-6 rotate-90 @4xl:rotate-0" />
                 </li>
               ) : null}
-              <li className={`flex min-w-0 flex-col gap-2 rounded-lg border-2 p-2 text-ink @4xl:flex-1 ${tone.edge} ${tone.fill}`}>
-                <p className="eyebrow px-1 text-ink">
+              <li className={`flex min-w-0 flex-col gap-2 rounded-2xl border p-2 text-text @4xl:flex-1 ${tone.edge} ${tone.fill}`}>
+                <p className={`eyebrow px-1 pt-0.5 font-bold ${tone.text}`}>
                   {groupIndex + 1}. {group.name}
                 </p>
                 <ol className="flex flex-1 flex-col gap-1">
@@ -77,7 +79,7 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
                     return (
                       <Fragment key={stage.key}>
                         {stageIndex > 0 ? (
-                          <li aria-hidden="true" className="flex items-center justify-center text-ink">
+                          <li aria-hidden="true" className="flex items-center justify-center text-faint">
                             <Icon name="arrow-right" className="rotate-90" />
                           </li>
                         ) : null}
@@ -85,8 +87,8 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
                           <Link
                             href={stage.href}
                             aria-current={active ? "page" : undefined}
-                            className={`flex w-full min-w-0 flex-col gap-1.5 rounded-lg border-2 bg-white px-3 py-2.5 ${
-                              active ? "border-ink shadow-button" : "border-transparent hover:border-ink/40"
+                            className={`flex w-full min-w-0 flex-col gap-1.5 rounded-xl border px-3 py-2.5 ${
+                              active ? "border-accent-green bg-raised shadow-glow" : "border-line bg-page/60 hover:border-line-strong hover:bg-raised"
                             }`}
                           >
                             <span
@@ -94,7 +96,7 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
                             >
                               <span
                                 aria-hidden="true"
-                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-ink text-xs text-page-text"
+                                className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold text-ink ${tone.bar}`}
                               >
                                 {number}
                               </span>

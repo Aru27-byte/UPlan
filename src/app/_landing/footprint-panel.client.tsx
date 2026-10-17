@@ -77,7 +77,7 @@ export function FootprintPanel() {
           <ToggleButton
             key={layer.id}
             id={layer.id}
-            className="flex cursor-pointer items-center gap-2 rounded-full border-2 border-ink bg-white px-3.5 py-1.5 text-sm font-semibold outline-2 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-ink data-[hovered]:bg-ink/10 data-[selected]:bg-ink data-[selected]:text-cream"
+            className="flex cursor-pointer items-center gap-2 rounded-full border border-line-strong bg-cream/[0.04] px-3.5 py-1.5 text-sm font-semibold text-muted outline-3 outline-offset-2 outline-transparent transition-colors data-[focus-visible]:outline-accent-gold data-[hovered]:bg-cream/[0.09] data-[selected]:border-accent-green/60 data-[selected]:bg-accent-green/[0.14] data-[selected]:text-text"
           >
             <span aria-hidden className="size-3 rounded-full border border-cream/60" style={{ backgroundColor: layer.color }} />
             {layer.label}
@@ -89,7 +89,7 @@ export function FootprintPanel() {
         viewBox="0 0 480 300"
         role="img"
         aria-label="Illustrative map: a footprint traced inside a study area. Wetlands, a stream buffer and forest canopy overlap the footprint; steep slopes lie outside it."
-        className="w-full rounded-xl border-2 border-ink bg-[#ece7d8]"
+        className="w-full rounded-xl border border-line bg-[#1e2716]"
       >
         <defs>
           <clipPath id="showcase-footprint">
@@ -101,15 +101,15 @@ export function FootprintPanel() {
           </pattern>
         </defs>
 
-        <path d="M0 118 C120 98 240 142 480 108" fill="none" stroke="#fff" strokeWidth={6} opacity={0.85} />
-        <path d="M300 0 C285 90 320 200 300 300" fill="none" stroke="#fff" strokeWidth={5} opacity={0.85} />
+        <path d="M0 118 C120 98 240 142 480 108" fill="none" stroke="#f6f3ec" strokeWidth={6} opacity={0.14} />
+        <path d="M300 0 C285 90 320 200 300 300" fill="none" stroke="#f6f3ec" strokeWidth={5} opacity={0.14} />
 
         {LAYERS.filter((layer) => shown.has(layer.id)).map((layer) => (
           <LayerShape key={layer.id} id={layer.id} color={layer.color} opacity={0.32} />
         ))}
 
-        <path d={STUDY_AREA} fill="none" stroke="#211c14" strokeWidth={2} strokeDasharray="8 6" />
-        <path d={FOOTPRINT} fill="#eab676" fillOpacity={0.4} className="showcase-fill" />
+        <path d={STUDY_AREA} fill="none" stroke="#f6f3ec" strokeOpacity={0.8} strokeWidth={2} strokeDasharray="8 6" />
+        <path d={FOOTPRINT} fill="#eec975" fillOpacity={0.18} className="showcase-fill" />
         <g clipPath="url(#showcase-footprint)">
           {LAYERS.filter((layer) => shown.has(layer.id)).map((layer) => (
             <LayerShape key={layer.id} id={layer.id} color={layer.color} opacity={0.9} />
@@ -119,7 +119,7 @@ export function FootprintPanel() {
           d={FOOTPRINT}
           pathLength={1}
           fill="none"
-          stroke="#211c14"
+          stroke="#eec975"
           strokeWidth={3}
           strokeLinejoin="round"
           className="showcase-draw"
@@ -130,24 +130,24 @@ export function FootprintPanel() {
             cx={x}
             cy={y}
             r={5}
-            fill="#fff"
-            stroke="#211c14"
+            fill="#120f08"
+            stroke="#eec975"
             strokeWidth={2.5}
             className="showcase-pop"
             style={{ animationDelay: `${index * 0.28}s` }}
           />
         ))}
-        <text x="46" y="268" fontSize="11" fontWeight="600" fill="#211c14" opacity={0.7}>
+        <text x="46" y="268" fontSize="11" fontWeight="600" fill="#f6f3ec" opacity={0.75}>
           Study area
         </text>
       </svg>
 
-      <ul className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <ul className="grid gap-x-6 gap-y-2 text-sm text-muted sm:grid-cols-2">
         {LAYERS.map((layer) => (
           <li key={layer.id} className="flex items-baseline gap-2">
             <span aria-hidden className="size-2.5 shrink-0 translate-y-px rounded-full" style={{ backgroundColor: layer.color }} />
             <span>
-              <strong className="font-semibold">{layer.label}:</strong>{" "}
+              <strong className="font-semibold text-text">{layer.label}:</strong>{" "}
               {!shown.has(layer.id)
                 ? "hidden"
                 : layer.isInside

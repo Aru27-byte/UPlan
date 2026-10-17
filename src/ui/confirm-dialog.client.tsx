@@ -52,10 +52,10 @@ export function ConfirmDialog({
       <dialog
         ref={dialogRef}
         aria-labelledby={titleId}
-        className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-xl border-2 border-ink bg-surface p-0 text-text shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-black/50"
+        className="frame-glow m-auto w-[min(32rem,calc(100vw-2rem))] p-0 text-text backdrop:bg-black/60 backdrop:backdrop-blur-sm"
       >
         <ActionForm action={action} className="flex flex-col gap-4 p-6">
-          <h2 id={titleId} className="text-lg font-semibold">
+          <h2 id={titleId} className="font-display text-xl font-bold tracking-tight text-heading">
             {title}
           </h2>
           <div className="text-sm text-muted">{children}</div>

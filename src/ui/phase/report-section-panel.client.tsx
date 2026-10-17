@@ -6,6 +6,7 @@ import { ActionForm } from "../action-form.client";
 import type { ActionState } from "../action-state";
 import { inputClassName } from "../action-styles";
 import { Icon } from "../icons";
+import { panelClassName } from "../panel";
 import { SubmitButton } from "../submit-button.client";
 
 import { GROUP_TONE, type StepGroup } from "./group-tones";
@@ -39,11 +40,11 @@ export function ReportSectionPanel({
   return (
     <section
       aria-label={`Report section produced by ${model.stepTitle}`}
-      className="@container overflow-hidden rounded-xl border-2 border-cream/70 bg-surface text-text shadow-panel"
+      className={`@container overflow-hidden ${panelClassName}`}
     >
       <div className="grid @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className={`flex min-w-0 flex-col gap-3 border-b-2 border-ink/20 px-5 py-4 text-ink @3xl:border-r-2 @3xl:border-b-0 ${tone.fill}`}>
-          <p className="eyebrow flex items-center gap-1.5 text-ink/80">
+        <div className={`flex min-w-0 flex-col gap-3 border-b border-line px-5 py-4 text-text @3xl:border-r @3xl:border-b-0 ${tone.fill}`}>
+          <p className={`eyebrow flex items-center gap-1.5 font-bold ${tone.text}`}>
             <Icon name="document" />
             Report section · from {model.stepTitle}
           </p>
@@ -78,7 +79,7 @@ export function ReportSectionPanel({
           )}
 
           {model.feedback.length > 0 ? (
-            <details className="border-t-2 border-line pt-3 text-sm">
+            <details className="border-t border-line pt-3 text-sm">
               <summary className="cursor-pointer rounded font-medium text-brand">Earlier feedback ({model.feedback.length})</summary>
               <ul className="mt-2 flex flex-col gap-2">
                 {model.feedback.map((entry) => (
