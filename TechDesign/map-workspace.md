@@ -2,6 +2,7 @@
 
 **Feature:** F6
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/map-workspace.md](../Requirements/map-workspace.md) (R1–R9)
 **Builds on:** [system-architecture.md](system-architecture.md) (W4, D10), [evidence-layers.md](evidence-layers.md) (F3 tiles), [provenance.md](provenance.md) (F4)
 **Release:** 1
@@ -59,7 +60,7 @@ export const RESOURCE_TYPE_PAINT = {
 
 ## Basemap (R6, R7)
 
-The basemap is the Protomaps `pmtiles` extract Caddy serves from the VM's disk (D10); `map-workspace.client.tsx` points MapLibre's `raster`/`vector` basemap source at that one static URL and nothing else. There is no second basemap source configured anywhere, so there is nothing to "fall back" to — a missing basemap tile renders as empty map background, which is visible and honest rather than silently substituted (R6; no-fallback rule).
+The basemap is the Protomaps `pmtiles` extract served by Vercel as a static file from `public/basemap/` (D10, D28); `map-workspace.client.tsx` points MapLibre's `raster`/`vector` basemap source at that one static URL and nothing else. There is no second basemap source configured anywhere, so there is nothing to "fall back" to — a missing basemap tile renders as empty map background, which is visible and honest rather than silently substituted (R6; no-fallback rule).
 
 Release 1 ships one responsive layout that works down to phone width, but F6's _workflows_ (tracing, editing) require the full editor components, which are not rendered on the phone breakpoint in release 1 — F15 (later) is what turns this into a deliberate look-up-only phone mode. R7 just states that no phone-specific reduced view is required yet.
 

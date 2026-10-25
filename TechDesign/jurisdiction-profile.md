@@ -2,6 +2,7 @@
 
 **Feature:** F1 · `profiles`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/jurisdiction-profile.md](../Requirements/jurisdiction-profile.md) (R1–R11)
 **Builds on:** [data-model.md](data-model.md) (`jurisdiction`, `profile_version`, _The profile document_), [system-architecture.md](system-architecture.md) (_Rules in force_, D6)
 **Shared module with:** [profile-upload-edit.md](profile-upload-edit.md) (F17 — proposing, previewing, and approving a change)
@@ -143,7 +144,7 @@ export function resolveRulesInForce(
 
 - **R3, R5:** this is the one function every caller uses. `analysis` calls `resolveRulesInForce` once per run and stores `resolvedFor` verbatim as `analysis_run.rules_resolved_for` (matches the `{"critical-areas": …, "trees": …}` shape in `data-model.md`). No other module computes "is this rule in force" itself.
 - Today's date is always the clock injected by the caller (`conventions.md`: "Domain logic takes today's date from an injected clock"), in the jurisdiction's `time_zone` — `rules-in-force.ts` takes `today` as a parameter, it never calls `Date.now()`.
-- **R10:** `apply_effective_dates` (job J3, in `operations`/`analysis`) runs daily per jurisdiction: it computes today's and tomorrow's `resolveRulesInForce` resolution set against `document`, and for any open decision whose `application_filed_on` and vesting settings mean a rule's `effectiveOn`/`repealedOn` falls on today, enqueues `run_analysis` for it. The comparison is a plain scan of `bufferRules`/`studyTriggers`/`treeRules` dates against `today`, not a second resolution mechanism.
+- **R10:** `applyEffectiveDates` (called by `daily_jurisdiction_maintenance`, in `profiles`) runs daily per jurisdiction: it computes today's and tomorrow's `resolveRulesInForce` resolution set against `document`, and for any open decision whose `application_filed_on` and vesting settings mean a rule's `effectiveOn`/`repealedOn` falls on today, enqueues `run_analysis` for it. The comparison is a plain scan of `bufferRules`/`studyTriggers`/`treeRules` dates against `today`, not a second resolution mechanism.
 
 ## Versions (R7, R8, R9)
 

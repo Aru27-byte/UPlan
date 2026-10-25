@@ -152,7 +152,7 @@ function ProjectRow({ project: p }: { project: ProjectSummary }) {
           ) : null}
           {p.state !== "finishing" ? (
             <ConfirmDialog
-              triggerLabel="Delete"
+              triggerLabel={<Icon name="trash" />}
               triggerAriaLabel={`Delete research: ${title}`}
               triggerVariant="danger"
               title={`Delete “${title}” from view?`}

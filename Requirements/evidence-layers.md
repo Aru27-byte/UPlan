@@ -2,6 +2,7 @@
 
 **Feature:** F3 · `evidence`
 **Status:** Draft
+**Implementation:** Built in release 1 (datasets, versions, tiles, sample evidence, ingestion module and script); no dataset-admin page yet. Current as of 2026-10-24.
 **Serves:** I1–I4 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Ecological dimensions_, _Known limits of desk analysis_), [features.md](features.md) (F3), [system-architecture.md](../TechDesign/system-architecture.md) (_Key flows: Dataset refresh_, D10, D11)
 **Related design doc:** [TechDesign/evidence-layers.md](../TechDesign/evidence-layers.md)

@@ -2,6 +2,7 @@
 
 **Feature:** F24 · `assist` module + the section chat on each phase page
 **Status:** Draft — revised 2026-10-22: the phase assist panel becomes a section chat with Explain and Change modes; AI edits create versioned report sections
+**Implementation:** Built in release 1; current as of 2026-10-24. The dashboard question box and New-research document scan are prototype-level conveniences.
 **Serves:** I1, I2, I4, I9 · **Release:** 1, in three waves _(added 2026-10-10)_
 **Derived from:** [charter.md](charter.md) (_AI assistance_, P1–P3, _Posture_), [features.md](features.md) (F24, F2), [intents.md](intents.md)
 **Related design doc:** [TechDesign/ai-assist.md](../TechDesign/ai-assist.md)
@@ -29,7 +30,7 @@ A planner's slow hours are not spent measuring. UPlan already measures. They are
 
 **R6. No suggestion carries a verdict.** None recommends, approves, denies, clears, ranks, scores, or rates; none says a study is or is not needed or an impact is acceptable; none proposes a condition of approval. This is enforced by the fixed shapes of the kinds and by a denylist test on every output, and a violation is a rejection (charter _Posture_; F14 R9). The same denylist applies to a section change before it becomes a version.
 
-**R7. A suggestion only reads and cites; it never decides.** Explain, Questions, Find, Compare, and Section explain suggestions take effect on nothing. A Section edit takes effect only when the planner asks for a change in the section chat; it creates a new section version and never changes the engine output, the analysis, a profile, or a dataset. Metadata drafts and Rule drafts take effect only when UPlan staff confirm them, through the same approval path as an uploaded change (F17), and never the person who requested them.
+**R7. A suggestion only reads and cites; it never decides.** Explain, Questions, Find, Compare, and Section explain suggestions take effect on nothing. A Section edit takes effect only when the planner asks for a change in the section chat; it creates a new section version and never changes the engine output, the analysis, a profile, or a dataset. Metadata drafts and Rule drafts take effect only when a UPlan staff member confirms them through the profile module, and never the person who requested them. A planner's ordinary profile upload or settings edit still applies at once, as F17 says.
 
 **R8. Only allow-listed input is sent to the model service.** The allowed classes are: published code and ordinance text; dataset metadata; the city's profile rules and citations; and a project's measured results with names removed (resource types, counts, areas, distances, ranges, gaps, limits, dataset titles and dates). A section change also sends the section's text, tables, and fixed notices, with every map reduced to its title and description and no coordinates. Never sent: a project's title, parcel or address, applicant, project manager, dates of filing or decision, planner notes, resolution notes, boundary coordinates, uploaded files, or any person's name or email. A planner's chat message is free text, so it is checked against the project's recorded identity and against email addresses before it is sent; a message that contains one is refused with the reason, and no model call is made. The request sent is stored with the suggestion so anyone can see exactly what left UPlan.
 

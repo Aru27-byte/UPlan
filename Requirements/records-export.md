@@ -2,6 +2,7 @@
 
 **Feature:** F16 · `records`
 **Status:** Draft
+**Implementation:** Backend built in release 1 (retention flags and exports); no records page yet. Current as of 2026-10-24.
 **Serves:** the public records constraint in `intents.md` · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_v1 scope_), [features.md](features.md) (F16), [intents.md](intents.md) (_Across all intents_: RCW 42.56.010)
 **Related design doc:** [TechDesign/records-export.md](../TechDesign/records-export.md)

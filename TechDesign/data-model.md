@@ -1,11 +1,12 @@
 # UPlan — Data Model
 
-**Status:** Draft — system-level technical design
-**Last updated:** 2026-09-27
+**Status:** Current as of 2026-10-24 — system-level technical design; storage and AI tables updated for the Vercel + Supabase deployment
+**Last updated:** 2026-10-24
+**Implementation:** Current schema and storage; F2's automatic indexing and drafting are not built.
 **Derived from:** [charter.md](../Requirements/charter.md), [features.md](../Requirements/features.md)
 **Related:** [tech-stack.md](tech-stack.md) · [system-architecture.md](system-architecture.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
-The SQL below is the design target for release 1, plus F2's tables, which are marked later in v1. Drizzle schema files and generated migrations must produce exactly these constraints. The constraints aren't decoration: they are how the system prevents races and keeps released records honest (see _Concurrency and consistency_ in the architecture).
+The SQL below is the design target for release 1. F2's retrieval tables (`source_document`, `document_chunk`) exist and are used by the assist module for staff-pasted code text; F2's automatic fetching, indexing, and drafting are later in v1. Drizzle schema files and generated migrations must produce exactly these constraints. The constraints aren't decoration: they are how the system prevents races and keeps released records honest (see _Concurrency and consistency_ in the architecture).
 
 ## Conventions in this model
 
@@ -406,7 +407,7 @@ create table worker_heartbeat (
   last_seen_at timestamptz not null
 );
 
--- One row per pgBackRest run, written by the backup timer.
+-- One row per backup run. A self-run backup job writes it; on Supabase, use the platform's backup view instead.
 create table backup_run (
   id           uuid primary key default gen_random_uuid(),
   kind         text not null check (kind in ('full', 'diff')),
@@ -422,7 +423,7 @@ The health check reads these two tables, PostgreSQL's `pg_stat_archiver` view fo
 
 ## Privileges and immutability
 
-The migrate task runs as the schema owner. Web and worker connect as `uplan_app`, which gets only what each table needs.
+The migrate task runs as the schema owner. Web and worker connect as `uplan_app`, which gets only what each table needs. In the current deployment both connect as the schema owner; creating `uplan_app` and these grants is a pilot item in the deployment guide.
 
 ```sql
 -- Append-only tables: rows are inserted, never changed.
@@ -652,20 +653,18 @@ Rounding happens only when a value is displayed, in one formatter in `src/module
 
 ## Object storage
 
-Buckets live in OCI Object Storage and are reached through its S3 compatibility API. Production has all three buckets. Development has `objects` and `reports`, each with a lifecycle rule that deletes objects after a day.
+Buckets live in Supabase Storage and are reached through its S3-compatible API. Development and production use separate Supabase projects or separate buckets.
 
-**Since 2026-09-27 the `reports` bucket holds no documents.** Published documents are kept in the database (`report.pdf`, F10 R9, F22 R1), so one backup and one transaction cover them. The `reports` bucket and its environment variables (`OCI_BUCKET_REPORTS`) stay configured in this release, because removing an environment variable from a deployed stack is its own change, and are listed in `deployment-guide.md` as safe to remove. Nothing writes to it.
+**Published documents are not in Storage.** They are kept in the database (`report.pdf`, F10 R9, F22 R1), so one backup and one transaction cover them. The `OCI_BUCKET_REPORTS` environment variable and its bucket name remain required by `src/platform/env.ts` for compatibility but are unused; they are safe to remove in a later change.
 
-| Bucket                | Key pattern                                                                                                                                                                                                      | Protection                                                                                                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uplan-<env>-objects` | `profile-uploads/<jurisdictionId>/<fileSha256>.xlsx` · `evidence-raw/<datasetKey>/<rawSha256>/<source file name>` · `code-raw/<jurisdictionId>/<contentSha256>` · `exports/<jurisdictionId>/<exportId>.<format>` | The application's credentials can create and read objects, never overwrite or delete them                                                                                   |
-| `uplan-<env>-reports` | _(unused since 2026-09-27: documents are in `report.pdf`)_                                                                                                                                                        | —                                                                                                                                                                            |
-| `uplan-prod-backups`  | pgBackRest's own layout                                                                                                                                                                                          | pgBackRest's credentials, which reach only this bucket. pgBackRest encrypts everything it writes                                                                            |
+| Bucket | Key pattern | Protection |
+| --- | --- | --- |
+| `uplan-objects` | `profile-uploads/<jurisdictionId>/<fileSha256>.xlsx` · `evidence-raw/<datasetKey>/<rawSha256>/<source file name>` · `code-raw/<jurisdictionId>/<contentSha256>` · `exports/<jurisdictionId>/<exportId>.<format>` | The application client exposes only create, head, and read; Supabase's S3 keys are project-scoped, so the client contract is the enforcement |
 
 - Keys built from content hashes or record ids make every write idempotent. With create-only credentials, a second write to an existing key fails instead of replacing the object, and the writer treats an existing object with the expected hash as already written.
-- Retention rules can't be combined with versioning, so no bucket is versioned. Create-only credentials make versions unnecessary.
-- The S3 client sets `requestChecksumCalculation: "WHEN_REQUIRED"`, following Oracle's tutorial for current AWS SDKs.
-- The basemap file isn't in Object Storage. It lives on the VM's disk, where Caddy serves it.
+- The S3 client uses `forcePathStyle: true`, which matches Supabase Storage's endpoint, and sets `requestChecksumCalculation: "WHEN_REQUIRED"`.
+- The basemap file isn't in Storage. It is committed at `public/basemap/basemap.pmtiles` and served by Vercel as a static file with range requests.
+- Supabase's own backups cover the database and, on a paid plan, Storage. `backup_run` remains for a self-run backup job; on Supabase, the platform's backup view is the source of truth.
 
 ## Code change tracking and the retrieval index (F2, later in v1)
 
@@ -766,6 +765,8 @@ create trigger code_change_draft_final before update on code_change_draft
 ## AI assist tables (F24, release 1)
 
 `ai_suggestion` and `ai_suggestion_response` hold every model output other than F2's drafts, with the request that was sent, the raw response, the checks that passed or failed, and each person's response. Their definitions, the unique key that makes a double submission one suggestion, and the append-only trigger are in [ai-assist.md](ai-assist.md), _Data model_. They hold no measurement, and no analysis, review, or report row refers to them. A confirmed rule draft links to its `profile_change` through `ai_suggestion_response.profile_change_id`.
+
+`chat_message` (migration `0011`) stores the section chat's conversation: the project, phase, role, text, and timestamp. It is displayed beside a phase and never read by the analysis, the section content, or the report. `source_document` and `document_chunk` store staff-pasted code text and its embeddings for the Find assist; they are write-once by trigger.
 
 ## Additions later in v1
 

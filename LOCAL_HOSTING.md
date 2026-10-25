@@ -99,10 +99,19 @@ planner, and a project belongs to the person who created it.
 The worker is required, not optional: it runs each project's analysis (so the phases have output to
 review) and generates the final document. Without it a project sits at "Analysis is out of date".
 
+In production the same worker runs as one managed always-on container on Render, Railway, Fly.io,
+Google Cloud Run (minimum instance 1), or the existing Oracle VM, with a session/direct connection to
+the Supabase database. See `TechDesign/deployment-guide.md` for the production deployment. Vercel
+hosts the web app; the worker cannot run as a normal Vercel Function because graphile-worker keeps a
+long-lived database connection and the job needs Chromium and GDAL.
+
 ```sh
 npx playwright install chromium   # once: the worker prints the final document as a PDF with it
 npm run worker:dev                # builds the worker, then starts it (leave it running)
 ```
+
+`worker:dev` does not load `deploy/crontab`; the heartbeat and daily maintenance run only
+when the worker is started with `--crontab=deploy/crontab` (as the production worker is).
 
 ## 9. Walk through the workflow
 

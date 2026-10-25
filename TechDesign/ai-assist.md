@@ -2,6 +2,7 @@
 
 **Feature:** F24 · new module `assist` · `src/platform/model-client.ts` · the section chat in `src/ui/phase/` · the profile panel
 **Status:** Draft — revised 2026-10-22: the phase assist panel becomes the section chat with Explain and Change modes; a change stores a versioned report section
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/ai-assist.md](../Requirements/ai-assist.md) (R1–R19)
 **Builds on:** [research-phases.md](research-phases.md) (F21), [evidence-layers.md](evidence-layers.md) (F3), [evidence-review.md](evidence-review.md) (F19), [study-scoping.md](study-scoping.md) (F14), [jurisdiction-profile.md](jurisdiction-profile.md) (F1), [profile-upload-edit.md](profile-upload-edit.md) (F17), [provenance.md](provenance.md) (F4), [locked-report.md](locked-report.md) (F10)
 **Decisions:** D27 (hosted inference and the assist boundary), D28 (hosting on Vercel and Supabase) in [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
@@ -44,7 +45,7 @@ The browser never sees the key, and never calls NVIDIA. Retrieval for Find runs 
 
 | Role | What it does | Candidate (verify in NVIDIA's catalog before pinning) | Pinned where |
 | --- | --- | --- | --- |
-| Generate | Fills one of the six shapes from the supplied passages or measurements | An instruction-tuned open model that supports JSON-schema-guided output, such as Meta Llama 3.3 70B Instruct or an NVIDIA Nemotron instruct model | A constant in `model-client.ts`, with its prompt version |
+| Generate | Fills one of the eight shapes from the supplied passages or measurements | `nvidia/nemotron-3-ultra-550b-a55b`, thinking off, with the checks enforcing the shape | A constant in `model-client.ts`, with its prompt version |
 | Embed | Turns code chunks and questions into 1,024-dimension vectors for Find | `nvidia/nemotron-3-embed-1b` (since 2026-10-10; `nv-embedqa-e5-v5` was retired 2026-08-25). It returns 2,048 dimensions; the first 1,024 are kept and re-normalized, as its model card allows, so the `vector(1024)` column and index stand. The caller prefixes `query: ` or `passage: ` | A constant in `model-client.ts`; stored on every chunk |
 
 - The endpoint is OpenAI-compatible, so `model-client.ts` uses `fetch` and Zod. No SDK is added.
@@ -393,7 +394,7 @@ Everything above was built, in all three waves. These are the places the code di
 | `ai_suggestion.input_sha256` | `not null` | Nullable while `running`, required for `ready` | The row claims the unique key before retrieval, so a double submission makes one call (R13). The request is written when it has been assembled |
 | `ai_suggestion.response_raw` | `jsonb` | `text` | The model's reply may not be JSON, and K1 must be able to keep it |
 | Claiming a row | Cap, then claim | One transaction: advisory locks on the person and the city, then the live-row lookup, the stale-row release, the two counts, and the insert | Serializes the count and the insert without a table lock, and works through Supabase's transaction pooler |
-| `source_document` and `document_chunk` | Belonged to F2's `code_source` and `code_check` | Standalone: `jurisdiction_id`, `kind` (`code` or `checklist`), `title`, `content_sha256`, `embedding_model`, `chunk_count`, `created_by`. No raw object, no `search_text`, no status. Write-once by trigger | There is no fetch or worker on this target. Staff paste text, which is chunked at section numbers and embedded in the same request |
+| `source_document` and `document_chunk` | Belonged to F2's `code_source` and `code_check` | Standalone: `jurisdiction_id`, `kind` (`code` or `checklist`), `title`, `content_sha256`, `embedding_model`, `chunk_count`, `created_by`. No raw object, no `search_text`, no status. Write-once by trigger | There is no code-fetch pipeline yet. Staff paste text, which is chunked at section numbers and embedded in the same request |
 | One confirmation | A check in code | `ai_suggestion_one_confirmation`, a unique partial index on `ai_suggestion_response (suggestion_id) where response = 'confirmed'` | A one-at-a-time rule is a constraint (best-practices) |
 | Confirming a rule draft | `source = 'code_change'` through F17 | `profiles.applyDraftedChange`, in the confirmer's transaction with the response row: `proposed_by` is the requester, `decided_by` the confirmer, source `code_change`. The profile pointer is moved under the city's row lock with the base version compared | F17 applies at once (R5, 2026-10-04); the second-person rule is F24's own |
 | What a rule draft can change | "rule-owned paths" | A number of an existing rule: `bufferRules.<key>.widthFt`, `studyTriggers.<key>.withinFt`, `treeRules.<key>.minDbhIn`, `.maxCount`, `.periodYears`. Never a setting, a date, or a new or removed rule. Staff enter the effective date and the ordinance; the rule in force ends that day and a new entry starts | A date is staff's act (PR1 _Never_), and the profile already versions a rule by date |
@@ -407,8 +408,8 @@ Everything above was built, in all three waves. These are the places the code di
 
 ## Open items
 
-- **Hosting migration beyond assist.** This design needs only Vercel and Supabase. The rest of release 1 still assumes a worker, Chromium, and GDAL (D1, D8, D11, D12, D17). Where those run on Vercel and Supabase is open; see D28.
+- **Hosting.** This design needs only Vercel and Supabase. The rest of release 1 runs on one managed worker container (D29) for graphile-worker, Chromium, and GDAL. A Vercel-native replacement using Queues and Workflows is designed in [deployment-guide.md](deployment-guide.md), Part E, but is not the current deployment.
 - **Where code text comes from.** _Decided and built:_ staff paste the city's code text or a checklist on the profile page, up to 150,000 characters at a time. It is chunked at section numbers, embedded, and written once. F2's fetch-and-index (Poppler and a worker) is a later step.
 - **NVIDIA terms** for a city pilot, as above.
-- **The model id.** Chosen by running the evaluation set against two or three catalog candidates; the table above is a starting list, not a measurement.
+- **The model id.** Pinned to `nvidia/nemotron-3-ultra-550b-a55b` in `platform/model-client.ts`. The 2026-10-16 tests timed out on some generation calls, so changing the id requires a fresh run of `npm run eval:assist`; embeddings answer in about 0.5 s.
 - **Whether Find belongs on the dashboard** as a city-level question box. It would be PR2 without a project, with the same rules.

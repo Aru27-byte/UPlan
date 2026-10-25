@@ -2,6 +2,7 @@
 
 **Feature:** F14 · `analysis`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/study-scoping.md](../Requirements/study-scoping.md) (R1–R14)
 **Builds on:** [evidence-base.md](evidence-base.md) (F7 — `runAnalysis`, pinning, `results.ts`), [impact-analysis.md](impact-analysis.md) (F9 — the range rule and `evaluateAppliesWhen`), [system-architecture.md](system-architecture.md) (_Impact engine_), [data-model.md](data-model.md) (`analysis_run`)
 **Release:** 1
@@ -70,7 +71,7 @@ export const RESULTS_VERSION = 2; // 1: impacts, evidenceBase, limits · 2: adds
 
 - `readRunResults` (and `getAnalysisSnapshot`, which pages reach through `getWorkflow`) parse by `results_version`. A run whose version isn't `RESULTS_VERSION` is reported as an out-of-date analysis and is never parsed; pages say the analysis is out of date and is being replaced. Nothing parses an old document "as best it can", and nothing fills the missing sections with empty arrays.
 - `results_version` is part of the `input_sha256` payload. Without it, an open decision's inputs would hash the same as its version-1 run, and F7 R8's "identical inputs are a no-op" rule would skip the recompute.
-- J3 (`apply_effective_dates`, daily per city) also enqueues `run_analysis` for each open decision whose latest `current` run has an outdated `results_version`, on that decision's own queue with an explicit `max_attempts`. A migration can't enqueue these itself, because the graphile-worker schema doesn't exist on a fresh database until the worker first starts. Released reports are PDFs and are unaffected.
+- The daily `daily_jurisdiction_maintenance` job (which calls `applyEffectiveDates` per city) also enqueues `run_analysis` for each open decision whose latest `current` run has an outdated `results_version`, on that decision's own queue with an explicit `max_attempts`. A migration can't enqueue these itself, because the graphile-worker schema doesn't exist on a fresh database until the worker first starts. Released reports are PDFs and are unaffected.
 
 ## Screening (R1, R2, R3, R4, R7, R11)
 
@@ -225,4 +226,4 @@ Both pages read `facts.run` from `getWorkflow`, which is set only when the analy
 ## Open questions
 
 - Whether a city can set a data-age threshold in its profile settings (see the Requirements' _Open items_). It would add a setting to `ProfileDocument`, so it needs its own round.
-- Waiting up to a day for J3 leaves open decisions on the "predates study scoping" state after a deploy. The likely fix is one line in `deploy/deploy.sh` that adds a J3 job for each city once the worker is up. `deployment-guide.md` needs that step if it is adopted.
+- Waiting up to a day for the daily maintenance job leaves open decisions on the "predates study scoping" state after a deploy. The likely fix is a one-off job that enqueues a `run_analysis` for each open decision once the new worker is up. `deployment-guide.md` describes the deploy order; this remains a post-deploy step if it is adopted.

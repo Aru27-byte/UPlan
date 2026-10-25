@@ -2,8 +2,9 @@
 
 **Feature:** F16 · `records`
 **Status:** Draft
+**Implementation:** Backend built in release 1 (retention flags and exports); no records page yet. Current as of 2026-10-24.
 **Requirements:** [Requirements/records-export.md](../Requirements/records-export.md) (R1–R8)
-**Builds on:** [data-model.md](data-model.md) (`retention_flag`, `records_export`), [system-architecture.md](system-architecture.md) (J6)
+**Builds on:** [data-model.md](data-model.md) (`retention_flag`, `records_export`), [system-architecture.md](system-architecture.md) (`daily_jurisdiction_maintenance`, `build_records_export`)
 **Release:** 1
 
 ## Module
@@ -12,8 +13,8 @@
 src/modules/records/
   index.ts        public API
   tables.ts         retention_flag, records_export
-  retention.ts       flagRetention (job J6a), reviewFlag
-  export.ts          requestExport, buildExport (job J6b)
+  retention.ts       flagRetention (called by daily_jurisdiction_maintenance), reviewFlag
+  export.ts          requestExport, buildExport (task build_records_export)
   *.test.ts
 ```
 

@@ -2,6 +2,7 @@
 
 **Feature:** F14 · `analysis` (extends F7's run) + the Screening and Studies pages
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I1, I4 · **Release:** 1 _(moved up from "later in v1" on 2026-09-26)_
 **Derived from:** [charter.md](charter.md) (_Jobs: screening_, _Known limits of desk analysis_, P2), [features.md](features.md) (F14), [intents.md](intents.md) (I1, I4)
 **Related design doc:** [TechDesign/study-scoping.md](../TechDesign/study-scoping.md)

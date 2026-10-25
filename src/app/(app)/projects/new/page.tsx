@@ -29,14 +29,18 @@ export default async function NewProjectPage() {
         meta={`The rules of ${city.name}, ${city.stateCode} apply to this project.`}
       />
 
-      <Panel title="Project details" description="Only the title and the application type are required. Record the rest whenever you know it.">
-        <ActionForm action={scanDocumentAction} className="grid max-w-3xl gap-4 sm:grid-cols-2" encType="multipart/form-data">
-          <Field label="Upload document (optional)" hint="PDF, DOCX, or TXT. UPlan Assist will extract project details and fill the form.">
+      <Panel
+        title="Upload a document"
+        icon="sparkles"
+        description="PDF, DOCX, or TXT. UPlan Assist reads it and fills in the project details below."
+      >
+        <ActionForm action={scanDocumentAction} className="flex max-w-3xl flex-col items-start gap-3" encType="multipart/form-data">
+          <Field label="Document (optional)" hint="PDF, DOCX, or TXT, up to 5 MB." className="w-full">
             <input type="file" name="document" accept=".pdf,.docx,.txt" className={inputClassName} />
           </Field>
-          <div className="sm:col-span-2 flex gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <SubmitButton variant="secondary" pendingLabel="Scanning…">Scan & fill</SubmitButton>
-            <span className="self-center text-sm text-muted">or fill manually below</span>
+            <span className="text-sm text-muted">or fill in the details manually below</span>
           </div>
         </ActionForm>
       </Panel>

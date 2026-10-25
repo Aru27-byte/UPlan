@@ -2,6 +2,7 @@
 
 **Feature:** F18 · `workflow`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/decision-overview.md](../Requirements/decision-overview.md) (R1–R13)
 **Builds on:** [decisions.md](decisions.md) (F5), [evidence-base.md](evidence-base.md) (`run.ts`, pinning), [study-scoping.md](study-scoping.md) (F14), [system-architecture.md](system-architecture.md) (_Modules_, _Concurrency and consistency_)
 **Release:** 1

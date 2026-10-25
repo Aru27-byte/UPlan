@@ -2,6 +2,7 @@
 
 **Feature:** F11 · `accounts`
 **Status:** Draft — everyone who signs in is a planner and works on their own projects; jurisdiction membership removed 2026-09-27; the reviewer role returns with F12. Sign-in moved from city OIDC and GitHub to email and password through Supabase Auth
+**Implementation:** Built in release 1 for planners and UPlan staff; the reviewer role is not built. Current as of 2026-10-24.
 **Serves:** every intent (access to all of them); I8 (later, with reviewers) · **Release:** 1 for planners
 **Derived from:** [charter.md](charter.md) (Users, Posture), [features.md](features.md) (F11), [system-architecture.md](../TechDesign/system-architecture.md) (D14, W1)
 **Related design doc:** [TechDesign/accounts-roles.md](../TechDesign/accounts-roles.md)
@@ -14,7 +15,7 @@ Until 2026-09-27 access was granted per city, by UPlan staff, as a _membership_.
 
 ## Scope
 
-In scope for release 1: anyone registering and signing in with an email address and a password, handled by Supabase Auth; the sign-in and register pages; and the planner — every signed-in person — who can create projects, work on their own, propose profile changes, and publish documents (without sign-off, since F12 hasn't shipped). Out of scope for release 1: the reviewer _workflow_ (F12) and any way to share a project with another person. F12 decides how a reviewer is given one project.
+In scope for release 1: anyone registering and signing in with an email address and a password, handled by Supabase Auth; the sign-in and register pages; and the planner — every signed-in person — who can create projects, work on their own, change the city profile, and publish documents (without sign-off, since F12 hasn't shipped). UPlan staff can install sample evidence, manage source documents and code text, confirm AI drafts, and export records. Out of scope for release 1: the reviewer _workflow_ (F12) and any way to share a project with another person. F12 decides how a reviewer is given one project.
 
 ## Requirements
 

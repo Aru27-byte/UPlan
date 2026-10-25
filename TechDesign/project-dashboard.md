@@ -2,6 +2,7 @@
 
 **Feature:** F20 · `decisions` + `workflow` + `src/app/(app)`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/project-dashboard.md](../Requirements/project-dashboard.md) (R1–R10)
 **Builds on:** [decisions.md](decisions.md) (F5), [decision-overview.md](decision-overview.md) (F18), [research-phases.md](research-phases.md) (F21), [research-changes.md](research-changes.md) (F22), [accounts-roles.md](accounts-roles.md) (F11)
 **Release:** 1

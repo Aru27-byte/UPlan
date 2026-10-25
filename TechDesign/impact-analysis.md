@@ -2,6 +2,7 @@
 
 **Feature:** F9 · `analysis` · _the pilot's edge_
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/impact-analysis.md](../Requirements/impact-analysis.md) (R1–R12)
 **Builds on:** [evidence-base.md](evidence-base.md) (F7 — `runAnalysis`, pinning, `results.ts`), [system-architecture.md](system-architecture.md) (_Impact engine_, D9)
 **Release:** 1

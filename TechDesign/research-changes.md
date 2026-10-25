@@ -2,6 +2,7 @@
 
 **Feature:** F22 · `workflow` + `reports` + `decisions`
 **Status:** Draft — revised 2026-10-22: a change is measured against versioned report sections, not phase reviews
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/research-changes.md](../Requirements/research-changes.md) (R1–R12)
 **Builds on:** [locked-report.md](locked-report.md) (F10), [research-phases.md](research-phases.md) (F21), [decisions.md](decisions.md) (F5), [decision-overview.md](decision-overview.md) (F18), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_, J-table)
 **Release:** 1

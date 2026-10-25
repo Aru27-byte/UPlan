@@ -1,7 +1,8 @@
 # UPlan — Alternatives and Trade-offs
 
-**Status:** Draft — system-level technical design; D27 and D28 added 2026-10-10
-**Last updated:** 2026-10-10
+**Status:** Current as of 2026-10-24 — system-level technical design; D27, D28, and D29 record the current model and deployment choices
+**Last updated:** 2026-10-24
+**Implementation:** Current decisions; D17 and D15 are kept as historical records.
 **Related:** [tech-stack.md](tech-stack.md) · [system-architecture.md](system-architecture.md) · [data-model.md](data-model.md)
 
 One record per decision. A change to the stack starts here: update the record, then the documents that cite it.
@@ -49,7 +50,7 @@ One record per decision. A change to the stack starts here: update the record, t
 
 ## D4. PostgreSQL 18 with PostGIS 3.6
 
-**Chosen.** One PostgreSQL database with PostGIS, holding relational data, spatial data, the job queue, and sessions, plus F2's retrieval index later in v1 (D21). It runs in a container on the VM (D17).
+**Chosen.** One PostgreSQL database with PostGIS, holding relational data, spatial data, the job queue, and the retrieval index (D21). It runs on Supabase Postgres (D28), with pgvector for embeddings.
 
 **Considered.**
 
@@ -105,7 +106,7 @@ One record per decision. A change to the stack starts here: update the record, t
 - _Advisory locks or Redis locks_ — the lock lives apart from the data it protects and can be lost in a crash.
 - _Last write wins_ — silently loses a planner's work.
 
-**Trade-offs accepted.** Some actions fail with a conflict the user must resolve. For example, a city can't have two pending profile changes at once.
+**Trade-offs accepted.** Some actions fail with a conflict the user must resolve. For example, a city can't have two pending AI-drafted profile changes at once, and two people can't confirm the same draft.
 
 **Revisit when.** Conflicts become common enough that users need merging.
 
@@ -142,9 +143,9 @@ One record per decision. A change to the stack starts here: update the record, t
 
 - MapLibre GL JS renders the map, and Terra Draw handles tracing.
 - Evidence layers are vector tiles made by PostGIS `ST_AsMVT`. Each tile URL includes the dataset version, so a tile never changes and can be cached as immutable.
-- The basemap is a Protomaps extract of the city's area, built from OpenStreetMap data with the `pmtiles` command-line tool, and served by Caddy from the VM's disk.
+- The basemap is a Protomaps extract of the city's area, built from OpenStreetMap data with the `pmtiles` command-line tool, and served by Vercel as a static file from `public/basemap/`.
 - Terra Draw is adapter-based — it has no rendering code of its own — so wiring it to MapLibre needs `terra-draw-maplibre-gl-adapter`, the same project's official adapter package (peer deps `terra-draw@^1.0.0`, `maplibre-gl>=4`, both already pinned here). Writing an equivalent adapter by hand against `terra-draw`'s exported `TerraDrawExtend` base classes would be more code, not less, to maintain a capability the ecosystem already publishes (`.claude/rules/best-practices.md`: "A new dependency must remove more code than it adds").
-- The basemap is served, and read, as a single `.pmtiles` file — a **vector** tile archive read entirely over HTTP range requests, which is what Caddy's `file_server` + `handle_path` were already built to serve ("the basemap file served with byte ranges") and what Protomaps' own free daily builds actually publish (their product is vector, not pre-rendered raster tiles). MapLibre has no built-in reader for the format, so `basemap-style.client.ts` uses the `pmtiles` npm package (Protomaps' own client library) to register a `pmtiles://` protocol handler, and `@protomaps/basemaps` (the actively maintained successor to the now-deprecated `protomaps-themes-base`) to generate the ~100 fill/line paint rules a basemap needs, instead of hand-authoring them.
+- The basemap is served, and read, as a single `.pmtiles` file — a **vector** tile archive read entirely over HTTP range requests, which Vercel's static file serving supports and what Protomaps' own free daily builds publish (their product is vector, not pre-rendered raster tiles). MapLibre has no built-in reader for the format, so `basemap-style.client.ts` uses the `pmtiles` npm package (Protomaps' own client library) to register a `pmtiles://` protocol handler, and `@protomaps/basemaps` (the actively maintained successor to the now-deprecated `protomaps-themes-base`) to generate the ~100 fill/line paint rules a basemap needs, instead of hand-authoring them.
 - Text labels (`symbol` layers) are filtered out of that generated style: rendering them needs font glyphs and sprite icons, and Protomaps only publishes those from a live `protomaps.github.io` URL — an always-on third-party call this app has no other reason to make. Everything else (roads, water, parks, buildings) still renders from the same downloaded-on-purpose `.pmtiles` extract, no external call at runtime. Bundling the glyph/sprite files locally, the same way the extract itself is downloaded once and served from disk, is the addressable follow-up if labels are wanted (see `basemap-style.client.ts`'s comment).
 
 **Considered.**
@@ -156,7 +157,7 @@ One record per decision. A change to the stack starts here: update the record, t
 - _A Martin tile server_ — one more service to run.
 - _Prebuilt PMTiles per dataset version_ — fast, but adds tippecanoe to ingestion.
 - _Hosted basemap APIs_ — third-party availability and terms.
-- _Raster PNG basemap tiles_ (a `{z}/{x}/{y}.png` URL template) — an earlier implementation pass assumed this, but nothing in the free Protomaps ecosystem publishes pre-rendered raster tiles, and Caddy's own config already only ever served one range-requested file, not a tile-file tree — corrected to match what was already the documented and deployed intent.
+- _Raster PNG basemap tiles_ (a `{z}/{x}/{y}.png` URL template) — nothing in the free Protomaps ecosystem publishes pre-rendered raster tiles, and the deployment serves one range-requested file, not a tile-file tree.
 
 **Trade-offs accepted.** Someone must refresh the basemap file on purpose. No aerial imagery source is chosen yet; the map-workspace design picks a public-domain one. Local development regenerates its own small extract with the `pmtiles` CLI (see `LOCAL_HOSTING.md`) rather than sharing production's file.
 
@@ -190,7 +191,7 @@ One record per decision. A change to the stack starts here: update the record, t
 - _Screenshots of the live WebGL map_ — heavier, and nondeterministic in headless browsers.
 - _PDF permission passwords_ — trivial to remove.
 - _PAdES digital signatures_ — would make altered copies detectable, at the cost of certificate and key management. Deferred.
-- _S3 Object Lock with a retention date per object_ — OCI's S3 compatibility API doesn't support it. A bucket retention rule is OCI's equivalent, and D23 replaced the bucket for documents.
+- _S3 Object Lock with a retention date per object_ — Supabase Storage does not provide it, and D23 keeps documents in the database behind a trigger instead.
 
 **Trade-offs accepted.** A forwarded copy can still be altered; the recorded hash and the write-once original prove what UPlan released. The worker image carries Chromium. Disposal of one document is designed with records export.
 
@@ -214,13 +215,13 @@ One record per decision. A change to the stack starts here: update the record, t
 
 **Chosen.** Supabase Auth, on a free-tier hosted project, through `@supabase/supabase-js` and `@supabase/ssr`. Everyone registers and signs in with an email address and a password. Supabase holds the credentials and the session; UPlan keeps an `app_user` row per person, with the Supabase user id in a separate `auth_id` column, and staff rights stay in UPlan's own `staff_member` table. Registering grants no staff rights, and a person works on the projects they create (D24; the per-city `membership` table was removed on 2026-09-27). All calls run on the server, so the browser holds no Supabase client and no key. Supersedes the earlier choice of Better Auth with the city's OIDC provider for city staff and GitHub for UPlan staff, which is removed: `better-auth`, `@better-auth/sso`, their tables, and the `CITY_OIDC_*`, `GITHUB_*`, and `BETTER_AUTH_*` settings.
 
-**Why the existing providers can't do the job.** Oracle's Always Free tier gives a VM, not an identity service; running one means writing password storage, rate limiting, and session handling ourselves. The product owner chose to hand that to a managed service and to drop the city-identity-provider dependency, which the pilot could not have set up without the city's IT.
+**Why the existing providers can't do the job.** Running an identity service ourselves means writing password storage, rate limiting, and session handling. The product owner chose to hand that to a managed service and to drop the city-identity-provider dependency, which the pilot could not have set up without the city's IT.
 
-**Exception to the personal-data rule.** `best-practices.md` keeps personal data inside the VM and its Object Storage. Supabase Auth stores each person's email address, name, and password hash outside it. The exception covers those three fields and nothing else: no decision, applicant, parcel, or evidence data goes to Supabase, and the application database keeps only the user id, name, and email. Supabase is a named external service, alongside GitHub and Let's Encrypt.
+**Exception to the personal-data rule.** `best-practices.md` keeps personal data inside UPlan's application and database. Supabase Auth stores each person's email address, name, and password hash. The exception covers those fields and nothing else: no decision, applicant, parcel, or evidence data goes to Auth, and the application database keeps only the user id, name, and email. Supabase is a named external service, alongside GitHub, NVIDIA, and the worker host.
 
 **Considered.**
 
-- _Self-hosting Supabase's open-source auth server (GoTrue) on the VM_ — keeps credentials in-house and needs no exception, but adds a container and its configuration to a 12 GB VM, and the owner preferred the hosted service.
+- _Self-hosting Supabase's open-source auth server (GoTrue)_ — keeps credentials in-house and needs no exception, but adds a container and its configuration to the worker host, and the owner preferred the hosted service.
 - _Keeping Better Auth with a password method_ — no new vendor, but password storage, reset, and rate limiting stay our code.
 - _Hosted identity (WorkOS, Auth0, Clerk)_ — comparable to Supabase, with per-user cost past small free tiers.
 - _NextAuth_ — its npm `latest` release is still 4.x.
@@ -284,7 +285,7 @@ One record per decision. A change to the stack starts here: update the record, t
 
 ## D17. Hosting at zero cost on Oracle Cloud's Always Free tier
 
-> **Superseded by D28 (2026-10-10),** which moves the target to Vercel and Supabase. The record stays because its reasons for rejecting Vercel are the open items D28 lists.
+> **Superseded by D28 and D29 (2026-10-24).** The current deployment is Vercel for the web app, Supabase for data/auth/storage, and one managed worker container. This record is kept as history and for the reasons it rejected an all-Vercel deployment.
 
 **Chosen.**
 
@@ -323,7 +324,7 @@ One record per decision. A change to the stack starts here: update the record, t
 - Vitest for unit and integration tests.
 - Testcontainers with a PostGIS image that adds pgvector, for everything that touches SQL.
 - Playwright Test with axe for end-to-end and accessibility checks.
-- Storage tests against development buckets in the same Oracle tenancy, with the same create-only permissions as production.
+- Storage tests against a development Supabase project or bucket, with the same create-only permissions as production.
 - Tests of model-dependent code use recorded model responses and fixture vectors kept beside the test. An evaluation suite runs the real models against golden ordinances before any model, quantization, or prompt change ships.
 - GitHub Actions runs everything, the evaluation suite only when started by hand.
 
@@ -331,7 +332,7 @@ One record per decision. A change to the stack starts here: update the record, t
 
 - _Jest_ — slower, with weaker ESM and TypeScript support.
 - _Mocked databases_ — would hide exactly the SQL, locking, and PostGIS behavior that matters most.
-- _S3 emulators_ — MinIO's community edition is in maintenance mode, and an emulator wouldn't enforce OCI's create-only permissions.
+- _S3 emulators_ — Supabase Storage provides the S3-compatible endpoint in every environment, so an emulator would add a second behavior to maintain.
 - _Calling the real models in every test run_ — slow on CI runners, and the output changes whenever a model file does.
 
 **Trade-offs accepted.** Integration tests need Docker. Storage tests need development credentials, and their requests count against the free Object Storage allowance.
@@ -371,13 +372,15 @@ Prettier handles formatting.
 
 **Revisit when.** The component set stops covering what the UI needs.
 
-## D21. Retrieval index in PostgreSQL, with pgvector and full-text search (later in v1)
+## D21. Retrieval index in PostgreSQL, with pgvector and full-text search
 
-**Chosen.** Document chunks, their embeddings in a `vector(1024)` column with an HNSW index, and a generated `tsvector` live in PostgreSQL beside the profile they're compared with. One SQL query ranks chunks by exact section references, by vector distance, and by full-text match, and fuses the three rankings with reciprocal rank fusion.
+**Chosen.** Document chunks and their embeddings in a `vector(1024)` column with an HNSW index live in PostgreSQL beside the profile they're compared with. The design ranks chunks by exact section references, by vector distance, and by full-text match, and fuses the three rankings with reciprocal rank fusion.
+
+**As built (2026-10-24).** The assist module's Find kind uses pgvector nearest-neighbor retrieval over `document_chunk` with `hnsw.iterative_scan = relaxed_order`. The current `document_chunk` table has no `search_text` column and no three-way fusion; F2's indexing work will add them. The `vector(1024)` column, HNSW index, and write-once document/chunk rows are in place.
 
 **Considered.**
 
-- _A dedicated vector database, such as Qdrant, Weaviate, or Chroma_ — another service, using memory the VM doesn't have, and chunks stored outside the transaction that stores their document.
+- _A dedicated vector database, such as Qdrant, Weaviate, or Chroma_ — another service and another copy of the chunks, stored outside the transaction that stores their document.
 - _Vector search alone_ — misses exact legal references, such as section numbers.
 - _Full-text search alone_ — misses rules whose wording changed.
 - _A reranking model_ — better ordering, at the cost of another model in memory and more minutes per draft.
@@ -386,26 +389,25 @@ Prettier handles formatting.
 
 **Revisit when.** The evaluation set shows relevant sections ranked outside the top 8, which would make a reranker worth its memory.
 
-## D22. Operations at zero cost: a health check, Oracle's monitor, and pgBackRest
+## D22. Operations on Vercel and Supabase
 
 **Chosen.**
 
-- `GET /api/health` checks the database, the worker heartbeat, WAL archiving, backup freshness, disk space, and jobs that used up their attempts.
-- An OCI APM synthetic monitor calls it every 10 minutes. Monitoring alarms email UPlan staff through Notifications when it fails, and when Object Storage nears its free limits.
-- pgBackRest archives WAL continuously and takes nightly backups into Object Storage.
-- pino logs stay on the VM, in Docker's local log driver.
+- `GET /api/health` checks the database, the worker heartbeat, and jobs that used up their attempts. On Supabase, the self-run WAL, backup, and disk checks are replaced with project status, backup age, and database-size checks.
+- An external uptime monitor calls the endpoint every 5–10 minutes and emails UPlan staff. Vercel and Supabase dashboards are the second view.
+- Supabase's automatic backups cover the database, including published PDFs in `report.pdf`; point-in-time recovery is used when the plan includes it.
+- `web` logs to Vercel's log stream; the worker logs to its host's stream. Both are pino JSON. Keep at least 7 days for a pilot.
 
 **Considered.**
 
-- _Grafana Cloud's free tier_ — searchable logs, metrics, and dashboards, but one more external service with its own agent.
-- _A self-hosted Prometheus, Loki, and Grafana_ — memory the VM doesn't have.
-- _OCI Logging with Connector Hub_ — central logs without another provider, at the cost of an agent configuration, a log group, and a connector.
-- _OCI block volume backups_ — nothing to configure, but at most five backups, and up to a day of lost work.
-- _Nightly `pg_dump`_ — simple, but it loses up to a day of work and restores slowly.
+- _A self-hosted Prometheus, Loki, and Grafana_ — one more service to run and secure.
+- _A dedicated observability vendor_ — better search and alerting, at another cost and another data-sharing decision.
+- _pgBackRest on the worker host_ — works only if the worker also hosts a self-run PostgreSQL, which the current deployment does not.
+- _Nightly `pg_dump` to object storage_ — simple, but loses up to a day of work and restores slowly.
 
-**Trade-offs accepted.** Logs are read on the VM, and they're lost if the VM is. The monitor runs inside Oracle's cloud, so an outage across the region could silence the monitor along with the app.
+**Trade-offs accepted.** Vercel and Supabase log retention is plan-dependent, and the external monitor is one more service. A regional outage can affect the app and the monitor together.
 
-**Revisit when.** UPlan serves more than one city, or an incident can't be explained from the logs on the VM.
+**Revisit when.** UPlan serves more than one city, or an incident can't be explained from the two log streams.
 
 ## D23. Final documents are stored in the database
 
@@ -419,7 +421,7 @@ Prettier handles formatting.
 
 **Trade-offs accepted.** Documents add to the database's size and backups: a few hundred kilobytes each, which the pilot's volume makes negligible. The protection against tampering is a database trigger rather than storage permissions, so an operator with schema-owner rights could still change a row. The hash recorded beside it is how anyone detects that. The list queries never read the `pdf` column, so the history page stays fast.
 
-**Revisit when.** Documents grow past a few megabytes each, or a city requires write-once storage that a trigger can't satisfy. The `reports` bucket and its variables stay configured, unused, until a deploy removes them.
+**Revisit when.** Documents grow past a few megabytes each, or a city requires write-once storage that a trigger can't satisfy. `OCI_BUCKET_REPORTS` stays in the environment schema, unused, until a later cleanup removes it.
 
 ## D24. A project belongs to its creator: no jurisdiction membership
 
@@ -471,21 +473,21 @@ Prettier handles formatting.
 **Chosen.**
 
 - A new module, `assist`, and one platform client, `src/platform/model-client.ts`, that calls NVIDIA's OpenAI-compatible API (`integrate.api.nvidia.com/v1`) with `fetch` and Zod. The key is a server-side environment variable. Model ids are constants, pinned in code, changed only through a pull request that passes the evaluation set.
-- Six fixed output kinds: Explain, Questions, Find, Compare, Metadata draft, and Rule draft. Each has a Zod shape with a place for an exact quote, and each output passes deterministic checks for quotes, copied numbers, verdict words, and references.
+- Eight fixed output kinds: Explain, Questions, Find, Compare, Metadata draft, Rule draft, Section explain, and Section edit. Each has a Zod shape with a place for an exact quote, and each output passes deterministic checks for quotes, copied numbers, verdict words, and references.
 - Only four classes of input leave UPlan: published code text, dataset metadata, profile rules, and project results with identity removed.
 - Suggestions are stored in their own tables, bound to the output they were made on, requested by a person, and never part of the analysis, the fingerprint, or the released document. Metadata and rule drafts take effect only when staff other than the requester confirm.
-- Embeddings use `nvidia/nv-embedqa-e5-v5` at 1,024 dimensions, so D21's `vector(1024)` column and index are unchanged.
+- Embeddings use `nvidia/nemotron-3-embed-1b` at 1,024 dimensions (the first 1,024 of its 2,048, re-normalized), so D21's `vector(1024)` column and index are unchanged.
 
 **Considered.**
 
-- _Keep models on the VM (D15)._ Private and free, but it needs the VM, and the stated hosting target no longer has one. A 4B model also drafts and explains less reliably than a hosted model in the 49B to 70B class.
+- _Keep a self-hosted model on the worker host (D15)._ Private and free, but it competes for the worker's CPU and memory with Chromium and GDAL. A 4B model also drafts and explains less reliably than a hosted model in the 49B to 70B class.
 - _The Claude or OpenAI APIs._ Stronger, but paid per token, which the zero-cost constraint rules out, and the city has made no data-sharing agreement.
 - _Let the model write the phase summaries or the report._ Rejected by D26 and the charter: untestable sentences that cannot be pinned to a measurement.
 - _A chat assistant._ No fixed shape to check, and it needs project identity in context.
 - _Send the whole project for context._ Would put applicant and parcel identity at a third party. The allow-list sends measurements only.
 - _Automatic suggestions on page load._ Spends the free allowance on unread text and invites trust in unrequested output. A button is one extra click.
 - _A fallback to another hosted model on failure._ A fallback mechanism; failures are shown.
-- _A worker queue for assist calls._ The target has no worker, and one call per request fits a function invocation. A queue would add a race to solve a problem that does not exist.
+- _A worker queue for assist calls._ One call per request fits a function invocation, and the worker host is reserved for analysis and reports. A queue would add a race to solve a problem that does not exist.
 
 **Trade-offs accepted.**
 
@@ -497,31 +499,43 @@ Prettier handles formatting.
 
 ## D28. Hosting on Vercel and Supabase
 
-**Chosen _(the stated infrastructure, 2026-10-10)_.**
+**Chosen.**
 
-- Vercel hosts the Next.js application. Supabase provides PostgreSQL with PostGIS and pgvector, Auth (already D14), and Storage through an S3-compatible endpoint, which keeps the existing S3 client.
-- AI assist needs nothing else (D27).
+- Vercel hosts the Next.js application: pages, Server Actions, route handlers, and optional Cron Jobs.
+- Supabase provides PostgreSQL 18 with PostGIS and pgvector, Auth (D14), and Storage through its S3-compatible endpoint. The existing S3 client works unchanged with `forcePathStyle: true`.
+- The basemap is a static file served by Vercel. Migrations run as a one-off step. AI assist uses NVIDIA (D27).
+- The worker is the one process that does not fit a Vercel Function. D29 puts it on a managed always-on container.
 
-**Considered.** D17's Oracle VM, which runs the worker, Chromium, and GDAL, and the options D17 rejected. D17 rejected Vercel Hobby because it is limited to non-commercial use and cannot run the worker, Chromium, or GDAL. Those objections are still true, so the move creates the following work, none of it designed yet.
+**Considered.** D17's Oracle VM, which ran every process; an all-Vercel deployment; and a self-run server. An all-Vercel deployment is possible but requires replacing graphile-worker, Chromium, and GDAL first (D29, Part E of the deployment guide). Vercel Hobby is non-commercial and caps functions at 300 seconds; a city pilot should use Pro.
 
-**Open items this decision creates.**
+**Trade-offs accepted.**
 
-| Concern | Was | On Vercel and Supabase | Status |
-| --- | --- | --- | --- |
-| Background jobs (analysis run, report release, ingestion, daily sweeps, heartbeat) | graphile-worker, a long-lived process (D8) | No long-lived process. Candidates: Vercel Cron calling a route that drains a Postgres queue; Supabase `pg_cron` with Edge Functions; running each job inline in a function within `maxDuration` | Open |
-| Enqueue in the same transaction | `graphile_worker.add_job()` | Keep a Postgres jobs table written in the same transaction, drained by the chosen runner | Open |
-| PDF rendering | Playwright Chromium in the worker (D12) | Chromium in a function (a trimmed build) within size and time limits, or a different renderer that still produces a tagged PDF with an outline (P3, WCAG) | Open, and it must be proven |
-| Dataset ingestion | GDAL command-line tools (D11) | No GDAL in a function. Candidates: ingest in PostGIS from GeoJSON or a PostGIS-readable file, or ingestion outside Vercel by staff | Open |
-| Analysis runtime | A job on a two-core VM | PostGIS inside Supabase; the run is SQL, so it may fit a function, but a long run can exceed `maxDuration` | Open |
-| Basemap file | `caddy` serves a `.pmtiles` file | Supabase Storage or Vercel static files with range requests | Open |
-| Backups and restore | pgBackRest to Object Storage | Supabase's own backups; check the free plan's retention | Open |
-| Health check | OCI synthetic monitor | A route plus an external monitor, or Vercel's own | Open |
-| Database size | 200 GB boot volume | The free plan's limit (about 500 MB), with documents stored as `bytea` | Open |
-| Eligibility | — | Vercel Hobby is non-commercial; a city pilot may need Pro | Open |
-| Project pausing | — | Supabase pauses a free project after a week idle (D14) | Known |
+- Fewer moving parts than a VM, but three providers (Vercel, Supabase, the worker host) and two free tiers with no service level.
+- Supabase's free plan is about 500 MB and pauses after a week idle; a pilot needs a paid plan or an explicit acceptance.
+- The worker is an external always-on container. It is a managed service, not a second application design.
+- Vercel Functions are request-driven; the worker keeps the long-lived queue connection.
 
-**Trade-offs accepted.** Less to administer, and free tiers that fit a pilot's dozens of users. In return, the heavy work has no home yet, and two free tiers (Supabase and NVIDIA) carry no service levels.
+**Revisit when.** The pilot needs a Vercel-only deployment (D29's Queues/Workflows path), or Supabase's limits or terms change.
 
-**Revisit when.** The jobs and PDF items are decided, which should happen before any further release 1 code assumes a worker.
+## D29. The worker runs on a managed always-on container
 
-Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [OpenAI: gpt-oss](https://openai.com/index/introducing-gpt-oss/) · [Unsloth: Qwen3.5 memory requirements](https://unsloth.ai/docs/models/qwen3.5) · [Google: Gemma 4](https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/) · [Neon: plans](https://neon.com/docs/introduction/plans) · [Supabase: free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing) · [Vercel: Hobby plan](https://vercel.com/docs/plans/hobby)
+**Chosen.**
+
+- The existing `worker` image runs on Render, Railway, Fly.io, Google Cloud Run with a minimum instance of 1, or the existing Oracle VM.
+- It uses graphile-worker at concurrency 2, Playwright Chromium for PDFs, GDAL for ingestion, and Poppler for code text.
+- It connects to Supabase over the session pooler or direct connection on port 5432. The web app uses the transaction pooler on 6543.
+- The worker's crontab runs `record_heartbeat` every five minutes and `daily_jurisdiction_maintenance` once a day.
+- Enqueue stays transactional: `graphile_worker.add_job()` is called inside the data transaction. No new broker, no outbox.
+
+**Considered.**
+
+- _Vercel Queues + Workflows (Vercel-native)._ Removes the worker host. Requires a transactional outbox instead of `add_job`, queue consumers, `@sparticuz/chromium-min` (or large functions) for PDFs, `gdal-async` or a restricted ingestion format, and `pg_cron` for the heartbeat. Documented as the migration path in the deployment guide. Rejected for now because it replaces the queue, the PDF renderer, and the ingester at once.
+- _Vercel Cron calling a route that drains graphile-worker jobs._ Hobby cron is once a day; Pro cron is once a minute, which adds up to a minute of latency and still cannot print PDFs with a full Chromium without the same bundle work. Rejected as a primary design.
+- _Supabase `pg_cron` + `pg_net` for every job._ Good for the heartbeat and daily sweeps, not for a 45-second analysis or a PDF render; `pg_net` is asynchronous and does not give a job a worker process.
+- _A self-run VM._ The existing Oracle VM is supported as a worker host, but a managed container is less to administer.
+
+**Trade-offs accepted.** The deployment is Vercel + Supabase + one worker host, not Vercel-only. The worker is a single point of failure for analysis and reports; the health check's `worker_heartbeat` and an external monitor catch it. The worker host must run a container image with Chromium and GDAL, which is more than a plain Node service.
+
+**Revisit when.** A Vercel-native report renderer passes the golden PDF tests, or the pilot needs zero external compute. Migrate one job type at a time, starting with `build_records_export` or `run_analysis`.
+
+Sources: [Vercel Functions limits](https://vercel.com/docs/functions/limitations) · [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs) · [Vercel Queues](https://vercel.com/docs/queues) · [Vercel Workflows](https://vercel.com/docs/workflows) · [Vercel: Docker monolith with workers](https://vercel.com/kb/guide/docker-monolith-workers-vercel) · [Supabase: free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing) · [Supabase Storage S3 compatibility](https://supabase.com/docs/guides/storage/s3/authentication) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job)

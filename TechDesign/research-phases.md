@@ -2,6 +2,7 @@
 
 **Feature:** F21 · `workflow` (phases, sections, chat) + `decisions` (boundary upload) + the six phase pages
 **Status:** Draft — revised 2026-10-22: reviews and section feedback replaced by versioned report sections and a section chat
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/research-phases.md](../Requirements/research-phases.md) (R1–R19)
 **Builds on:** [decision-overview.md](decision-overview.md) (F18 — `pinInputs`, `getAnalysisStatus`, steps), [study-scoping.md](study-scoping.md) (F14), [evidence-review.md](evidence-review.md) (F19), [decisions.md](decisions.md) (F5), [locked-report.md](locked-report.md) (F10), [ai-assist.md](ai-assist.md) (F24), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_)
 **Release:** 1

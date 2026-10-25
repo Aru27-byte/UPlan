@@ -2,6 +2,7 @@
 
 **Feature:** F23 · `decisions` (sample inputs) + `evidence` (illustrative datasets) + the phase pages and the city profile page
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** every intent · **Release:** 1 _(added 2026-09-27)_
 **Derived from:** [charter.md](charter.md) (P1, _Known limits of desk analysis_), [features.md](features.md) (F23), [evidence-layers.md](evidence-layers.md) (F3)
 **Related design doc:** [TechDesign/sample-data.md](../TechDesign/sample-data.md)

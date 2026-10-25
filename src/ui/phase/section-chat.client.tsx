@@ -514,11 +514,14 @@ export function SectionChat({ model, disabledReason, projectId }: { model: Secti
 
   return (
     <div className="flex flex-col h-full min-h-[400px]">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="eyebrow flex items-center gap-1.5 font-bold text-accent-gold">
-          <Icon name="sparkles" />
-          UPlan Assist
-        </p>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-green text-ink">
+          <Icon name="sparkles" className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-heading">UPlan Assist</p>
+          <p className="text-[11px] text-muted">Ask about this section</p>
+        </div>
       </div>
       {!model.configured ? (
         <div className="flex-1 flex items-center justify-center text-center p-6">
@@ -561,7 +564,7 @@ export function SectionChat({ model, disabledReason, projectId }: { model: Secti
                   aria-pressed={mode === "explain"}
                   onClick={() => chooseMode("explain")}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                    mode === "explain" ? "bg-brand text-white shadow-sm" : "text-muted hover:text-text"
+                    mode === "explain" ? "bg-brand text-ink shadow-sm" : "text-muted hover:text-text"
                   }`}
                 >
                   Explain
@@ -571,7 +574,7 @@ export function SectionChat({ model, disabledReason, projectId }: { model: Secti
                   aria-pressed={mode === "change"}
                   onClick={() => chooseMode("change")}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                    mode === "change" ? "bg-accent-tan text-white shadow-sm" : "text-muted hover:text-text"
+                    mode === "change" ? "bg-accent-tan text-ink shadow-sm" : "text-muted hover:text-text"
                   }`}
                 >
                   Change
@@ -632,8 +635,8 @@ export function SectionChat({ model, disabledReason, projectId }: { model: Secti
                     isSubmitting || isLoading
                       ? "border-line bg-canvas/50 text-muted cursor-not-allowed"
                       : mode === "explain"
-                      ? "border-brand bg-brand text-white hover:bg-brand/90"
-                      : "border-accent-tan bg-accent-tan text-white hover:bg-accent-tan/90"
+                      ? "border-brand bg-brand text-ink hover:bg-accent-lime"
+                      : "border-accent-tan bg-accent-tan text-ink hover:bg-accent-tan/90"
                   }`}
                 >
                   {isSubmitting ? (
@@ -656,7 +659,7 @@ export function SectionChat({ model, disabledReason, projectId }: { model: Secti
               )}
 
               <p className="text-xs text-muted text-center">
-                The message is sent with this section and the phase&apos;s figures. It is never sent on its own, and it is not part of the analysis.
+                AI may make mistakes. Always double check important information before trusting it.
               </p>
             </ActionForm>
           </div>

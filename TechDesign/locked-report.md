@@ -2,6 +2,7 @@
 
 **Feature:** F10 · `reports`
 **Status:** Draft — revised 2026-09-27: versions and database storage; revised 2026-10-22: the document is stitched from versioned report sections
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/locked-report.md](../Requirements/locked-report.md) (R1–R18)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Report release_, D12), [data-model.md](data-model.md) (`report`), [research-changes.md](research-changes.md) (F22 — the publishing flow, versions, and the job)
 **Release:** 1

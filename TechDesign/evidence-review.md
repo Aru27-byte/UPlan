@@ -2,6 +2,7 @@
 
 **Feature:** F19 · `analysis` + `evidence`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/evidence-review.md](../Requirements/evidence-review.md) (R1–R12)
 **Builds on:** [evidence-layers.md](evidence-layers.md) (F3 — `dataset`, `dataset_version`), [evidence-base.md](evidence-base.md) (F7 — `Disagreement`), [provenance.md](provenance.md) (F4 — the one formatter), [data-model.md](data-model.md)
 **Release:** 1

@@ -2,6 +2,7 @@
 
 **Feature:** F21 · `workflow` (phases, sections, chat) + the six phase pages
 **Status:** Draft — revised 2026-10-22: reviews and section feedback replaced by versioned report sections and a section chat
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I1, I2, I3, I6 · **Release:** 1 _(added 2026-09-27)_
 **Derived from:** [charter.md](charter.md) (P1–P3, _Posture_, _AI assistance_), [features.md](features.md) (F21), [intents.md](intents.md)
 **Related design doc:** [TechDesign/research-phases.md](../TechDesign/research-phases.md)

@@ -1,29 +1,33 @@
 # UPlan — System Architecture
 
-**Status:** Draft — system-level technical design; hosting and model sections amended 2026-10-10
-**Last updated:** 2026-10-10
+**Status:** Current as of 2026-10-24 — system-level technical design; deployment is Vercel + Supabase + one managed worker container
+**Last updated:** 2026-10-24
+**Implementation:** Current build and deployment; features marked not built are design only.
 **Derived from:** [charter.md](../Requirements/charter.md), [intents.md](../Requirements/intents.md), [features.md](../Requirements/features.md)
 **Related:** [tech-stack.md](tech-stack.md) · [data-model.md](data-model.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
 This document sets the shape every feature's TechDesign doc builds on. A feature doc adds detail; it doesn't contradict this document without changing it first.
 
-## Update, 2026-10-10: hosting target and AI assist
+## Update, 2026-10-24: the current deployment
 
-Two decisions change this document. Where a section below disagrees with this one, this one wins, and the section is overdue for a rewrite.
+This document describes the application as it is built and deployed today.
 
 | Decision | What it changes here | Record |
 | --- | --- | --- |
-| **Hosting target: Vercel for the application, Supabase for the database, sign-in, and files** | The Oracle VM, Compose file, `caddy`, `postgres`, `migrate`, backup timer, and deploy script no longer exist as the target. `web` becomes Vercel functions and pages. `postgres` becomes Supabase Postgres, which has PostGIS and pgvector. Object storage becomes Supabase Storage, which has an S3-compatible endpoint | D28 |
-| **AI assist, on NVIDIA's free hosted inference API** | The `models` container (V6), Hugging Face model files (X4), and llama.cpp are replaced by calls from `src/platform/model-client.ts` to NVIDIA's API. F2's drafting uses the same client. A new module, `assist`, owns every other model use | D27 |
+| **Web on Vercel, data/sign-in/files on Supabase** | Vercel hosts the Next.js pages, Server Actions, and route handlers. Supabase provides PostgreSQL 18 with PostGIS 3.6 and pgvector, Supabase Auth, and Storage through its S3-compatible endpoint. The Caddy, `postgres`, `migrate`, backup-timer, and deploy-script containers are no longer part of the target. | D28 |
+| **One managed worker container** | graphile-worker, Chromium, GDAL, and Poppler run in the existing `worker` image on an always-on container host (Render, Railway, Fly.io, Cloud Run with a minimum instance, or the existing Oracle VM). The worker connects to the same Supabase database over a session/direct connection. This is the current, working deployment. | D29 |
+| **AI assist on NVIDIA hosted inference** | The `models` container, Hugging Face model files, and llama.cpp are replaced by calls from `src/platform/model-client.ts` to NVIDIA's API. A new module, `assist`, owns every other model use. | D27 |
 
-**Still open: what replaces the worker.** graphile-worker needs a long-lived process, which Vercel does not provide. The analysis run (J2), report rendering with Chromium (J5), GDAL dataset ingestion (J4), the daily sweeps (J3, J6), the heartbeat (J10), and F2's source checks (J7) all assumed it. AI assist needs none of them (see _Hosting on Vercel, Supabase, and NVIDIA_ in [ai-assist.md](ai-assist.md)). Until D28's open items are decided, the sections below on jobs, the VM, and deploys describe the design as it was, not as it will be hosted.
+**Why the worker is not a Vercel Function.** graphile-worker keeps a long-lived PostgreSQL connection and listens for jobs; Vercel Functions scale to zero when no request arrives. The worker also needs a full browser for tagged PDFs and GDAL for public-data ingestion. Vercel's own guidance is to keep this shape on an always-on host and connect it through a shared database or queue. The database is already the queue, so the worker needs no new broker.
+
+A Vercel-native replacement using Vercel Queues and Workflows is designed in [deployment-guide.md](deployment-guide.md), Part E. It requires replacing graphile-worker, Chromium, and GDAL in code, so it is the migration path, not the current deployment.
 
 ## Constraints
 
-- **Zero cost.** Every service is open-source software, or a free tier used within its limits (see _Free-tier budget_). There is no paid API, and no paid tier held in reserve. NVIDIA's free hosted inference is the one model service _(D27)_.
-- **Few external services.** _As of 2026-10-10 (D28):_ Vercel hosts the application, Supabase provides the database, sign-in, and files, and NVIDIA's inference API serves the AI assist. GitHub already hosts the code. Public data is downloaded from free public sources. _Before it, Oracle Cloud's Always Free tier provided the infrastructure, with Let's Encrypt for the certificate._
-- **Minimal configuration.** One repository deploys to Vercel and one Supabase project holds the data. No server is administered.
-- **Sized for the hosting plans.** Every function fits the plan's duration and memory limits, and the database fits Supabase's free-tier size. _Before D28: sized for the 2 OCPUs and 12 GB Oracle VM, including the language models._
+- **Zero cost where possible.** Every service is open-source software or a free tier used within its limits (see _Free-tier budget_). There is no paid API. A city pilot may need Vercel Pro for commercial use and longer functions; that is a hosting-plan decision, not a paid API. NVIDIA's free hosted inference is the one model service _(D27)_.
+- **Few external services.** Vercel hosts the application, Supabase provides the database, sign-in, and files, NVIDIA's inference API serves the AI assist, and one managed worker host runs the background jobs. GitHub hosts the code. Public data is downloaded from free public sources.
+- **Minimal configuration.** One repository deploys to Vercel, one Supabase project holds the data, and one worker container runs the jobs. The worker is the only always-on process; the web tier is stateless.
+- **Sized for the hosting plans.** Vercel Functions fit the plan's duration and memory limits, the Supabase database fits its plan, and the worker container fits a small always-on host (2 OCPUs / 4–8 GB is ample for a pilot).
 
 ## Assumptions for open product questions
 
@@ -32,82 +36,68 @@ Round 10 is unanswered. The design follows the recommended options, and each one
 | Open question                          | Assumed                                                                               | If the answer differs                                                                                     |
 | -------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | What a vesting setting does            | A rule set marked as vesting uses the rules in force on the application's filing date | _Warn only:_ `rulesInForce` runs for both dates and the run flags the differences                         |
-| Who approves profile uploads and edits | UPlan staff, and never the person who proposed the change _(changed 2026-09-27, when reviewer memberships were removed)_ | _No approval:_ the change applies at submit. _A city reviewer:_ returns with F12's per-project or per-city grant |
-| Cities beyond Sammamish in v1          | Sammamish only                                                                        | Every table is already keyed by jurisdiction. More cities need evidence coverage, not a new design        |
-| Automatic code tracking in release 1   | Upload first; F2 ships later in v1                                                    | F2 moves into release 1, and the `models` container ships with it. Its module is designed here either way |
+| Who approves profile uploads and edits | A planner's upload or settings edit applies at once; an AI-drafted rule or metadata change is confirmed by a different UPlan staff member | _A city reviewer:_ returns with F12's per-project or per-city grant. _No confirmation:_ the change applies at submit |
+| Cities beyond Sammamish in v1          | Sammamish is the pilot; the seed includes illustrative Redmond and Bellevue profiles for development | Every table is already keyed by jurisdiction. More cities need real evidence coverage and real profiles, not a new design |
+| Automatic code tracking in release 1   | Not built. Staff paste published code text on the profile page for the Find assist | F2 moves into a later release; it uses `platform/model-client` and the existing `source_document` / `document_chunk` tables, not a `models` container |
 
 ## Architecture diagram
 
-Codes match the key below the diagram. Dashed boxes and items marked _later_ arrive later in v1; everything else ships in release 1. Each arrow points from the component that starts the exchange. Solid arrows run while the app is in use; dotted arrows are setup, deploy, or occasional steps.
+Codes match the key below the diagram. Dashed boxes and items marked _later_ or _not built_ are design only; everything else is in the current build. Each arrow points from the component that starts the exchange. Solid arrows run while the app is in use; dotted arrows are setup, deploy, or occasional steps.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart LR
   subgraph PEOPLE["People"]
-    U12["U1 · Planner<br/>U2 · Reviewer<br/>U4 · Phone look-up · F15 · later"]
+    U12["U1 · Planner<br/>U2 · Reviewer · later<br/>U4 · Phone look-up · later"]
     U3["U3 · UPlan staff"]
   end
 
   subgraph CITY["Provided by the city"]
-    C1["C1 · DNS record<br/>city hostname → reserved IP"]
+    C1["C1 · DNS record<br/>city hostname → Vercel"]
   end
 
-  subgraph OCI["Oracle Cloud Infrastructure · Always Free"]
-    O3["O3 · APM synthetic monitor<br/>alarms email UPlan staff"]
-    O2["O2 · Bastion<br/>admin sessions"]
-    subgraph VM["V1 · Arm VM · 2 OCPUs · 12 GB · 200 GB disk · Ubuntu 24.04 LTS · Docker Compose"]
-      V2["V2 · caddy<br/>HTTPS · HTTP/3 · basemap file"]
-      V5[("V5 · postgres<br/>PostgreSQL 18 · PostGIS 3.6 · pgvector 0.8<br/>app data · job queue · retrieval index")]
-      V3["V3 · web · Next.js 16<br/>―――――――――――――――<br/>W1 · Sign-in and roles · F11<br/>W2 · City profile: view, edit settings and sources · F1 F17<br/>W3 · Projects: dashboard, details, study area, footprint, overview · F5 F8 F18 F20<br/>W4 · Map workspace and evidence tiles · F6 F3 F4<br/>W5 · Phases: evidence, screening, studies, impact, review · F7 F9 F14 F19 F21<br/>W6 · Final document: finish, versions, download · F10 F22<br/>W7 · Records retention and export · F16<br/>W8 · Code change drafts · F2 · later<br/>W9 · Sign-off F12 · conditions F13 · phone F15 · later<br/>W10 · Health check"]
-      V4["V4 · worker · graphile-worker<br/>―――――――――――――――<br/>J1 · withdrawn 2026-10-04<br/>J2 · run_analysis · F7 F9 F14<br/>J3 · apply_effective_dates · daily · F1<br/>J4 · ingest_dataset · scheduled · F3<br/>J5 · release_report · F10 F22<br/>J6 · flag_retention, build_records_export · F16<br/>J7 · check_code_source · daily · F2 · later<br/>J8 · index_code_document · F2 · later<br/>J9 · draft_code_change · F2 · later<br/>J10 · record_heartbeat · every 5 minutes"]
-      V6["V6 · models · superseded by D27<br/>now NVIDIA's hosted API · see X4"]
-      V7["V7 · migrate · once per deploy"]
-      V8["V8 · backup timer · systemd · pgBackRest"]
-      V9["V9 · deploy script<br/>build · migrate · restart"]
-    end
-    O1[("O1 · Object Storage<br/>objects · backups")]
+  subgraph VERCEL["Vercel · web tier"]
+    V2["V2 · Next.js 16<br/>pages · Server Actions · route handlers<br/>proxy.ts · session refresh only"]
+    V3["V3 · static basemap<br/>public/basemap/basemap.pmtiles"]
   end
 
-  subgraph OUTSIDE["Other free services"]
-    G1["G1 · GitHub repository and Actions CI"]
-    G2["G2 · Supabase Auth · email and password sign-in"]
-    E1["E1 · Let's Encrypt · TLS certificates"]
+  subgraph WORKERHOST["Managed worker host · always on"]
+    V4["V4 · worker · graphile-worker<br/>concurrency 2 · Chromium · GDAL · Poppler<br/>J1 run_analysis · J2 ingest_dataset<br/>J3 release_report · J4 build_records_export<br/>J5 record_heartbeat · J6 daily maintenance"]
+    V5["V5 · migrate<br/>once per deploy"]
   end
 
-  subgraph SOURCES["Free public sources"]
-    X1["X1 · Public GIS data"]
-    X2["X2 · City code and ordinances · later"]
-    X3["X3 · Protomaps basemap builds"]
-    X4["X4 · NVIDIA inference API · AI assist · F2"]
+  subgraph SUPABASE["Supabase"]
+    PG[("PG · PostgreSQL 18<br/>PostGIS 3.6 · pgvector<br/>app data · job queue · retrieval index")]
+    AU["AU · Supabase Auth<br/>email + password"]
+    OS[("OS · Supabase Storage<br/>profile uploads · raw evidence · exports")]
+  end
+
+  subgraph EXTERNAL["External · free"]
+    G1["G1 · GitHub repository and Actions"]
+    NV["NV · NVIDIA inference API<br/>AI assist · optional"]
+    GIS["GIS · Public GIS sources"]
+    BM["BM · Protomaps daily builds"]
+    MON["MON · external uptime monitor"]
   end
 
   U12 -->|"HTTPS"| V2
   U3 -->|"HTTPS"| V2
-  C1 -.->|"resolves to the VM"| V2
-  O3 -->|"GET /api/health every 10 minutes"| V2
-  U3 -->|"admin session"| O2
-  O2 -->|"SSH"| V9
-  V2 -->|"certificate requests"| E1
-  V2 -->|"reverse proxy"| V3
-  V2 ~~~ V4
-  V2 -.->|"basemap extract, downloaded on purpose"| X3
-  V3 -->|"W1 · sign-in and registration"| G2
-  V3 -->|"SQL · add_job in the same transaction · vector tiles"| V5
-  V3 -->|"uploads · downloads"| O1
-  V4 -->|"job pickup · pinned reads · results · retrieval"| V5
-  V4 -->|"raw files · exports"| O1
-  V4 -->|"J4 · download datasets"| X1
-  V4 -->|"J7 · fetch documents · later"| X2
-  V4 -->|"J8 J9 · embed, generate JSON drafts · later"| V6
-  V3 -->|"AI assist · key from env · allow-listed input only"| X4
-  V9 -.->|"fetch a tested tag"| G1
-  V9 -->|"runs"| V7
-  V7 -->|"migrations"| V5
-  V8 -->|"daily backup"| V5
-  V5 -->|"WAL archive · backups"| O1
+  C1 -.->|"DNS"| V2
+  V2 -->|"basemap byte ranges"| V3
+  V2 -->|"W1 · sign-in and registration"| AU
+  V2 -->|"SQL · add_job in the same transaction · vector tiles"| PG
+  V2 -->|"uploads · downloads"| OS
+  V2 -->|"AI assist · allow-listed text only"| NV
+  V4 -->|"job pickup · pinned reads · results"| PG
+  V4 -->|"raw files · exports"| OS
+  V4 -->|"J2 · download datasets"| GIS
+  V5 -->|"migrations"| PG
+  MON -->|"GET /api/health every 10 minutes"| V2
+  V2 -.->|"deployed from"| G1
+  V3 -.->|"extract made from"| BM
 
   classDef later stroke-dasharray: 6 4
-  class V6,X2,X4 later
+  class U2,U4 later
 ```
 
 ## Key
@@ -118,93 +108,90 @@ flowchart LR
 | --- | ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | U1  | Planner                | Every signed-in person: builds projects, works through their phases, and publishes document versions | —                                   |
 | U2  | Reviewer (later)       | Signs off documents once F12 ships, with a per-project grant. Not in release 1                | —                                           |
-| U3  | UPlan staff            | Sets up cities and datasets, approves profile changes, exports records, confirms code change drafts, deploys, and receives alarm emails | —                                           |
+| U3  | UPlan staff            | Sets up cities and datasets, installs sample evidence, manages source documents and code text, confirms AI-drafted rule or metadata changes (never their own), exports records, deploys, and receives alarm emails | — |
 | U4  | Phone look-up          | A planner or reviewer opening a decision's map and report on a phone (F15, later)            | —                                           |
-| C1  | City DNS record        | Points the hostname the city chooses, such as `uplan.sammamish.us`, at the VM's reserved IP  | None: the city's existing DNS               |
+| C1  | City DNS record        | Points the hostname the city chooses, such as `uplan.sammamish.us`, at the Vercel deployment | None: the city's existing DNS               |
 
-### Oracle Cloud Infrastructure — Always Free
+### Vercel — the web tier
 
-| Key | Component                                               | Role                                                                                                                                                       | Free allowance                                                                      |
-| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| V1  | Arm VM (`VM.Standard.A1.Flex`)                          | Runs every UPlan process under Docker Compose on Ubuntu Server 24.04 LTS                                                                                   | 2 OCPUs and 12 GB in total; 200 GB of block storage; 10 TB of outbound data a month |
-| O1  | Object Storage                                          | Buckets reached through the S3 compatibility API: `objects` and `backups`. Published documents are not here: they are in the database (see _Object storage_ in the data model) | 20 GB, and 50,000 requests a month                                                  |
-| O2  | Bastion                                                 | Time-limited SSH sessions for administration and deploys, so the VM exposes no SSH port to the internet                                                    | Free                                                                                |
-| O3  | APM synthetic monitor, Monitoring alarms, Notifications | Calls the health check from outside the VM every 10 minutes, and emails UPlan staff when it fails or Object Storage nears its free limits                  | 10 monitor runs an hour; 1,000 notification emails a month                          |
+| Key | Component | Role | Plan note |
+| --- | --- | --- | --- |
+| V2 | Next.js 16 application | Pages, Server Actions, route handlers for uploads, downloads, tiles, sign-in, the health check, and the profile template. It never runs long work: anything slower than a request becomes a job. | Pro recommended for a pilot; Hobby is non-commercial and caps functions at 300 s |
+| V3 | Static basemap | Serves `public/basemap/basemap.pmtiles` with range requests. | Included with the deployment |
+| V4 | External uptime monitor | Calls `GET /api/health` every 5–10 minutes and alerts UPlan staff. | Any free or paid monitor |
 
-### Containers and scripts on the VM
+### Managed worker host — the always-on process
 
-| Key | Component        | What it runs                                                                                                                                                                                | Serves                     |
-| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| V2  | `caddy`          | Caddy 2.11: HTTPS with automatic Let's Encrypt certificates, HTTP/3, a reverse proxy to `web`, and the basemap file with byte ranges. The only container that publishes ports               | Every request from outside |
-| V3  | `web`            | Next.js 16: pages, Server Functions, and route handlers for uploads, downloads, tiles, sign-in, and the health check. It never runs long work: anything slower than a request becomes a job | W1–W10                     |
-| V4  | `worker`         | graphile-worker, running at most two jobs at once and serving no HTTP. Its image carries Chromium, GDAL, and Poppler                                                                        | J1–J10                     |
-| V5  | `postgres`       | PostgreSQL 18 with PostGIS 3.6 and pgvector 0.8: relational and spatial data, the job queue, and the retrieval index. pgBackRest archives its WAL                                 | `web`, `worker`, `migrate` |
-| V6  | `models` (superseded by D27) | Was llama.cpp on the VM. Replaced by NVIDIA's hosted inference API, called from `src/platform/model-client.ts` by `assist` and `code-tracking`. Generation and embeddings are two calls to one OpenAI-compatible endpoint | J8, J9, and every assist |
-| V7  | `migrate`        | Applies database migrations once per deploy, before new containers start                                                                                                                    | Deploys                    |
-| V8  | Backup timer     | A systemd timer on the host that runs pgBackRest backups inside `postgres` and records each run                                                                                             | Recovery                   |
-| V9  | Deploy script    | `deploy/deploy.sh <tag>`: fetches a tag whose CI passed, builds the images on the VM, runs `migrate`, and restarts `worker` and `web`                                                       | Deploys                    |
+| Key | Component | Role | Plan note |
+| --- | --- | --- | --- |
+| V5 | `worker` container | graphile-worker at concurrency 2, running `run_analysis`, `ingest_dataset`, `release_report`, `build_records_export`, `record_heartbeat`, and `daily_jurisdiction_maintenance`. The image carries Chromium, GDAL, and Poppler. | Render, Railway, Fly.io, Cloud Run with min instances 1, or the existing Oracle VM |
+| V6 | `migrate` | Applies database migrations once per deploy, before the new web or worker version starts. | Run as a one-off job or from CI |
 
-### Areas of the web app (V3)
+### Supabase — data, sign-in, and files
 
-| Key | Area                       | Features   | What happens there                                                                                                              |
-| --- | -------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| W1  | Sign-in                    | F11        | Everyone registers and signs in with email and password through G2. Everyone is a planner and sees only the projects they created; a `staff_member` row adds the staff rights |
-| W2  | City profile               | F1, F17    | View the profile and its settings, download the template, upload a workbook or edit a rule, compare previews, approve or reject |
-| W3  | Projects                   | F5, F8, F18, F20 | The dashboard after sign-in; create a project (or with sample data); edit its details and filing date; save study area and footprint revisions by drawing, upload, or sample; the stage rail and Overview; delete from view |
-| W4  | Map workspace              | F6, F3, F4 | MapLibre shows evidence tiles PostGIS makes per dataset version, the basemap from `caddy`, and each layer's provenance          |
-| W5  | Phases                     | F7, F9, F14, F19, F21 | For each phase: what it is drafted from, the drafted output, the planner's review, and the history. The evidence and its attributes, disagreements and resolutions, gaps, the screening register, study flags, and impact ranges |
-| W6  | Final document             | F10, F22   | The finish checklist, the reason for a new version, the version history, download of any version, and starting or cancelling a research change |
-| W7  | Records                    | F16        | Review retention flags; request and download records exports                                                                    |
-| W8  | Code change drafts (later) | F2         | UPlan staff read a draft beside its quoted passages and preview results, then approve or reject it                              |
-| W9  | Later in v1                | F12, F13, F15 | Review and sign-off, conditions tracing, and phone look-up views                                                             |
-| W10 | Health check               | —          | `GET /api/health`, called by O3 (see _Operations_)                                                                              |
+| Key | Component | Role | Plan note |
+| --- | --- | --- | --- |
+| PG | PostgreSQL 18 with PostGIS 3.6 and pgvector | Relational and spatial data, the job queue, and the retrieval index. | Free plan is about 500 MB; check the live limit |
+| AU | Supabase Auth | Email/password identities and sessions, called only from the server. | Free plan pauses a project after a week idle |
+| OS | Supabase Storage (S3-compatible) | Profile uploads, raw evidence, and records exports. Published documents are in `report.pdf`, not here. | Create-and-read credentials only |
 
-### Jobs in the worker (V4)
+### Areas of the web app (V2)
 
-| Key | Job                                      | Features          | Queue               | What it does                                                                                      |
-| --- | ---------------------------------------- | ----------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
-| J1  | _withdrawn 2026-10-04_                   | F1, F17           | —                   | Was `preview_profile_change`; a profile change now applies at once and has nothing to preview     |
-| J2  | `run_analysis`                           | F7, F9, F14       | `decision:<id>`     | Computes the evidence base, screening, study flags, and impact in PostGIS from pinned inputs      |
-| J3  | `apply_effective_dates`                  | F1, F14           | `jurisdiction:<id>` | Daily: queues runs for open decisions when a rule takes effect or is repealed, or when the latest run's results version is out of date |
-| J4  | `ingest_dataset`                         | F3                | `dataset:<id>`      | Scheduled: downloads and hashes a source, loads it with GDAL, and publishes a new dataset version |
-| J5  | `release_report`                         | F10, F22          | `decision:<id>`     | Renders the document from pinned records, prints the tagged PDF, stores it in the database as the next version, and completes the project. After its last retry it records the failure |
-| J6  | `flag_retention`, `build_records_export` | F16               | `jurisdiction:<id>` | Daily: flags records whose retention period ended. On request: builds a records export            |
-| J7  | `check_code_source` (later)              | F2                | `code-source:<id>`  | Daily: fetches a code source and records whether it's unchanged, changed, blocked, or failing     |
-| J8  | `index_code_document` (later)            | F2                | `rag`               | Converts a changed document to text, splits it by section, embeds the sections, and stores them   |
-| J9  | `draft_code_change` (later)              | F2                | `rag`               | Retrieves context, generates a draft profile change, checks it, and proposes it                   |
-| J10 | `record_heartbeat`                       | —                 | none                | Every 5 minutes: records that a worker is alive, for the health check                             |
+| Key | Area | Features | What happens there |
+| --- | --- | --- | --- |
+| W1 | Sign-in | F11 | Everyone registers and signs in with email and password through AU. Everyone is a planner and sees only the projects they created; a `staff_member` row adds staff rights. |
+| W2 | City profile | F1, F17 | View the profile and settings, download the template, upload a workbook, manage sources, install sample evidence (staff), paste code text (staff), and confirm AI-drafted rule or metadata changes (a different staff member). |
+| W3 | Projects | F5, F8, F18, F20 | The dashboard after sign-in; create a project (or with sample data); edit details and filing date; save study area and footprint revisions by drawing, upload, or sample; the stage rail and Overview; delete from view. |
+| W4 | Map workspace | F6, F3, F4 | MapLibre shows evidence tiles PostGIS makes per dataset version, the basemap from V3, and each layer's provenance. |
+| W5 | Phases | F7, F9, F14, F19, F21 | For each phase: what it is drafted from, the drafted section, the section chat, and the history. Evidence attributes, disagreements and resolutions, gaps, the screening register, study flags, and impact ranges. |
+| W6 | Final document | F10, F22 | The finish checklist, the reason for a new version, the version history, download of any version, and starting or cancelling a research change. |
+| W7 | Records (backend only) | F16 | Retention flags and records exports exist as module functions and a worker job; there is no records page yet. |
+| W8 | Code change drafts (not built) | F2 | Designed for a later release. Staff can paste code text today for the Find assist. |
+| W9 | Later in v1 | F12, F13, F15 | Review and sign-off, conditions tracing, and phone look-up views. |
+| W10 | Health check | — | `GET /api/health`, called by V4. |
 
-### Other free services and public sources
+### Jobs in the worker (V5)
 
-| Key | Component                        | Role                                                                                    | Cost                                                              |
-| --- | -------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| G1  | GitHub repository and Actions    | Holds the code, runs CI on every pull request, and serves the tags that deploys fetch   | Free plan: 2,000 Actions minutes a month for a private repository |
-| G2  | Supabase Auth                    | Holds each person's email, name, and password hash, and their sign-in session           | Free plan: 50,000 monthly active users; paused after a week idle  |
-| E1  | Let's Encrypt                    | Issues and renews the TLS certificate for the city's hostname                           | Free                                                              |
-| X1  | Public GIS data                  | County, state, and federal datasets that F3 ingests                                     | Free public data _(round 9)_                                      |
-| X2  | City code and ordinances (later) | The published code and adopted ordinances that F2 watches                               | Free public records                                               |
-| X3  | Protomaps basemap builds         | Where the basemap extract for the city's area comes from, built from OpenStreetMap data | Free, with OpenStreetMap attribution                              |
-| X4  | NVIDIA inference API             | Hosted open models for generation and embeddings, for AI assist and F2. Replaces Hugging Face model downloads. Free access is rate-limited and for development and evaluation; confirm the terms for a city pilot | Free, rate-limited                                                |
+| Key | Job | Features | Queue | What it does |
+| --- | --- | --- | --- | --- |
+| J1 | `run_analysis` | F7, F9, F14 | `decision:<id>` | Computes the evidence base, screening, study flags, and impact in PostGIS from pinned inputs. |
+| J2 | `ingest_dataset` | F3 | `dataset:<id>` | Downloads and hashes a source, loads it with GDAL, and publishes a new dataset version. |
+| J3 | `release_report` | F10, F22 | `decision:<id>` | Renders the document from pinned records, prints the tagged PDF, stores it in the database as the next version, and completes the project. |
+| J4 | `build_records_export` | F16 | `jurisdiction:<id>` | Builds a records export in the city's chosen format. |
+| J5 | `record_heartbeat` | — | none | Every 5 minutes: records that a worker is alive, for the health check. |
+| J6 | `daily_jurisdiction_maintenance` | F1, F14, F16 | — | Daily: applies effective dates and flags records whose retention period ended, per city. |
+| J7 | `check_code_source`, `index_code_document`, `draft_code_change` (not built) | F2 | `code-source:<id>`, `rag` | Designed for a later release. The retrieval tables exist and are written by the assist module's staff-pasted code text. |
+
+### External services and public sources
+
+| Key | Component | Role | Cost |
+| --- | --- | --- | --- |
+| G1 | GitHub repository and Actions | Holds the code and runs CI on every pull request. | Free plan: 2,000 Actions minutes a month for a private repository |
+| AU | Supabase Auth | Holds each person's email, name, and password hash, and their sign-in session. | Free plan: 50,000 monthly active users; paused after a week idle |
+| NV | NVIDIA inference API | Hosted open models for generation and embeddings, for AI assist and the future F2. | Free, rate-limited; confirm the terms for a city pilot |
+| GIS | Public GIS data | County, state, and federal datasets that F3 ingests. | Free public data _(round 9)_ |
+| BM | Protomaps basemap builds | Where the basemap extract for the city's area comes from, built from OpenStreetMap data. | Free, with OpenStreetMap attribution |
+| MON | Uptime monitor | Calls the health check and alerts staff. | Free or low-cost |
 
 ## Modules
 
 All domain logic lives in modules under `src/modules/`. Routes and job handlers stay thin: authenticate, call one module function, translate the result. Modules reach each other only through each module's `index.ts`.
 
-| Module          | Features          | Owns                                                                                     | Release     |
-| --------------- | ----------------- | ---------------------------------------------------------------------------------------- | ----------- |
-| `accounts`      | F11               | Sign-in wiring for Supabase Auth, staff members, the staff check. No memberships        | 1           |
-| `profiles`      | F1, F17           | Profile schema, versions, changes and approvals, uploads, Excel template, `rulesInForce` | 1           |
-| `provenance`    | F4                | The provenance type every figure carries, and its one formatter                          | 1           |
-| `evidence`      | F3, F19           | Datasets and their attributes, versions, ingestion, tiles, dataset mapping per city      | 1           |
-| `decisions`     | F5, F8            | Decisions, study area and footprint revisions                                            | 1           |
-| `analysis`      | F7, F9, F14, F19  | Analysis runs, evidence base, impact engine, screening and study flags, source resolutions, previews | 1           |
-| `workflow`      | F18, F20–F22      | Phases and their report sections and section versions (`report_section_version`), the stage rail and Overview, the dashboard summaries, finishing and cancelling a research change | 1 |
-| `reports`       | F10, F22; later F12 | The document, its versions, PDF rendering, storage in the database                     | 1           |
-| `records`       | F16               | Retention flags, records exports                                                         | 1           |
-| `operations`    | —                 | The health check, the worker heartbeat, and backup run records                           | 1           |
-| `assist`        | F24               | AI suggestions and responses, the allow-listed request builders, the output checks, the usage caps, and the assist prompts. Calls the model service through `platform/model-client` | 1, in three waves |
-| `code-tracking` | F2                | Code sources, checks, the retrieval index, and drafting                                  | Later in v1 |
-| `conditions`    | F13               | Conditions and their links to impacts                                                    | Later in v1 |
+| Module | Features | Owns | Status |
+| --- | --- | --- | --- |
+| `accounts` | F11 | Sign-in wiring for Supabase Auth, staff members, the staff check. No memberships. | Built |
+| `profiles` | F1, F17 | Profile schema, versions, uploads, sources, settings, `rulesInForce`, the Excel template, AI-draft confirmation. | Built |
+| `provenance` | F4 | The provenance type every figure carries, and its one formatter. | Built |
+| `evidence` | F3, F19 | Datasets and their attributes, versions, ingestion, tiles, dataset mapping per city, sample evidence. | Built; ingestion runs through the worker or `scripts/add-dataset.ts`, with no dataset-admin page |
+| `decisions` | F5, F8 | Decisions, details, study area and footprint revisions, boundary upload, soft delete, sample project. | Built |
+| `analysis` | F7, F9, F14, F19 | Analysis runs, evidence base, impact engine, screening and study flags, source resolutions, previews. | Built |
+| `workflow` | F18, F20–F22 | Phases and their report sections and section versions (`report_section_version`), the stage rail and Overview, dashboard summaries, finishing and cancelling a research change. | Built |
+| `reports` | F10, F22; later F12 | The document, its versions, PDF rendering, storage in the database, download. | Built; sign-off not built |
+| `records` | F16 | Retention flags, records exports. | Backend built; no UI |
+| `operations` | — | The health check, the worker heartbeat, and backup run records. | Built; Supabase-specific checks are still to be adapted |
+| `assist` | F24 | AI suggestions and responses, allow-listed request builders, output checks, usage caps, prompts, section chat, retrieval, dashboard questions, document scan. | Built |
+| `code-tracking` | F2 | Code sources, checks, the retrieval index, and drafting. | Not built |
+| `conditions` | F13 | Conditions and their links to impacts. | Not built |
 
 - F6 (map workspace) and F15 (phone look-up) are UI: routes in `src/app/` and components in `src/ui/`, built on the modules above.
 - F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine. F19's resolutions live in `analysis` too, since it owns the disagreement they refer to.
@@ -262,11 +249,11 @@ A profile approval or dataset refresh that lands after step 2 doesn't touch the 
 3. One transaction locks the dataset row, marks the version ready, moves the current pointer, and enqueues `run_analysis` for open decisions whose study areas intersect the dataset's coverage.
 4. Any failure marks the version failed with its error. The previous version stays current, and every view of that dataset shows the failed refresh beside it.
 
-## Drafting code changes with retrieval (F2, later in v1)
+## Drafting code changes with retrieval (F2, not built)
 
-> **Superseded in part, 2026-10-10 (D27).** The retrieval, the checks, the staff confirmation, and the record of each draft below stand. The model no longer runs in a `models` container: generation and embeddings are calls to NVIDIA's hosted API through `platform/model-client`, and a draft is one call in a Server Action, as in [ai-assist.md](ai-assist.md) (PR1), not a job on the `rag` queue. Read "the VM", "`models`", "llama.cpp", "Qwen", and "`rag`" below as the earlier design.
+> **Status, 2026-10-24.** F2 is not built. The retrieval, checks, staff confirmation, and record of each draft described below stand as the design. The model is NVIDIA's hosted API through `platform/model-client`, not a `models` container. Staff can paste published code text or a city checklist on the profile page today; it is chunked, embedded, and stored in `source_document` / `document_chunk` for the Find assist. Automatic fetching, indexing, and drafting are later work.
 
-F2 drafts rule updates with a retrieval-augmented generation (RAG) workflow that runs entirely on the VM. The worker retrieves passages from PostgreSQL and calls the open models in the `models` container. No text goes to an external AI API.
+F2 will draft rule updates with a retrieval-augmented generation (RAG) workflow. The worker retrieves passages from PostgreSQL and calls the hosted model through the one server-side client. Only public code text leaves UPlan.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 360}}}%%
@@ -275,28 +262,28 @@ flowchart TB
   A -->|"unchanged"| A0["Record the check"]
   A -->|"blocked or error"| A1["Show on the city's profile page and in W8<br/>planners may upload the rules instead · F17"]
   A -->|"changed: store the raw file, add_job"| B["2 · Index · index_code_document<br/>pdftotext → sections → chunks"]
-  B --> B1["Embed each chunk<br/>Qwen3-Embedding-0.6B"]
+  B --> B1["Embed each chunk<br/>nvidia/nemotron-3-embed-1b · 1,024 dimensions"]
   B1 --> B2[("One transaction: chunks and vectors stored, document indexed<br/>add_job draft_code_change")]
   B2 --> C["3 · Retrieve · draft_code_change<br/>pin the document and the current profile version"]
   C --> C1["For each changed section: exact section matches<br/>+ vector neighbors + full-text matches, fused"]
-  C1 --> D["4 · Generate<br/>Qwen3.5-4B · JSON Schema grammar · temperature 0"]
+  C1 --> D["4 · Generate<br/>nvidia/nemotron-3-ultra-550b-a55b · JSON output · temperature 0"]
   D --> E{"5 · Check<br/>schema · quotes verbatim · numbers quoted · valid profile"}
   E -->|"any check fails"| E0["Draft failed, with every reason<br/>shown to UPlan staff in W8"]
-  E -->|"all pass"| F["6 · Propose<br/>pending profile change, add_job preview_profile_change"]
-  F --> G["7 · Confirm<br/>UPlan staff approve or reject · round 9"]
+  E -->|"all pass"| F["6 · Propose<br/>a profile change for staff confirmation"]
+  F --> G["7 · Confirm<br/>a different UPlan staff member confirms or rejects"]
 ```
 
-1. **Check.** `check_code_source` runs daily for each source on queue `code-source:<id>`, with `max_attempts` 5. It records one outcome: unchanged, changed, blocked (the site refuses automated reading, as with HTTP 401 or 403), or error. A blocked or failing source shows on the city's profile page and in W8, and planners may choose to upload the rules instead (F17). A changed document is first stored in the `objects` bucket under its SHA-256; then one transaction records the check and enqueues `index_code_document`.
+1. **Check.** `check_code_source` runs daily for each source on queue `code-source:<id>`, with `max_attempts` 5. It records one outcome: unchanged, changed, blocked (the site refuses automated reading, as with HTTP 401 or 403), or error. A blocked or failing source shows on the city's profile page, and planners may choose to upload the rules instead (F17). A changed document is first stored in the `objects` bucket under its SHA-256; then one transaction records the check and enqueues `index_code_document`.
 2. **Index.** `index_code_document` runs on queue `rag`, with `max_attempts` 3:
    - Poppler's `pdftotext -layout` converts the PDF to text. A PDF without a text layer fails with that reason. There is no OCR, and no guessing at text.
    - The text is split along the code's own structure (chapter, section, subsection), so every chunk carries its section path and heading. A table stays whole in one chunk.
-   - Qwen3-Embedding-0.6B embeds every chunk.
+   - The hosted embedding model embeds every chunk at 1,024 dimensions.
    - One transaction stores the chunks and their vectors, marks the document indexed, and enqueues `draft_code_change`.
 3. **Retrieve.** `draft_code_change` runs on queue `rag`, with `max_attempts` 3. It pins the document and the city's current profile version, and finds the sections that are new or changed since the source's previous document. For each changed section, the prompt gets:
    - the section's new text;
    - the current rules whose citations name that section;
    - the 8 most relevant chunks from the city's indexed code. One SQL query ranks chunks three ways and fuses the rankings with reciprocal rank fusion: exact section-path references, nearest neighbors through pgvector's HNSW index, and full-text matches.
-4. **Generate.** Qwen3.5-4B runs with thinking off and temperature 0. A JSON Schema grammar constrains its output to a list of rule operations (add, amend, or repeal), each with its values, citation, effective date, and evidence given as a chunk id and an exact quote. The schema has no free-text field, so the model has nowhere to write a finding or a recommendation.
+4. **Generate.** The hosted generation model runs with thinking off and temperature 0. Its output is constrained to a list of rule operations (add, amend, or repeal), each with its values, citation, effective date, and evidence given as a chunk id and an exact quote. The shape has no free-text field, so the model has nowhere to write a finding or a recommendation.
 5. **Check.** Deterministic checks, all of which must pass:
    - The output parses against the Zod schema.
    - Every quote appears verbatim in the chunk it cites, and that chunk was retrieved for this draft.
@@ -305,10 +292,10 @@ flowchart TB
 
    A draft that fails is stored as failed, with every reason. It is never retried with another prompt or model.
 
-6. **Propose.** A passing draft becomes a pending `profile_change` with source `code_change`, in the transaction that finishes the draft. (The `preview_profile_change` job this once enqueued was withdrawn 2026-10-04; F2 decides how staff see a draft before they confirm it.) If the city already has a pending change, the draft waits. The transaction that decides that change enqueues `draft_code_change` again: unchanged inputs propose the waiting draft, and a new profile version produces a new draft against it.
-7. **Confirm.** UPlan staff read the draft beside its quoted passages and the preview results, and approve or reject it _(round 9)_. A correction is a new edit that cites the draft.
+6. **Propose.** A passing draft becomes a `profile_change` with source `code_change`, in the transaction that finishes the draft. If the city already has a pending change, the draft waits. The transaction that decides that change enqueues `draft_code_change` again: unchanged inputs propose the waiting draft, and a new profile version produces a new draft against it.
+7. **Confirm.** A different UPlan staff member reads the draft beside its quoted passages, and confirms or rejects it _(round 9)_. A correction is a new edit that cites the draft.
 
-Every draft records what produced it: the document hash, the profile version, the SHA-256 of each model file, the prompt version, the retrieved chunk ids and ranks, and the raw model output. Both model jobs share the `rag` queue, so only one runs at a time, and `models` has a low CPU weight, so a draft that takes minutes yields the CPU to pages and analysis runs.
+Every draft records what produced it: the document hash, the profile version, the model id, the prompt version, the retrieved chunk ids and ranks, and the raw model output. F2's indexing and drafting jobs are not built; the same tables and the same `platform/model-client` are already used by AI assist for staff-pasted code text.
 
 ## Impact engine
 
@@ -329,7 +316,7 @@ Every draft records what produced it: the document hash, the profile version, th
 
 - A rule set not marked as vesting uses the rules in force today, in the city's time zone.
 - A rule set marked as vesting uses the rules in force on the application's filing date _(assumed; round 10)_. If the filing date is missing, the run fails with a validation error that names it.
-- A daily `apply_effective_dates` job per city enqueues analysis runs for open decisions when any rule's `effectiveOn` or `repealedOn` falls on that day. Results never silently lag a rule taking effect.
+- The daily `daily_jurisdiction_maintenance` job calls `applyEffectiveDates` per city and enqueues analysis runs for open decisions when any rule's `effectiveOn` or `repealedOn` falls on that day. Results never silently lag a rule taking effect.
 - Each run records the profile version and the date it resolved each rule set for.
 
 ## Concurrency and consistency
@@ -344,13 +331,13 @@ Race conditions are prevented by design, not by timing:
 6. **Serialized related work.** Jobs for one aggregate share a named queue: `decision:<id>`, `jurisdiction:<id>`, `dataset:<id>`, or `code-source:<id>`. Jobs that use the models share the one `rag` queue. Job keys collapse pending duplicates. If a duplicate is added while a job runs, the running job finishes first and the new one runs after it.
 7. **Pinned inputs.** Every run, report, and draft records the exact versions it read. No reader combines versions.
 8. **Idempotent handlers.** A job rerun after a crash creates no duplicates, keyed by input hash, content hash, or report id.
-9. **No in-process coordination.** No module-level mutable state, in-memory locks, or in-memory queues. The design holds with any number of web and worker instances, even though the VM runs one of each.
+9. **No in-process coordination.** No module-level mutable state, in-memory locks, or in-memory queues. The design holds with any number of web and worker instances. The pilot runs one worker container; adding another is safe.
 10. **Honest clients.** The browser sends the revision its edit was based on, blocks double submission, and discards responses to superseded requests. It never shows a number it computed itself.
 
 | Situation                                                  | What prevents the race                                                                                                              |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Two planners propose profile changes for one city          | Partial unique index: one pending change per city                                                                                   |
-| An approval is clicked twice                               | The compare-and-set on `status = 'pending'` lets only one click through                                                             |
+| Two AI-drafted profile changes are pending for one city   | Partial unique index: one pending change per city                                                                                   |
+| A draft is confirmed twice                                 | The compare-and-set on the draft's status and the one-confirmation-per-draft index let only one through                             |
 | Rules change while an analysis runs                        | The run pinned its inputs, and the approval queued a new run behind it on the same queue                                            |
 | Finishing races an input change or a review               | Both take `FOR UPDATE` on the decision row, so they serialize. The finish rereads every fingerprint inside the lock                 |
 | Two people finish one project at once                      | The `in_progress → finishing` compare-and-set lets exactly one through                                                              |
@@ -362,7 +349,7 @@ Race conditions are prevented by design, not by timing:
 | A code change is drafted while a profile change is pending | The one-pending index makes the draft wait. Deciding the pending change re-enqueues the draft against the version then current      |
 | The same code document is fetched twice                    | Checks of one source run in series on `code-source:<id>`, and unique (source, content hash, embedding model) stores a document once |
 | Two model jobs start at once                               | Both are on the `rag` queue, so the second waits for the first                                                                      |
-| Two deploys start at once                                  | The deploy script holds an exclusive lock on the VM, and migrations run only in the one-off `migrate` container                     |
+| Two deploys start at once                                  | Migrations run once as a one-off job before the new web or worker version starts, and the deployment platform rolls one version at a time. |
 
 ## Failure handling
 
@@ -374,7 +361,7 @@ Race conditions are prevented by design, not by timing:
   - No cached copy served when a fetch fails.
   - No silent repair of geometry a person drew.
   - No parsing of an unknown template version.
-  - No substitute model or AI service when `models` is down: the job fails and retries.
+  - No substitute model or AI service when the hosted model service is down: the request or job fails visibly and retries within its bound.
 - **Bounded retries are not fallbacks.** Retrying the same idempotent job is allowed, and every job sets `max_attempts`: 3 for computation, 5 for network fetches. After the last attempt, the owning row is marked failed with its error, the UI shows it, and the health check fails, so the alarm emails UPlan staff.
 - **The previous dataset version stays current only in plain view.** It is correct to show the last good version only because the failed refresh is shown right beside it.
 - **Configuration fails fast.** At startup each process validates its environment with Zod and exits if anything is missing.
@@ -382,21 +369,21 @@ Race conditions are prevented by design, not by timing:
 ## Security and access
 
 - **Sign-in:** everyone registers and signs in with an email address and a password through Supabase Auth, called only from the server. Registering grants no staff rights: only a `staff_member` row does, and there is no membership. Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` in production.
-- **Personal data outside the VM.** The one exception to keeping personal data on the VM (D14): Supabase holds each person's email, name, and password hash. No decision, applicant, or evidence data goes to it.
+- **Personal data outside the database.** Supabase holds each person's email, name, and password hash, and the Auth session. UPlan's own `app_user` row holds the name, email, and staff status. No decision, applicant, parcel, or evidence data goes to Auth.
 - **Authorization lives in modules.** Module functions take the signed-in actor. A project function checks that the actor created the project, inside the query itself; a staff function checks `staff_member`. `src/proxy.ts` only redirects signed-out page visits, because the Next.js docs warn that a matcher change can silently remove Proxy coverage.
 - **Roles:**
-  - _Planner:_ every signed-in person: builds projects, works through their phases, proposes profile changes, and publishes document versions.
-  - _UPlan staff:_ approves profile changes (never their own), sets up jurisdictions and datasets, installs sample evidence, exports records, confirms code-change drafts, and operates the VM.
+  - _Planner:_ every signed-in person: builds projects, works through their phases, uploads or edits the city profile, and publishes document versions.
+  - _UPlan staff:_ installs sample evidence, manages source documents and code text, confirms AI-drafted rule or metadata changes (never their own), and operates the deployment.
   - _Reviewer:_ returns with F12, with a per-project grant.
 - **Every query of a project is scoped to its owner.** A project that isn't the actor's, is deleted, or is absent reads as "not found".
-- **Network:** the VM's security list allows inbound TCP 80 and 443 and UDP 443 from the internet, and SSH only from the Bastion. Only `caddy` publishes ports. `web`, `worker`, `postgres`, and `models` are reachable only on the Compose network.
-- **Uploads:** `.xlsx` only, at most 5 MB, parsed with row limits.
+- **Network:** Vercel terminates TLS and serves the app. The worker host has no public HTTP port and reaches Supabase over TLS. Supabase's database and storage are reached through their managed endpoints. The Vercel deployment and the worker share secrets only through their server-side environment.
+- **Uploads:** `.xlsx` only, at most 5 MB, parsed with row limits. The optional project scan accepts PDF, DOCX, or TXT at most 5 MB. Vercel caps a function request body at 4.5 MB, so a near-limit workbook needs a direct-to-Storage signed upload.
 - **Immutability is enforced in two places.**
   - In the database, the application's role can't update or delete immutable tables, and triggers block changes to finished runs, published documents (and every delete of one), report section versions, source resolutions, ready dataset versions, indexed documents, and finished drafts.
-  - In Object Storage, the application's credentials can create and read objects but never overwrite or delete them. Published documents are not in Object Storage since 2026-09-27; they are in the database, behind the trigger above.
-- **Secrets** live in two root-only files on the VM, one for the application containers and one for `postgres` and its backups, never in the repository, images, or logs.
-- **Models run on the VM** and receive only public code text. No UPlan data goes to an external AI API.
-- **Content Security Policy** allows MapLibre's blob workers and nothing broader.
+  - In Object Storage, the application's credentials can create and read objects but never overwrite or delete them. Published documents are not in Object Storage; they are in the database, behind the trigger above.
+- **Secrets** live in Vercel's and the worker host's server-side environment, never in the repository, images, or logs. The Supabase database password, S3 keys, and NVIDIA key are also kept in a password manager.
+- **Models are hosted** and receive only allow-listed public text and de-identified measurements. No project identity, geometry, uploaded file, name, or email leaves UPlan through the model client.
+- **Content Security Policy** should allow MapLibre's blob workers and nothing broader. The current code does not set one; adding it is a pilot item.
 
 ## Accessibility
 
@@ -407,113 +394,117 @@ Race conditions are prevented by design, not by timing:
 
 ## Deployment
 
-### The VM and its containers
+### Vercel — the web tier
 
-- One `VM.Standard.A1.Flex` instance with 2 OCPUs, 12 GB of memory, and a 200 GB boot volume, in the tenancy's home region in the western US. It runs Ubuntu Server 24.04 LTS with unattended security upgrades, and Docker Engine with the Compose plugin.
-- The tenancy is upgraded to Pay As You Go. Oracle doesn't charge for Always Free resources after the upgrade, a paid tenancy can open support tickets, and users report that upgrading stops Oracle from reclaiming idle Always Free instances. A budget alert at one dollar catches anything that would cost money.
-- A reserved public IP, at no charge, keeps the city's DNS record valid when the VM is rebuilt.
+- The Next.js app deploys from GitHub to Vercel. Pages and Server Actions use the Node.js runtime; route handlers serve tiles, downloads, the profile template, and the health check.
+- The app is stateless. No module-level mutable state, no in-memory queue, and no local disk. Every guard is a database constraint or compare-and-set.
+- Function duration is set per route. The AI-assist pages set `maxDuration = 60`, above the model call's 45-second timeout. The default is 300 seconds on Hobby and Pro; Pro can go to 800 seconds.
+- The database connection uses Supabase's transaction pooler (port 6543) with a pool capped at 5. Serverless functions are short-lived, so a pooled connection is required.
+- The basemap is a committed static file at `public/basemap/basemap.pmtiles`, served by Vercel with range requests.
+- Vercel Cron is optional. On Hobby it can run only once a day; on Pro it can run every minute. The worker's own crontab already covers the heartbeat and daily maintenance.
 
-| Container  | Built from                                                                                                               | Memory limit | Ships                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------ | ------------ | -------------------------- |
-| `caddy`    | `caddy:2.11`                                                                                                             | 256 MB       | Release 1                  |
-| `web`      | Dockerfile target `web`, on `node:24-slim`                                                                               | 1 GB         | Release 1                  |
-| `worker`   | Dockerfile target `worker`, on the Playwright image with GDAL and Poppler added                                          | 2 GB         | Release 1                  |
-| `postgres` | Dockerfile target `postgres`, on `postgres:18` with PostGIS, pgvector, and pgBackRest from the PostgreSQL apt repository | 3 GB         | Release 1                  |
-| `models`   | `ghcr.io/ggml-org/llama.cpp:server`, pinned by digest                                                                    | 4.5 GB       | With F2                    |
-| `migrate`  | Dockerfile target `worker`                                                                                               | —            | Release 1, once per deploy |
+### Supabase — the data tier
 
-- The limits add up to 10.75 GB, leaving about 1.25 GB for the host. Until F2 ships, the memory set aside for `models` serves as page cache for PostgreSQL.
-- **Models.** `models` runs llama.cpp in router mode with one presets file, `deploy/models.ini`. The file loads both models at startup and sets each one's context size, embedding pooling, and thinking off. Qwen3.5-4B's Q4_K_M file is 2.74 GB, and Qwen3-Embedding-0.6B's Q8_0 file is 639 MB. `deploy/setup.sh` downloads both once and checks their SHA-256 hashes.
-- **CPU.** The two OCPUs are shared. The worker runs at most two jobs at once, model jobs run one at a time on `rag`, and `models` has a low CPU weight (`cpu_shares`), so it yields to pages and analysis runs.
+- One Supabase project provides PostgreSQL 18 with PostGIS 3.6 and pgvector, Auth, and Storage.
+- The web and worker connect with different connection strings: the web uses the transaction pooler, the worker uses the session pooler or direct connection on 5432 because graphile-worker uses LISTEN/NOTIFY and advisory locks.
+- Migrations run as a one-off step (`npm run db:migrate`), never at app startup. They are expand-then-contract, so the old web or worker version keeps working during a deploy.
+- Auth is called only from the server. The browser has no Supabase client and no key.
+- Storage is reached through its S3-compatible endpoint. The application's credentials can create and read, never overwrite or delete.
+- The free plan is about 500 MB of database and pauses a project after a week idle. A pilot needs a paid plan or an explicit acceptance of those limits.
+
+### The managed worker host
+
+- The `worker` image is built from the repository's `Dockerfile` target. It contains graphile-worker, Chromium, GDAL, and Poppler.
+- It runs one process, at concurrency 2, with `--crontab=deploy/crontab`.
+- It connects to Supabase over the session pooler or direct connection. It has no public HTTP port.
+- The host can be Render, Railway, Fly.io, Google Cloud Run with a minimum instance of 1, or the existing Oracle VM. The worker is the only always-on process.
+- Adding a second worker is safe: per-project queues serialize a project's analysis and every job is idempotent. The pilot does not need one.
 
 ### Deploying
 
-1. GitHub Actions runs CI on every pull request: typecheck, lint, unit tests, integration tests with Testcontainers, and end-to-end tests with axe. A release is a git tag on a commit whose CI passed.
-2. UPlan staff open a Bastion session and run `deploy/deploy.sh <tag>`. The script takes an exclusive lock, fetches and checks out the tag, and builds the images on the VM.
-3. It runs `migrate`, then recreates `worker` and `web` and waits for their health checks.
-4. Migrations are expand-then-contract, so containers still running the old code work against the migrated schema until they're replaced.
+1. Push a commit to GitHub. Vercel builds the web app automatically.
+2. Run `npm run db:migrate` with the direct/session connection string, before or during the web rollout. Migrations are backward-compatible for one version.
+3. Build and deploy the worker image to the worker host. Restart it after the migration.
+4. Verify `/api/health`, then run one sample project through analysis and report release.
+5. To roll back, promote the previous Vercel deployment and the previous worker image. The schema stays compatible for the expand-then-contract window.
 
-Recreating `web` takes a few seconds, so deploys happen outside the city's working hours. Because images are built on the VM, no container registry is needed.
-
-`deployment-guide.md` holds the step-by-step instructions: a demo site first, then what the pilot still needs built.
+`deployment-guide.md` holds the step-by-step instructions for Vercel, Supabase, and the worker host.
 
 ### Environments
 
-- **Production** is the VM.
-- **There is no standing staging environment,** because the free allowance covers one VM. CI instead starts the whole stack for every pull request: PostGIS through Testcontainers, the app, and Playwright.
-- **Storage tests** use two development buckets in the same tenancy, with the same create-only permissions as production and a lifecycle rule that deletes objects after a day.
-- **Local development** uses the same Compose file with a development override that leaves out `caddy`, against the development buckets.
+- **Production** is Vercel + Supabase + one worker host.
+- **Preview** deployments on Vercel can point at a separate Supabase project or a database branch. Do not point a preview at production data.
+- **Local development** uses `npm run dev`, the local PostGIS container in `docker-compose.dev.yml`, and `npm run worker:dev`.
+- **CI** starts PostGIS through Testcontainers and runs Playwright; it does not need a deployed environment.
 
 ### Everything that's configured
 
-| Where                       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Oracle Cloud console        | The Pay As You Go upgrade and a one-dollar budget alert. A VCN with one public subnet and its security list. The VM and its reserved IP. Five buckets: three for production and two for development, with the `reports` retention rule and the development lifecycle rules. Three IAM users (application, backups, development), each with a policy and a key. A Bastion. An APM domain with one synthetic monitor. Two alarms and one notification topic |
-| The city                    | A DNS record                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| GitHub                      | Repository secrets for the development buckets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `deploy/` in the repository | `compose.yaml`, `Caddyfile`, `models.ini`, the backup timer and service units, `setup.sh`, and `deploy.sh`                                                                                                                                                                                                                                                                                                                                                |
-| Supabase                    | One project: email sign-in on, "Confirm email" off until an SMTP sender exists (D14), and the site URL and `<hostname>/auth/callback` in its redirect list |
-| The VM                      | Two root-only secrets files: `/etc/uplan/app.env` for `web`, `worker`, and `migrate`, and `/etc/uplan/postgres.env` for `postgres` and pgBackRest                                                                                                                                                                                                                                                                                                         |
-
-One more setting is not a secret: `UPLAN_HOSTNAME`, the name `caddy` serves and gets its certificate for, lives in the gitignored `deploy/.env` on the VM.
+| Where | What |
+| --- | --- |
+| Vercel | The project, the Production and Preview environment variables, the domain, and optional Cron entries |
+| Supabase | One project with PostGIS, pgvector, Auth, Storage, redirect URLs, and a backup window |
+| Worker host | One service from the `worker` image with the full application environment and a session/direct database connection |
+| The city | A DNS record, if the city provides the hostname |
+| GitHub | The repository; optional Actions secrets for CI |
+| External monitor | A check against `/api/health` every 5–10 minutes |
+| NVIDIA | An optional API key, server-side only |
 
 ## Operations
 
 ### Health check and alarms
 
-`GET /api/health` answers 200, or 503 with the names of the failing checks and nothing else. It fails when:
+`GET /api/health` answers 200, or 503 with the names of the failing checks and nothing else. The current code checks:
 
-- the database doesn't answer;
-- the worker heartbeat is more than 15 minutes old;
-- WAL archiving has failed since its last success, or hasn't archived anything for an hour;
-- no backup has succeeded in 26 hours;
-- the disk is more than 85% full;
-- any job used up its attempts in the last 24 hours.
+- the database;
+- the worker heartbeat, no more than 15 minutes old;
+- WAL archiving (`pg_stat_archiver`);
+- a successful backup in the last 26 hours (`backup_run`);
+- free disk space;
+- jobs that used up their attempts in the last 24 hours.
 
-The heartbeat writes every 5 minutes, which also keeps WAL moving, so a stale archive is a real signal. An OCI APM synthetic monitor calls the health check every 10 minutes, using 6 of the 10 free runs an hour. Two Monitoring alarms email UPlan staff through one Notifications topic: one when the monitor fails, and one when Object Storage use approaches its free storage or request allowance.
+The last three were written for a self-run PostgreSQL. On Supabase, keep the database, heartbeat, and exhausted-job checks, and replace WAL, backup, and disk with Supabase-specific checks (project status, backup age from the API, database size against the plan). A health endpoint that permanently fails on an inapplicable check is worse than one that reports only the checks that apply.
+
+An external monitor calls the endpoint every 5–10 minutes and emails UPlan staff. Vercel's and Supabase's own dashboards are the second view, not the alarm.
 
 ### Logs
 
-`web` and `worker` write pino JSON logs to standard output. Docker's `local` log driver keeps and rotates them on the VM, and UPlan staff read them in a Bastion session. There's no log service.
+`web` writes pino JSON to Vercel's log stream. The worker writes pino JSON to the worker host's log stream. Both are readable in their dashboards. There is no separate log service; keep at least 7 days for a pilot.
 
 ### Backups and recovery
 
-- pgBackRest archives WAL continuously, with `archive_timeout` set to 15 minutes, so a lost VM loses at most 15 minutes of work.
-- The backup timer runs at night: a full backup on Sundays and a differential backup on other days. pgBackRest keeps two full backups, and every run is recorded in `backup_run`.
-- pgBackRest encrypts backups before they leave the VM. They go to the `backups` bucket, using credentials that reach no other bucket.
-- A lost VM is rebuilt with `setup.sh`, restored with pgBackRest, and given the reserved IP, so the city's DNS record doesn't change.
-- A restore into a scratch container on the VM is rehearsed every quarter.
+- Supabase's automatic backups, and point-in-time recovery if the plan includes it. Record the retention window.
+- Published documents are in `report.pdf` inside the database, so the database backup covers them.
+- `uplan-objects` holds uploads, raw evidence, and exports. On a paid plan it is backed up with the project; on a free plan, download it before risky changes.
+- Rehearse a restore into a scratch Supabase project before go-live and quarterly after.
+- The city's records exports are the independent copy outside UPlan.
 
 ### Free-tier budget
 
-| Allowance               | Free limit                                     | Planned use for one city                                                                                         |
-| ----------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Arm compute             | 2 OCPUs and 12 GB                              | The one VM                                                                                                       |
-| Block storage           | 200 GB                                         | One boot volume: OS, images, database, model files, and the basemap file                                         |
-| Object Storage          | 20 GB                                          | Backups first, then raw data and exports                                                                         |
-| Database size           | Within the 200 GB boot volume                  | Published documents add a few hundred kilobytes each (`report.pdf`); the list queries never read them           |
-| Object Storage requests | 50,000 a month                                 | Mostly WAL archiving: at most 96 forced segments a day, plus backups, application objects, and development tests |
-| Outbound data           | 10 TB a month                                  | Pages, tiles, and downloads                                                                                      |
-| Synthetic monitor runs  | 10 an hour                                     | 6                                                                                                                |
-| Notification emails     | 1,000 a month                                  | Alarms only                                                                                                      |
-| GitHub Actions          | 2,000 minutes a month for a private repository | CI on pull requests                                                                                              |
-| Supabase Auth           | 50,000 monthly active users                    | The pilot's planners, reviewers, and staff: dozens. Projects idle for a week are paused (D14)                    |
-| Supabase database size  | The free plan's database limit (about 500 MB at the time of writing; check the live figure) | Rows, suggestions, and published documents stored as `bytea` (a few hundred KB each). The first allowance this design is likely to hit; a plan upgrade is a decision, not a fallback |
-| Vercel                  | The plan's function duration, invocation, and bandwidth limits. The Hobby plan is restricted to non-commercial use; check that a city pilot qualifies | Pages, Server Actions, and route handlers. Assist calls are one model call per invocation (ai-assist.md) |
-| NVIDIA inference API    | A rate-limited free tier for development and evaluation; check the live limit and terms | At most 40 assist requests per person and 400 per city per day (ai-assist.md, _Caps_)                           |
+| Allowance | Free limit | Planned use for one city |
+| --- | --- | --- |
+| Vercel Functions | Hobby: 300 s, 2 GB, non-commercial; Pro: 800 s, 4 GB | Pages, Server Actions, tiles, downloads, and optional AI calls |
+| Vercel bandwidth | Plan allowance | Pages, tiles, and downloads |
+| Supabase database | About 500 MB on the free plan | Rows, suggestions, sections, and published PDFs as `bytea`; the first allowance likely to run out |
+| Supabase Auth | 50,000 monthly active users; pauses after a week idle | The pilot's planners and staff: dozens |
+| Supabase Storage | Plan allowance | Uploaded workbooks, raw evidence, and exports; documents are in the database |
+| Worker host | Small always-on container, 2 OCPUs / 4–8 GB is ample | graphile-worker, Chromium, GDAL, Poppler |
+| GitHub Actions | 2,000 minutes a month for a private repository | Typecheck, lint, unit, integration, and end-to-end tests |
+| NVIDIA inference API | Rate-limited free tier for development and evaluation | At most 40 assist requests per person and 400 per city per day |
+| External monitor | Free tier | One check every 5–10 minutes |
 
 A change that raises use of an allowance updates this table in the same change.
 
 ## Release 1 in this architecture
 
-- **Release 1** deploys `caddy`, `web`, `worker`, `postgres`, and `migrate`, and builds these modules:
-  - `accounts`: planners (everyone signed in) and UPlan staff, who approve profile changes.
+- **Release 1** deploys the Vercel web tier, the Supabase project, and the worker container. It builds:
+  - `accounts`: planners (everyone signed in) and UPlan staff, with staff rights from `staff_member`.
   - `profiles`, `provenance`, `evidence`, `decisions`, `records`, and `operations`.
-  - `analysis`: evidence base, screening and study flags, impact, and the source resolutions.
+  - `analysis`: evidence base, screening and study flags, impact, and source resolutions.
   - `workflow`: phases, report sections and their versions, the stage rail, Overview, dashboard summaries, finishing and research changes.
-  - `reports`: the document, its versions, and storage in the database, without sign-off.
-  - The map workspace UI.
-- **Release 1 also builds `assist`** (F24), in waves: explain and find first, then questions and comparison, then staff drafts. It needs no worker and no container.
-- **Later in v1:** `code-tracking` and the retrieval index for F2's fetching, sign-off in `reports`, `conditions`, and the phone look-up views. F2's drafting calls the model service through `platform/model-client`, not a `models` container.
+  - `reports`: the document, its versions, and storage in the database.
+  - The map workspace UI, the section chat, and the city profile UI.
+- **Release 1 also builds `assist`** (F24): explain, find, questions, compare, staff drafts, the section chat, and the profile/dataset panels. It needs no worker.
+- **Not built:** F2's automatic code tracking, F12 review and sign-off, F13 conditions tracing, F15 phone look-up, the records UI, and a dataset-admin UI.
+- **Migration path:** Vercel Queues and Workflows can replace the external worker host. See [deployment-guide.md](deployment-guide.md), Part E.
 
-Sources: [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Oracle: Free Tier and upgrading](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm) · [Oracle: public IP addresses](https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingpublicIPs.htm) · [Oracle: Object Storage retention rules](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingretentionrules.htm) · [Oracle: Object Storage policy reference](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm) · [llama.cpp: server README](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) · [Qwen3.5-4B GGUF files](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) · [Qwen3-Embedding-0.6B GGUF](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [graphile-worker: job keys](https://worker.graphile.org/docs/job-key) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [W3C: WCAG 2.1, success criterion 2.1.1](https://www.w3.org/TR/WCAG21/#keyboard)
+Sources: [Vercel Functions limits](https://vercel.com/docs/functions/limitations) · [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs) · [Vercel Queues](https://vercel.com/docs/queues) · [Vercel Workflows](https://vercel.com/docs/workflows) · [Vercel: Docker monolith with workers](https://vercel.com/kb/guide/docker-monolith-workers-vercel) · [Supabase pg_net and pg_cron](https://supabase.com/docs/guides/database/extensions/pg_net) · [Supabase Storage S3 compatibility](https://supabase.com/docs/guides/storage/s3/authentication) · [graphile-worker: job keys](https://worker.graphile.org/docs/job-key) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [W3C: WCAG 2.1, success criterion 2.1.1](https://www.w3.org/TR/WCAG21/#keyboard)

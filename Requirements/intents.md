@@ -1,7 +1,8 @@
 # UPlan — Intents
 
 **Status:** Draft — reviewed in round 7; I9 added 2026-09-12
-**Last updated:** 2026-09-12
+**Last updated:** 2026-10-24
+**Implementation:** Current as of 2026-10-24. The intents are stable; see `features.md` for which are delivered.
 **Derived from:** [charter.md](charter.md), review rounds 1–7
 **Next:** Feature list (`Requirements/features.md`)
 

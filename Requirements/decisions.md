@@ -2,6 +2,7 @@
 
 **Feature:** F5 · `decisions`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** every intent · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Core object_), [features.md](features.md) (F5), [data-model.md](../TechDesign/data-model.md) (`decision`, `decision_geometry`)
 **Related design doc:** [TechDesign/decisions.md](../TechDesign/decisions.md)

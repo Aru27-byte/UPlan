@@ -2,6 +2,7 @@
 
 **Feature:** F5 · `decisions`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/decisions.md](../Requirements/decisions.md) (R1–R15)
 **Builds on:** [data-model.md](data-model.md) (`decision`, `decision_geometry`), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_), [accounts-roles.md](accounts-roles.md) (ownership, F11)
 **Shared module with:** [proposal-footprint.md](proposal-footprint.md) (F8 — the footprint-tracing workflow built on `saveGeometry`), [sample-data.md](sample-data.md) (F23 — sample inputs), [research-phases.md](research-phases.md) (F21 — boundary upload)

@@ -2,6 +2,7 @@
 
 **Feature:** F17 · `profiles`
 **Status:** Draft — changes apply at once (2026-10-04)
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/profile-upload-edit.md](../Requirements/profile-upload-edit.md) (R1–R12; R6, R7, R9 withdrawn)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Profile upload or edit_, D13), [data-model.md](data-model.md) (`profile_upload`, `profile_change`, `profile_source`), [jurisdiction-profile.md](jurisdiction-profile.md) (F1)
 **Release:** 1

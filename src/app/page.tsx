@@ -175,7 +175,7 @@ export default function LandingPage() {
         </section>
 
         {/* 4 — Principles, then the unchanged green launch box. */}
-        <section id="principles" aria-labelledby="principles-heading" className={`${SECTION} scroll-mt-20 pt-22 pb-10 text-center`}>
+        <section id="principles" aria-labelledby="principles-heading" className={`${SECTION} scroll-mt-20 pt-22 pb-6 text-center`}>
           <h2 id="principles-heading" className={`${H2} mx-auto mb-7 max-w-[860px] text-[clamp(2.125rem,5vw,4rem)] tracking-[-0.035em]`}>
             Helps you help the <span className="text-accent-green">environment</span>.
           </h2>
@@ -191,7 +191,7 @@ export default function LandingPage() {
           </ul>
         </section>
 
-        <section aria-labelledby="launch-heading" className={`${SECTION} pt-15 pb-20`}>
+        <section aria-labelledby="launch-heading" className={`${SECTION} pt-6 pb-20`}>
           <div className="relative flex flex-wrap items-center justify-between gap-8 overflow-hidden rounded-[28px] border border-accent-green/45 bg-[#1f2a15] p-[clamp(2rem,5vw,4rem)]">
             <div
               aria-hidden="true"

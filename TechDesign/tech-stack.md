@@ -1,16 +1,17 @@
 # UPlan — Tech Stack
 
-**Status:** Draft — system-level technical design; model and hosting rows amended 2026-10-10
-**Last updated:** 2026-10-10
+**Status:** Current as of 2026-10-24 — system-level technical design; deployment rows reflect the Vercel + Supabase + managed worker deployment
+**Last updated:** 2026-10-24
+**Implementation:** Current stack; the Oracle VM rows in `deploy/` are historical.
 **Derived from:** [charter.md](../Requirements/charter.md), [intents.md](../Requirements/intents.md), [features.md](../Requirements/features.md)
 **Related:** [system-architecture.md](system-architecture.md) · [data-model.md](data-model.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 
-Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeoffs.md_, where the rejected options and accepted trade-offs live. Version lines were checked against the npm registry and each project's own pages on 2026-09-12. Once the toolchain exists, `package-lock.json` pins exact package versions, and the Compose file pins images by digest.
+Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeoffs.md_, where the rejected options and accepted trade-offs live. Version lines were checked against the npm registry and each project's own pages on 2026-09-12. `package-lock.json` pins exact package versions. The worker image is built from the Dockerfile; pin its base image by digest in a production build.
 
 ## Principles behind the stack
 
-- **Zero cost.** Every choice is open-source software, or a free tier used within its limits. No paid API, and no paid tier.
-- **Few services, little configuration.** _As of 2026-10-10 (D28):_ Vercel hosts the application, Supabase holds the data, sign-in, and files, and NVIDIA serves the model calls. GitHub hosts the code. _Before it: one Oracle VM ran everything from one Compose file._
+- **Zero cost where possible.** Every choice is open-source software or a free tier used within its limits. No paid API. Vercel Pro may be needed for a commercial city pilot; that is a hosting plan, not an API.
+- **Few services, little configuration.** Vercel hosts the application, Supabase holds the data, sign-in, and files, one managed worker host runs the jobs, and NVIDIA serves the model calls. GitHub hosts the code. There is no self-run database or web server.
 - **Less code.** One repository, one language, one database, and two process types of our own. A dependency earns its place only by removing more code than it adds.
 - **The database guards the invariants.** Constraints, row locks, and immutable rows prevent race conditions. No coordination lives in application memory.
 - **Failures stay visible.** No layer substitutes defaults, cached data, another source, or another model when something fails.
@@ -41,7 +42,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | Terra Draw                                            | 1            | Tracing study areas and footprints                                        | D10      |
 | terra-draw-maplibre-gl-adapter                        | 1            | The official adapter wiring Terra Draw's drawing modes to MapLibre GL JS  | D10      |
 | PostGIS vector tiles (`ST_AsMVT`)                     | —            | Evidence layers, served per dataset version                               | D10      |
-| Protomaps basemap (OpenStreetMap data) with `pmtiles` | 4            | A basemap extract for the city's area, served by Caddy from the VM's disk | D10      |
+| Protomaps basemap (OpenStreetMap data) with `pmtiles` | 4            | A basemap extract for the city's area, served as a static file by Vercel | D10      |
 | pmtiles (npm)                                         | 4            | Reads the `.pmtiles` basemap archive client-side via a MapLibre protocol  | D10      |
 | @protomaps/basemaps                                   | 5            | Generates the basemap's fill/line paint rules from the same archive       | D10      |
 
@@ -49,7 +50,7 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 | Choice                      | Version line  | Role                                                                                                     | Decision |
 | --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------- | -------- |
-| PostgreSQL                  | 18            | All relational data, the job queue, sessions, and the retrieval index, in a container on the VM          | D4       |
+| PostgreSQL                  | 18            | All relational data, the job queue, and the retrieval index, on Supabase Postgres with PostGIS and pgvector | D4, D28  |
 | PostGIS                     | 3.6           | All spatial measurement and analysis                                                                     | D4, D9   |
 | pgvector                    | 0.8           | Later in v1: embeddings and HNSW search for F2's retrieval index                                         | D21      |
 | Drizzle ORM and drizzle-kit | 0.45 and 0.31 | Schema, migrations, typed queries. Spatial and vector SQL goes in `sql` templates                        | D5       |
@@ -77,8 +78,8 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 | Choice                                               | Version line | Role                                                                                                  | Decision |
 | ---------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------- | -------- |
-| OCI Object Storage, through its S3 compatibility API | —            | Uploaded workbooks, raw public data, code documents, write-once reports, records exports, and backups | D12, D17 |
-| AWS SDK for JavaScript (`@aws-sdk/client-s3`)        | 3            | The one object storage client, pointed at OCI's S3 compatibility endpoint                             | D17      |
+| Supabase Storage, through its S3 compatibility API | — | Uploaded workbooks, raw public data, code documents, and records exports. Published reports are stored in the database. | D12, D28 |
+| AWS SDK for JavaScript (`@aws-sdk/client-s3`) | 3 | The one object storage client, pointed at Supabase Storage's S3 endpoint with `forcePathStyle: true` | D28 |
 | read-excel-file and write-excel-file                 | 9 and 4      | Parsing profile uploads, and generating the template from the profile schema                          | D13      |
 | Playwright (Chromium)                                | 1.63         | Printing the report to PDF with `tagged: true` and `outline: true`                                    | D12      |
 
@@ -101,28 +102,24 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 | pino                                              | 10           | Structured JSON logs to standard output                        | D22      |
 | GitHub Actions                                    | —            | CI for the GitHub repository                                   | D18      |
 
-## Hosting and operations at zero cost
+## Hosting and operations
 
-**Target as of 2026-10-10 (D28): Vercel for the application, Supabase for the database, sign-in, and files, and NVIDIA for model calls.** Next.js on Vercel needs no choice of its own. The Oracle rows below are the earlier design (D17) and are superseded where D28 says so. What replaces the worker, Chromium rendering, and GDAL ingestion is open.
+**Current (D28, D29): Vercel for the application, Supabase for the database, sign-in, and files, one managed worker host for the jobs, and NVIDIA for model calls.**
 
-| Choice                                                      | Version line                       | Role                                                                               | Cost basis  | Decision |
-| ----------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | ----------- | -------- |
-| Vercel                                                      | Hobby or Pro; check eligibility    | Hosts the Next.js application: pages, Server Actions, route handlers               | Free tier, with usage limits; Hobby is for non-commercial use | D28      |
-| Supabase (Postgres with PostGIS and pgvector, Auth, Storage) | Free plan                         | The database, sign-in, and files, through one project                              | Free tier   | D14, D28 |
-| Oracle Cloud Infrastructure Arm VM (`VM.Standard.A1.Flex`)  | 2 OCPUs, 12 GB, 200 GB boot volume | Runs every process                                                                 | Always Free | D17      |
-| Ubuntu Server                                               | 24.04 LTS                          | Host operating system, with unattended security upgrades                           | Open source | D17      |
-| Docker Engine with the Compose plugin                       | —                                  | Runs every container from one Compose file                                         | Open source | D17      |
-| Caddy                                                       | 2.11                               | HTTPS with automatic certificates, HTTP/3, the reverse proxy, and the basemap file | Open source | D17      |
-| Let's Encrypt                                               | —                                  | The TLS certificate for the city's hostname                                        | Free        | D17      |
-| OCI Bastion                                                 | —                                  | Time-limited SSH sessions for administration and deploys                           | Free        | D17      |
-| OCI APM synthetic monitoring, Monitoring, and Notifications | —                                  | The health check from outside the VM, alarms, and alarm email                      | Always Free | D22      |
-| pgBackRest                                                  | 2                                  | WAL archiving and encrypted backups to Object Storage                              | Open source | D22      |
-| GitHub                                                      | Free plan                          | Repository and CI                                                                  | Free        | D18      |
-| Supabase (Auth only)                                        | Free plan                          | Hosts sign-in: email, name, and password hash only                                 | Free        | D14      |
+| Choice | Version line | Role | Cost basis | Decision |
+| --- | --- | --- | --- | --- |
+| Vercel | Pro recommended; Hobby for evaluation | Hosts the Next.js application: pages, Server Actions, route handlers, and optional Cron Jobs | Free tier for Hobby (non-commercial, 300 s functions, daily cron); Pro for a pilot | D28 |
+| Supabase (Postgres with PostGIS and pgvector, Auth, Storage) | Free plan or paid | The database, sign-in, and files, through one project | Free tier is about 500 MB and pauses after a week idle; a pilot should use a paid plan | D14, D28 |
+| Managed worker host (Render, Railway, Fly.io, Cloud Run with min instances 1, or the existing Oracle VM) | One small always-on container | Runs the `worker` image: graphile-worker, Chromium, GDAL, Poppler | Free/paid depending on host; the worker is the only always-on process | D29 |
+| GitHub | Free plan | Repository and CI | Free | D18 |
+| NVIDIA inference API | Free, rate-limited | Generation and embeddings for AI assist and the future F2 | Free, rate-limited; confirm terms for a city pilot | D27 |
+| External uptime monitor | Free or low-cost | Polls `/api/health` and alerts staff | Free/low-cost | D22 |
+
+The `deploy/` directory and its Oracle Compose stack remain in the repository as a historical reference. They are not the current deployment.
 
 ## Standards the stack must meet
 
-- **Zero cost.** Each free allowance, with its limit and planned use, is listed in _Free-tier budget_ in the architecture. A paid service, or a change that would exceed an allowance, needs a decision record first.
+- **Zero cost where possible.** Each free allowance, with its limit and planned use, is listed in _Free-tier budget_ in the architecture. A paid API, or a change that would exceed an allowance, needs a decision record first. Vercel Pro is an accepted pilot hosting cost if Hobby's terms do not fit.
 - **Accessibility: WCAG 2.1 AA** for the app and for every released PDF. The DOJ's ADA Title II rule applies WCAG 2.1 AA to state and local government web content. After the April 2026 extension, governments serving 50,000 or more people must comply by April 26, 2027.
 - **Numbers come from one place.** Areas, lengths, and buffers are computed only in PostGIS, in the jurisdiction's projected coordinate system. For Sammamish that is EPSG:2926, Washington State Plane North in US survey feet.
 - **Free public data only** _(round 9)_. Every dataset records its license, and no licensed dataset is ingested.
@@ -131,22 +128,22 @@ Each choice cites its decision record (D1, D2, …) in _alternatives-and-tradeof
 
 | Left out                                                                     | Why                                                                                                                               |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Paid services and APIs, including the Claude and OpenAI APIs                 | Zero cost. Model calls use NVIDIA's free hosted inference _(D27)_                                                                 |
+| Paid APIs, including the Claude and OpenAI APIs | No paid API. Model calls use NVIDIA's free hosted inference _(D27)_. Vercel Pro is a hosting plan, not an API. |
 | A fallback model, or a second model service                                  | A fallback hides a failure. A failed call is shown, and the phase works without assist                                            |
 | A chat assistant over a whole project                                        | No fixed shape to check, and it needs project identity in context. Every assist has one purpose, input, and shape                 |
 | Redis or any second datastore                                                | PostgreSQL already provides the queue, locks, and vector search                                                         |
-| A separate vector database, such as Qdrant, Weaviate, or Chroma              | One more service using memory the VM doesn't have. pgvector keeps chunks beside the rules they're compared with                   |
+| A separate vector database, such as Qdrant, Weaviate, or Chroma | One more service and one more copy of the chunks to keep in step. pgvector keeps them beside the rules they are compared with. |
 | A reranking model                                                            | Another model in memory, and more minutes per draft. It's the first upgrade if retrieval misses sections                          |
 | Microservices, GraphQL, a separate API server                                | One Next.js app with Server Functions needs less code                                                                             |
 | Native mobile apps and offline mode                                          | Phones only look things up _(round 7)_, and offline copies go stale                                                               |
 | Geometry math in JavaScript, such as Turf.js                                 | Numbers on screen must match the report, so PostGIS computes all of them                                                          |
 | Data caches that can serve stale data (`use cache`, time-based revalidation) | Stale rules or evidence would be a hidden failure. Version-addressed tiles are the one cached response, because they never change |
 | Feature-flag services                                                        | Staged releases ship as code, and flags that route around failures are fallbacks                                                  |
-| A CDN, web application firewall, or tunnel in front of the VM                | They need a registered domain, which costs money. The city's hostname points at the VM                                            |
-| Observability services, or a self-hosted Prometheus and Grafana              | One more service, or memory the VM doesn't have. The health check and OCI's monitor catch failures                                |
-| A secrets manager                                                            | Two root-only files on the VM hold the few secrets                                                                                |
-| A container registry and Kubernetes                                          | One VM builds and runs its own images                                                                                             |
-| S3 emulators such as MinIO                                                   | MinIO's community edition is in maintenance mode, and an emulator wouldn't enforce OCI's create-only permissions                  |
+| A separate CDN, web application firewall, or tunnel | Vercel terminates TLS and serves the app from its edge. A WAF is not configured; Supabase's network controls cover the database. |
+| Observability services, or a self-hosted Prometheus and Grafana | Vercel and Supabase dashboards plus one external uptime monitor cover a pilot. A dedicated observability stack is a later decision. |
+| A secrets manager | Vercel and the worker host hold server-side environment variables; the few long-lived secrets are also in a password manager. |
+| A container registry and Kubernetes | Vercel builds the web app, and the worker host builds or pulls one image. Kubernetes is unnecessary for one worker. |
+| S3 emulators such as MinIO | Supabase Storage provides the S3-compatible endpoint in production and development. |
 | OCR and layout-analysis tools, such as Docling                               | A heavier Python stack for scanned PDFs. A PDF without a text layer fails with that reason instead                                |
 
-Sources: package versions and the typescript-eslint peer range from the npm registry, checked 2026-09-12 · [Oracle: Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [InfoQ: Oracle halves Always Free Ampere A1 limits](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/) · [Caddy releases](https://github.com/caddyserver/caddy/releases) · [pgvector changelog](https://github.com/pgvector/pgvector/blob/master/CHANGELOG.md) · [llama.cpp: server README](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [llama.cpp: Docker images](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md) · [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) · [Qwen3.5-4B GGUF files](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) · [Qwen3-Embedding-0.6B GGUF](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF) · [GitHub Actions billing](https://docs.github.com/billing/managing-billing-for-github-actions/about-billing-for-github-actions) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [Playwright release notes: page.pdf() tagged and outline](https://playwright.dev/docs/release-notes) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [Jackson Lewis: DOJ extends Title II web accessibility deadlines](https://www.jacksonlewis.com/insights/doj-extends-public-entities-compliance-deadline-ada-related-website-accessibility-hhss-may-2026-deadline-still-looms) · [Elestio: MinIO maintenance mode](https://blog.elest.io/minio-is-in-maintenance-mode-your-guide-to-s3-compatible-storage-alternatives/)
+Sources: package versions and the typescript-eslint peer range from the npm registry, checked 2026-09-12 · [Vercel Functions limits](https://vercel.com/docs/functions/limitations) · [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs) · [Vercel Queues](https://vercel.com/docs/queues) · [Vercel Workflows](https://vercel.com/docs/workflows) · [Supabase Storage S3 compatibility](https://supabase.com/docs/guides/storage/s3/authentication) · [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector) · [pgvector changelog](https://github.com/pgvector/pgvector/blob/master/CHANGELOG.md) · [GitHub Actions billing](https://docs.github.com/billing/managing-billing-for-github-actions/about-billing-for-github-actions) · [Next.js: proxy.ts](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) · [Playwright release notes: page.pdf() tagged and outline](https://playwright.dev/docs/release-notes) · [graphile-worker: add_job](https://worker.graphile.org/docs/sql-add-job) · [Jackson Lewis: DOJ extends Title II web accessibility deadlines](https://www.jacksonlewis.com/insights/doj-extends-public-entities-compliance-deadline-ada-related-website-accessibility-hhss-may-2026-deadline-still-looms)

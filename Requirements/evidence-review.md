@@ -2,6 +2,7 @@
 
 **Feature:** F19 · `analysis` (resolutions) + `evidence` (dataset attributes) + the Evidence page
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I2, I6 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (P1, P2, _Posture_), [features.md](features.md) (F19), [intents.md](intents.md) (I2, I6)
 **Related design doc:** [TechDesign/evidence-review.md](../TechDesign/evidence-review.md)

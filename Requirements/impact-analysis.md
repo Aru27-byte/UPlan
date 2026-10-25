@@ -2,6 +2,7 @@
 
 **Feature:** F9 · `analysis` · _the pilot's edge_
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I3 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_The pilot's edge_, _Known limits of desk analysis_), [features.md](features.md) (F9), [intents.md](intents.md) (I3)
 **Related design doc:** [TechDesign/impact-analysis.md](../TechDesign/impact-analysis.md)

@@ -2,6 +2,7 @@
 
 **Feature:** F3 · `evidence`
 **Status:** Draft
+**Implementation:** Built in release 1 (datasets, versions, tiles, sample evidence, ingestion module and script); no dataset-admin page yet. Current as of 2026-10-24.
 **Requirements:** [Requirements/evidence-layers.md](../Requirements/evidence-layers.md) (R1–R12)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Dataset refresh_, D10, D11), [data-model.md](data-model.md) (`dataset`, `dataset_version`, `evidence_feature`, `jurisdiction_dataset`)
 **Release:** 1

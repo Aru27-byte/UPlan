@@ -24,7 +24,7 @@ export function ConfirmDialog({
   fields = {},
   triggerClassName = "",
 }: {
-  triggerLabel: string;
+  triggerLabel: ReactNode;
   triggerAriaLabel?: string;
   triggerVariant?: ActionVariant;
   title: string;
@@ -44,6 +44,7 @@ export function ConfirmDialog({
       <button
         type="button"
         aria-label={triggerAriaLabel}
+        title={triggerAriaLabel}
         onClick={() => dialogRef.current?.showModal()}
         className={actionClassName(triggerVariant, triggerClassName)}
       >

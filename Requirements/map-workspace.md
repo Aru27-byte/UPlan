@@ -2,6 +2,7 @@
 
 **Feature:** F6
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I1–I5 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Output_, P1, P3), [features.md](features.md) (F6), [intents.md](intents.md) (_Across all intents_)
 **Related design doc:** [TechDesign/map-workspace.md](../TechDesign/map-workspace.md)

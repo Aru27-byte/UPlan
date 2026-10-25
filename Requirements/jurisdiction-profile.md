@@ -2,6 +2,7 @@
 
 **Feature:** F1 · `profiles`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I1–I6, I9 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Ecological dimensions — v1_), [features.md](features.md) (F1), [system-architecture.md](../TechDesign/system-architecture.md) (_Assumptions for open product questions_, _Rules in force_)
 **Related design doc:** [TechDesign/jurisdiction-profile.md](../TechDesign/jurisdiction-profile.md)

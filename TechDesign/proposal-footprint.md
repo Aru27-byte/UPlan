@@ -2,6 +2,7 @@
 
 **Feature:** F8
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/proposal-footprint.md](../Requirements/proposal-footprint.md) (R1–R7)
 **Builds on:** [decisions.md](decisions.md) (`saveGeometry`), [map-workspace.md](map-workspace.md) (F6 — the map this tracing UI runs inside), [tech-stack.md](tech-stack.md) (D10)
 **Release:** 1

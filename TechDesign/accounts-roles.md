@@ -2,6 +2,7 @@
 
 **Feature:** F11 · `accounts`
 **Status:** Draft
+**Implementation:** Built in release 1 for planners and UPlan staff; the reviewer role is not built. Current as of 2026-10-24.
 **Requirements:** [Requirements/accounts-roles.md](../Requirements/accounts-roles.md) (R1–R12)
 **Builds on:** [system-architecture.md](system-architecture.md) (D14, W1, _Security and access_), [data-model.md](data-model.md) (`app_user`, `staff_member`)
 **Release:** 1 (planners; staff rights)

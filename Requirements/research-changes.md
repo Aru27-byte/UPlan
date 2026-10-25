@@ -2,6 +2,7 @@
 
 **Feature:** F22 · `workflow` (start, finish, cancel) + `reports` (versions, download) + the Report and Overview pages
 **Status:** Draft — revised 2026-10-22: a change is measured against versioned report sections, not phase reviews
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I6 · **Release:** 1 _(added 2026-09-27)_
 **Derived from:** [charter.md](charter.md) (P3, _Output_), [features.md](features.md) (F5, F10, F22), [intents.md](intents.md) (I6)
 **Related design doc:** [TechDesign/research-changes.md](../TechDesign/research-changes.md)

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Icon, type IconName } from "./icons";
+
 // The one container in UPlan: a dark surface with a thin gold edge, an 18px radius, and a deep soft shadow. An
 // optional title row carries the panel's name and its actions; the body is whatever the caller passes. It
 // renders a <section> named by its title, so a screen reader can move between panels.
@@ -7,6 +9,7 @@ export const panelClassName = "rounded-[18px] border border-line bg-surface text
 
 export function Panel({
   title,
+  icon,
   description,
   actions,
   className = "",
@@ -16,6 +19,7 @@ export function Panel({
   id,
 }: {
   title?: string;
+  icon?: IconName;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
@@ -31,7 +35,11 @@ export function Panel({
       {title ? (
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
-            <Heading id={headingId} className="font-display text-lg font-bold tracking-tight text-heading">
+            <Heading
+              id={headingId}
+              className="flex items-center gap-2 font-display text-lg font-bold tracking-tight text-heading"
+            >
+              {icon ? <Icon name={icon} className="size-5 shrink-0 text-accent-lime" /> : null}
               {title}
             </Heading>
             {description ? <p className="mt-0.5 text-sm text-muted">{description}</p> : null}

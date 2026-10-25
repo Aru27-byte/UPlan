@@ -2,6 +2,7 @@
 
 **Feature:** F18 · `workflow` + the Overview page and the stage rail
 **Status:** Draft — revised 2026-09-27: the rail now shows F21's section states, and routes say "project"
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** every intent · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Spine_, _Posture_, P1–P3), [features.md](features.md) (F18), [intents.md](intents.md) (_Across all intents_)
 **Related design doc:** [TechDesign/decision-overview.md](../TechDesign/decision-overview.md)

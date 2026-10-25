@@ -1,7 +1,8 @@
 # UPlan — Technical Overview
 
 **Kind:** System-level. It has no Requirements counterpart.
-**Status:** Current as of 2026-10-16, read from the code and the TechDesign docs
+**Status:** Current as of 2026-10-24, read from the code and the TechDesign docs
+**Implementation:** Current build and deployment; see §12 for remaining gaps.
 **Audience:** an architect who needs the whole system from one document
 **Detail lives in:** [system-architecture.md](system-architecture.md) · [data-model.md](data-model.md) · [tech-stack.md](tech-stack.md) · [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md) (decisions D1–D28) · [ai-assist.md](ai-assist.md) · [deployment-guide.md](deployment-guide.md)
 
@@ -31,26 +32,27 @@ flowchart LR
     B["Browser / phone<br/>React 19 · MapLibre · Terra Draw"]
   end
 
-  subgraph App["Application tier (Next.js 16, Node 24)"]
-    W["web<br/>pages · Server Actions · route handlers<br/>proxy.ts: session refresh only"]
-    WK["worker<br/>graphile-worker, concurrency 2<br/>Chromium · GDAL · crontab"]
+  subgraph App["Application tier (Node 24)"]
+    W["web on Vercel<br/>pages · Server Actions · route handlers<br/>proxy.ts: session refresh only"]
+    WK["worker on a managed always-on host<br/>graphile-worker, concurrency 2<br/>Chromium · GDAL · crontab"]
   end
 
   subgraph Data["Supabase (D14, D28)"]
     PG[("PostgreSQL 18<br/>PostGIS 3.6 · pgvector<br/>app data · job queue · chunks")]
     AU["Supabase Auth<br/>email + password"]
-    OS[("S3-compatible object storage<br/>uploads · raw data · exports")]
+    OS[("Supabase Storage<br/>uploads · raw data · exports")]
   end
 
   subgraph External["External, free"]
     NV["NVIDIA hosted inference<br/>chat + embeddings"]
     GIS["Public GIS sources"]
-    BM["Protomaps .pmtiles basemap<br/>static file"]
+    BM["Protomaps .pmtiles<br/>source builds"]
   end
 
   B -->|"HTTPS, HttpOnly session cookie"| W
   B -->|"vector tiles /api/tiles/{version}/z/x/y"| W
-  B -->|"byte-range basemap"| BM
+  B -->|"byte-range basemap"| W
+  W -.->|"extract made from"| BM
   W -->|"SQL · add_job in same tx · ST_AsMVT"| PG
   W -->|"server-side only"| AU
   W -->|"create / read only"| OS
@@ -64,8 +66,8 @@ flowchart LR
 
 | Environment | Web | Worker | Database | Status |
 | --- | --- | --- | --- | --- |
-| **Target (D28, 2026-10-10)** | Vercel functions | **Open.** Vercel has no long-lived process | Supabase Postgres, Auth, and Storage | Web, Auth, the database, and AI assist fit as designed. Jobs, PDF rendering, and GDAL ingestion still need a home (§12). |
-| **Reference stack (D17, `deploy/`)** | `web` container behind Caddy (TLS, HTTP/3) | `worker` container (Playwright image, GDAL, Poppler) | `postgres` container with pgBackRest | Superseded as the target. Kept as working configuration: `Dockerfile` (`web`, `worker`, `migrate`, `postgres`) and `deploy/compose.yaml` |
+| **Current (D28, D29, 2026-10-24)** | Vercel functions and pages | One managed worker container on Render, Railway, Fly.io, Cloud Run, or the existing Oracle VM | Supabase Postgres, Auth, and Storage | Web, Auth, the database, AI assist, and the worker are deployed. The worker is the only always-on process. |
+| **Vercel-native alternative (D29)** | Vercel functions and pages | Vercel Queues + Workflows, with Chromium and GDAL in the consumers | Supabase Postgres, Auth, and Storage | Designed, not implemented. Requires replacing graphile-worker, Chromium, and GDAL in code. |
 | **Local (`LOCAL_HOSTING.md`)** | `npm run dev` | `npm run worker:dev` | Docker PostGIS + pgvector, or Supabase through `DATABASE_URL` | In daily use |
 
 ## 3. Logical architecture
@@ -141,8 +143,8 @@ flowchart TB
 | Analysis | `analysis_run`, `analysis_run_dataset` | Pins its exact inputs and is deduplicated by `input_sha256`. Immutable once finished |
 | Output | `report` | `releasing → released \| failed`. Holds the PDF as `bytea` plus its SHA-256 and a gap-free `version_number` |
 | Records | `retention_flag`, `records_export` | Flags for staff review. UPlan never deletes anything on its own authority |
-| AI | `ai_suggestion`, `ai_suggestion_response`, `source_document`, `document_chunk` (`vector(1024)`, HNSW) | Stored beside the analysis, never inside it |
-| Ops | `worker_heartbeat`, `backup_run`, the `graphile_worker` schema | — |
+| AI | `ai_suggestion`, `ai_suggestion_response`, `source_document`, `document_chunk` (`vector(1024)`, HNSW), `chat_message` | Stored beside the analysis, never inside it |
+| Ops | `worker_heartbeat`, `backup_run`, the `graphile_worker` schema | `backup_run` is populated only when a backup job records a run; on Supabase, use the platform's backup view as the source of truth |
 
 **Conventions:**
 
@@ -153,9 +155,9 @@ flowchart TB
 - Geometry is stored in EPSG:4326 and measured only after `ST_Transform` to `analysis_srid`.
 - Values are stored unrounded and rounded only by the display formatter.
 
-**Object storage:** keys are content hashes or record ids (`profile-uploads/<jurisdiction>/<sha256>.xlsx`, `evidence-raw/…`, `exports/…`). As a result, every write is idempotent. The client in `platform/object-storage.ts` exposes no delete and no overwrite.
+**Object storage:** Supabase Storage, through its S3-compatible endpoint. Keys are content hashes or record ids (`profile-uploads/<jurisdiction>/<sha256>.xlsx`, `evidence-raw/…`, `exports/…`). As a result, every write is idempotent. The client in `platform/object-storage.ts` exposes no delete and no overwrite.
 
-**Migrations:** generated by drizzle-kit (`migrations/0000`–`0009`). They follow expand-then-contract, are never edited once applied, and never run when the app starts.
+**Migrations:** generated by drizzle-kit (`migrations/0000`–`0011`). They follow expand-then-contract, are never edited once applied, and never run when the app starts. Run them as a one-off step against Supabase before rolling the new web or worker version.
 
 ## 6. Key flows
 
@@ -216,7 +218,7 @@ sequenceDiagram
 
 A later **research change** moves the decision from `report_released` back to `in_progress` with one compare-and-set, and enqueues a fresh analysis in the same transaction. Phases whose output fingerprint changed ask for review again. The next finish publishes version N+1. Earlier versions are never touched.
 
-### 6.3 AI assist request (serverless-shaped, no worker)
+### 6.3 AI assist request (serverless-shaped, no worker job)
 
 ```mermaid
 sequenceDiagram
@@ -276,14 +278,14 @@ Each guard is required to have a race test: two real database connections run th
 | --- | --- |
 | Authentication | Supabase Auth with email and password, called **only from the server**. The browser has no Supabase client, so session cookies are forced `HttpOnly`, `SameSite=Lax`, and `Secure` in production (`platform/auth.ts`). Tokens are verified with `getClaims()` against Supabase's signing keys |
 | Authorization | Enforced **inside module functions** on every read and write. A project query is scoped to its owner within the SQL, and anything else reads as "not found". Staff actions check `staff_member`. `src/proxy.ts` only refreshes the session and redirects signed-out visits. It is explicitly not a security boundary |
-| Roles | Planner (everyone signed in); UPlan staff (approve profile changes, never their own; manage datasets; export records; confirm AI drafts). Reviewers return with F12 |
-| Least privilege | The app connects as `uplan_app`, with only `select`/`insert` on append-only tables and no `delete` anywhere. Migrations run as the schema owner. Object-storage credentials can create and read but not overwrite or delete |
+| Roles | Planner (everyone signed in); UPlan staff (install sample evidence, manage source documents and code text, confirm AI-drafted rule or metadata changes and never their own, export records). Reviewers return with F12 |
+| Least privilege | The design connects as `uplan_app`, with only `select`/`insert` on append-only tables and no `delete` anywhere. The current deployment connects as the schema owner; creating the restricted role and its grants is a pilot item. The object client exposes only create, head, and read; Supabase's S3 keys are project-scoped, so the client contract is the enforcement |
 | Input validation | Zod at every boundary: forms, route params, uploads, job payloads, environment, and model responses. No `any`, and no `as` casts on external data |
 | SQL injection | Every query is parameterized through Drizzle. SQL is never built by string concatenation |
 | Secrets | Server-side environment variables, validated at startup. `NVIDIA_API_KEY` is never a `NEXT_PUBLIC_` variable and never appears in a log or a response. No secrets in the repository or in images |
-| Data sent to third parties | The model service receives only C1 published code, C2 dataset metadata, C3 profile rules, and C4 de-identified measurements. It never receives a project title, parcel, applicant, notes, coordinates, files, or any name or email. A sentinel-string test enforces this, and every request is stored as sent, for audit |
+| Data sent to third parties | The model service receives only C1 published code, C2 dataset metadata, C3 profile rules, C4 de-identified measurements, C5 section text, and C6 the planner's instruction. It never receives a project title, parcel, applicant, notes, coordinates, files, or any name or email. A sentinel-string test enforces this, and every request is stored as sent, for audit. The separate New-research document scan is an exception: it sends extracted document text to fill project-detail fields and should be reviewed before a real pilot |
 | Prompt injection | The model has no tools and no write path, and its output has a fixed shape. Every statement must quote supplied text verbatim. The worst case is a rejected or misleading suggestion that is only displayed and changes nothing |
-| Network (reference stack) | Only Caddy publishes ports (80/443). SSH only through OCI Bastion. The design calls for a Content Security Policy that permits MapLibre's blob workers and nothing broader. No CSP header is set in code yet (§12) |
+| Network | Vercel terminates TLS and serves the app. The worker host has no public HTTP port and reaches Supabase over TLS. Supabase's database and storage are managed endpoints. The design calls for a Content Security Policy that permits MapLibre's blob workers and nothing broader. No CSP header is set in code yet (§12) |
 | Logging | pino logs once at the boundary with the request or job id. No secrets, and no personal data beyond a user id |
 
 ## 9. Compliance decisions
@@ -297,7 +299,7 @@ Each guard is required to have a race test: two real database connections run th
 | **Data licensing** | Only free public data is ingested, checked against a license allow-list. No licensed, applicant, or consultant data becomes evidence. OpenStreetMap attribution is shown for the basemap |
 | **Data minimization and residency** | Applicant and project data stay inside UPlan's infrastructure: the Supabase project and the app hosting. Supabase Auth holds only email, name, and password hash (D14). The NVIDIA allow-list is the only path to a third party |
 | **Limits of desk analysis** | Significant trees are never counted. Field-rated attributes, such as a wetland's rating, are reported as ranges, never assumed. An empty result is stated as a fact and never as a clearance (P2) |
-| **Open** | Whether NVIDIA's free-tier terms permit a city pilot. Whether Vercel Hobby's non-commercial clause covers one |
+| **Open** | Whether NVIDIA's free-tier terms permit a city pilot. Whether a city pilot can use Vercel Hobby, or needs Pro for the non-commercial clause and longer functions |
 
 ## 10. Resiliency
 
@@ -310,10 +312,12 @@ Each guard is required to have a race test: two real database connections run th
   - Transactional enqueue means a change never exists without its job, or a job without its change.
   - A killed AI call leaves a `running` row. The next request for the same key releases it as `interrupted` by compare-and-set.
 - **Fail-fast configuration.** `platform/env.ts` parses the environment at import, so a missing variable crashes at startup, not mid-request. The one exception is `NVIDIA_API_KEY`, which is optional: when it is unset, the section chat and the profile assist panel show that assist isn't set up, and every phase still works.
-- **Health check.** `GET /api/health` returns 200, or 503 naming the failing checks. It checks: the database, a worker heartbeat no more than 15 minutes old, WAL archiving, a backup within 26 hours, disk below 85%, and any job that used up its attempts in the last 24 hours. On the reference stack, an OCI synthetic monitor polls it every 10 minutes and emails staff.
+- **Health check.** `GET /api/health` returns 200, or 503 naming the failing checks. It checks: the database, a worker heartbeat no more than 15 minutes old, WAL archiving, a backup within 26 hours, disk below 85%, and any job that used up its attempts in the last 24 hours. On Supabase, the WAL, backup, and disk checks need replacing with Supabase-specific checks; an external monitor polls the endpoint every 5–10 minutes and emails staff.
 - **Backups.**
-  - *Reference stack:* pgBackRest with continuous WAL archiving (RPO about 15 minutes), nightly full or differential backups, encrypted, sent to a dedicated bucket. A restore is rehearsed quarterly.
-  - *Supabase target:* the platform's own backups. Retention on the free plan is open (D28).
+  - *Current:* Supabase's automatic backups, plus point-in-time recovery if the plan includes it. The backup window is recorded in the pilot runbook.
+  - *Documents:* stored in `report.pdf`, so the database backup covers them.
+  - *Objects:* `uplan-objects` holds uploads, raw evidence, and exports; on a paid plan it is backed up with the project.
+  - *Rehearsal:* a restore into a scratch Supabase project is rehearsed before go-live and quarterly after.
 - **Dependency risk.** Supabase pauses a free project after a week idle. NVIDIA's free tier is rate-limited and has no SLA. AI is optional by design, so an NVIDIA outage never blocks the core workflow.
 
 ## 11. Scalability
@@ -322,7 +326,7 @@ Each guard is required to have a race test: two real database connections run th
 | --- | --- | --- |
 | Web tier | Stateless. No module-level mutable state, and every guard lives in the database. Scales horizontally on Vercel | Function duration (`maxDuration`) for slow calls |
 | DB connections | Pool capped at **5 per process**, with keep-alive. Web uses Supabase's transaction pooler (6543). The worker needs a session or direct connection, because it uses LISTEN/NOTIFY | 15 session-mode clients on the free plan |
-| Background work | Per-aggregate queues serialize work for one decision and parallelize across decisions. Worker concurrency is 2. Add worker instances to scale | No worker host on the Vercel target yet |
+| Background work | Per-aggregate queues serialize work for one decision and parallelize across decisions. Worker concurrency is 2. Add worker instances to scale | One worker host is required; without it analysis and reports do not run |
 | Spatial compute | All in PostGIS, inside the database. Analysis runs are deduplicated by input hash. Bounding-box filters (`&&`) run before exact predicates | A large study area running in one function |
 | Map tiles | `ST_AsMVT` per dataset version. Tile URLs name an immutable version, so they are cached `public, max-age=31536000, immutable`. This is the one cached response | — |
 | Multi-tenancy | Every table is keyed by jurisdiction. A new city is a new profile plus dataset mappings, not a new design. A city switcher exists, with illustrative Redmond and Bellevue profiles | Evidence coverage per city |
@@ -335,14 +339,15 @@ The system is sized for a pilot: one city and dozens of users, on free tiers. Ea
 
 | Gap | Impact | Where tracked |
 | --- | --- | --- |
-| **No worker host on the Vercel target.** `run_analysis`, `release_report` (Chromium), `ingest_dataset` (GDAL), the daily sweeps, and the heartbeat all assume graphile-worker | Without a worker, analysis and reports don't run in a pure Vercel deployment | D28 open items |
+| **The worker is an external always-on container.** `run_analysis`, `release_report` (Chromium), `ingest_dataset` (GDAL), the daily sweeps, and the heartbeat all assume graphile-worker | The deployment is Vercel + Supabase + one worker host, not Vercel-only. A pure Vercel deployment needs the Queues/Workflows migration in deployment-guide.md Part E | D29 |
 | Object storage env vars are still named `OCI_S3_*`, and `OCI_BUCKET_REPORTS` is required but unused | Configuration naming only. Supabase Storage's S3 endpoint fits the same client | data-model.md, *Object storage* |
-| The health check's WAL, backup, and disk checks assume a self-run Postgres | On Supabase it would fail by design until those checks are redesigned | D28 |
-| The Content Security Policy is designed but not set: neither `next.config.ts` nor the Caddyfile sends one | Browser hardening is missing until it is added | system-architecture.md, *Security and access* |
+| Vercel caps a function request body at 4.5 MB, while the profile upload accepts 5 MB | A workbook near the limit fails at the platform. Lower the limit to 4.5 MB or upload directly to Supabase Storage with a signed URL | deployment-guide.md, A4 |
+| The health check's WAL, backup, and disk checks assume a self-run Postgres | On Supabase they need to be replaced with project status, backup age, and database size checks | deployment-guide.md, Part C |
+| The Content Security Policy is designed but not set | Browser hardening is missing until it is added in Vercel or `next.config.ts` | system-architecture.md, *Security and access* |
 | No CI workflow file in the repo (`.github/` is absent), although D18 designs GitHub Actions CI | Checks run locally (`typecheck`, `lint`, `test`, `test:integration`, `test:e2e`) | D18 |
 | The generation model `nemotron-3-ultra-550b-a55b` timed out in 2026-10-16 tests (embeddings answer in about 0.5 s) | Generation-based assist kinds fail visibly. A model-id change must pass `npm run eval:assist` | ai-assist.md, *As built* |
-| Round 10 product questions: vesting semantics, who approves uploads, cities beyond Sammamish, whether F2 code tracking ships in release 1 | Each is contained to one module | charter.md |
-| Later in v1: F2 code tracking, F12 sign-off, F13 conditions tracing, F15 phone views | Modules `code-tracking` and `conditions` aren't built yet | features.md |
+| Round 10 product questions: vesting semantics, cities beyond Sammamish, and whether F2 code tracking ships in release 1 | Each is contained to one module. A planner's profile edit applies at once; an AI draft needs a second staff member | charter.md |
+| Not built: F2 code tracking, F12 sign-off, F13 conditions tracing, F15 phone views, the records UI, and a dataset-admin UI | Modules `code-tracking` and `conditions` aren't built; `records` and `evidence` have backend support only | features.md |
 
 ## 13. Quality gates
 
@@ -365,7 +370,7 @@ src/platform/       db pool · jobs (add_job) · auth · env · errors · logger
 src/ui/             shared React components (map workspace, footprint editor, phase pages)
 src/worker/         graphile-worker entry point and task registry
 migrations/         drizzle-kit SQL, append-only history
-deploy/             reference VM stack: compose, Caddyfile, crontab, backup units, setup and deploy scripts
+deploy/             historical/reference stack: compose, Caddyfile, crontab, backup units, setup and deploy scripts; not the current target
 scripts/            seed-local, add-dataset, eval-assist, copy-maplibre-worker
 Requirements/ · TechDesign/   charter → intents → features → paired Requirements and TechDesign docs per feature
 ```

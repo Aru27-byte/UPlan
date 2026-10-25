@@ -1,7 +1,8 @@
 # UPlan — Feature List
 
 **Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27; AI assist (F24) added 2026-10-10; F21 revised 2026-10-22: versioned report sections and a section chat replace phase reviews
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-24
+**Implementation:** Current as of 2026-10-24. The Release column is the plan; the status table below records what the code does today.
 **Derived from:** [charter.md](charter.md), [intents.md](intents.md), review rounds 1–9
 **Next:** Requirements and TechDesign pairs, starting with release 1
 
@@ -22,6 +23,8 @@ v1 ships in stages *(round 8)*. Release 1 proves the pilot's edge: a planner tak
 | **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F24 |
 | **Later in v1** — order not set | I5, I8, phone look-up | F11 reviewer role, F12, F13, F15 |
 
+The Release column records the plan. The implementation status table below records what the code does today: F2 is not built, F12/F13/F15 are not built, and F16 has backend support without a screen.
+
 Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well. On 2026-09-27 it grew again, by request: a dashboard that opens on sign-in (F20), phases whose report sections a planner reads and iterates on (F21), research changes that produce new document versions (F22), and sample data for every phase (F23). Jurisdiction membership was removed at the same time (F11).
 
 ## At a glance
@@ -29,7 +32,7 @@ Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the
 | ID | Feature | Basename | Serves | Release |
 | --- | --- | --- | --- | --- |
 | F1 | Jurisdiction profile | `jurisdiction-profile` | I1–I6, I9 | 1 |
-| F2 | Code change tracking | `code-change-tracking` | I1–I6, I9 | 1 — *under review in round 10* |
+| F2 | Code change tracking | `code-change-tracking` | I1–I6, I9 | Later — *not built; under review in round 10* |
 | F3 | Evidence layers | `evidence-layers` | I1–I4 | 1 |
 | F4 | Provenance | `provenance` | All | 1 |
 | F5 | Decisions | `decisions` | All | 1 |
@@ -53,7 +56,36 @@ Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the
 | F23 | Sample data | `sample-data` | All | 1 *(added 2026-09-27)* |
 | F24 | AI assist | `ai-assist` | I1, I2, I4, I9 | 1, in three waves *(added 2026-10-10)* |
 
-## Release 1 — foundations
+### Implementation status (2026-10-24)
+
+| ID | Status | What exists |
+| --- | --- | --- |
+| F1 | Built | Jurisdiction profile view, workbook upload, settings, sources, and AI-draft confirmation. |
+| F2 | Not built | Automatic code tracking and rule drafting. Staff can paste code text for the Find assist. |
+| F3 | Built | Datasets, versions, ingestion, tiles, and sample evidence. No dataset-admin page. |
+| F4 | Built | The provenance type and the one display formatter. |
+| F5 | Built | Projects, details, geometry revisions, and soft delete. |
+| F6 | Built | Map workspace with evidence layers, provenance, and a text equivalent. |
+| F7 | Built | Evidence base, disagreements, gaps, and resolutions. |
+| F8 | Built | Footprint drawing, upload, and sample loading. |
+| F9 | Built | Impact measurements, ranges, and limits. |
+| F10 | Built | Locked PDF, versioned, hash-stored, and downloadable. |
+| F11 | Built for planners and staff | Supabase Auth, `app_user`, `staff_member`; no reviewer role or project sharing. |
+| F12 | Not built | Review and sign-off. |
+| F13 | Not built | Conditions tracing. |
+| F14 | Built | Screening register and study flags. |
+| F15 | Not built | The layout is responsive, but there is no dedicated read-only phone mode. |
+| F16 | Backend built | Retention flags and records exports; no records page. |
+| F17 | Built | Workbook upload, settings, sources, and template. |
+| F18 | Built | Overview and stage rail. |
+| F19 | Built | Evidence review and recorded resolutions. |
+| F20 | Built | Dashboard, city switcher, and project actions. |
+| F21 | Built | Six phase pages, versioned sections, and the section chat. |
+| F22 | Built | Research changes and document versions. |
+| F23 | Built | Sample project and sample evidence. |
+| F24 | Built | All three waves, the section chat, the profile panel, and the prototype dashboard question box and document scan. |
+
+## Release 1 — foundations (as planned)
 
 ### F1. Jurisdiction profile — `jurisdiction-profile`
 
@@ -75,7 +107,7 @@ A city's profile: its regulated categories, its rules, and the settings its plan
 
 ### F2. Code change tracking — `code-change-tracking`
 
-**Serves:** I1–I6, I9 · **Release:** 1 — *under review in round 10*
+**Serves:** I1–I6, I9 · **Release:** Later — *not built; under review in round 10*
 
 UPlan watches the city's public records for code changes and keeps the profile current from them *(round 8)*.
 
@@ -290,7 +322,7 @@ A language model that helps a planner read, and helps staff keep the profile cur
 
 **Serves:** every intent; I8 · **Release:** 1 for planners; the reviewer role ships with F12
 
-People register and sign in with an email address and a password. Everyone who signs in is a planner and works on the projects they create. UPlan staff keep the rights that need a second pair of eyes: approving profile changes and exporting records.
+People register and sign in with an email address and a password. Everyone who signs in is a planner and works on the projects they create. UPlan staff keep the rights that need a second pair of eyes: installing sample evidence, managing source documents and code text, confirming AI-drafted rule or metadata changes (never their own), and exporting records.
 
 **Decided:** sign-in is handled by Supabase Auth (D14), not by the city's own accounts.
 

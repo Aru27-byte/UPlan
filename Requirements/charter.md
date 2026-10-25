@@ -1,7 +1,8 @@
 # UPlan — Product Charter
 
 **Status:** Draft — review rounds 1–9 complete; planner-maintained profiles added 2026-09-12, with round 10 open; AI assistance added 2026-10-10. Intents are in `Requirements/intents.md`; the feature list is in `Requirements/features.md`.
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-24
+**Implementation:** Current as of 2026-10-24. Release 1 is largely built; `features.md` records which features are built, backend-only, or not built. The current deployment is Vercel + Supabase + one managed worker container.
 **Next:** Round 10, then UI design and technical design, starting with the release 1 features
 
 ## In one line
@@ -65,7 +66,7 @@ A **decision**, anchored to a **study area**.
 - **How it stays honest.** Every statement carries an exact quote from the text it was given, or it is rejected. Every number in it is a copy of a number it was given. It sits beside the analysis and never inside it, so the analysis, its fingerprint, and the report are identical with or without it. A planner asks for it; nothing runs unasked. A failure is shown as a failure.
 - **What leaves UPlan.** Only public text and measured results with names removed go to the model service: published code, dataset metadata, the city's rules, and a project's measurements. Never a project's title, parcel, applicant, notes, coordinates, or documents.
 
-The model runs on NVIDIA's free hosted inference service, and the application on Vercel with Supabase (see *v1 scope*). A planner can use every phase without it.
+The model runs on NVIDIA's free hosted inference service, and the application on Vercel with Supabase, plus one managed worker container for analysis, PDFs, and ingestion (see *v1 scope*). A planner can use every phase without the model.
 
 ## Principles
 
@@ -120,7 +121,7 @@ The Sammamish profile covers the city's six regulated critical area types plus i
 | Profiles planners upload from Excel and edit, including their settings | Uploading evidence layers; uploads carry rules and settings only |
 | Desk analysis from free public data, including public remote sensing *(round 9)* | Field survey and on-site data capture; licensed data |
 | AI assist that explains, finds, questions, and compares, and drafts profile rules and dataset notes for staff to confirm *(2026-10-10)* | A model that measures, flags, decides, recommends, drafts conditions, or writes any report text; reading applicant documents; drawing a footprint from a site plan |
-| Hosting on Vercel, with Supabase for data, sign-in, and files *(2026-10-10)* | A self-run server |
+| Hosting on Vercel, with Supabase for data, sign-in, and files, and one managed worker container for analysis and reports *(2026-10-24)* | A self-run web server or database server |
 | Current rules for every decision | Tracking which version of the rules a decision was judged under |
 | One application in the browser and on phones; on a phone, planners look up a decision's map and report | A separate mobile product; building a decision or recording anything on a phone |
 | Planners and their reviewers as users, with sign-off before a report goes out | Resident accounts and participation — v2 |

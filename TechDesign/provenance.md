@@ -2,6 +2,7 @@
 
 **Feature:** F4 · `provenance`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/provenance.md](../Requirements/provenance.md) (R1–R9)
 **Builds on:** [system-architecture.md](system-architecture.md) (module map), [data-model.md](data-model.md) (`dataset_version`, profile `Citation`)
 **Release:** 1

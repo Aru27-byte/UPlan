@@ -2,6 +2,7 @@
 
 **Feature:** F23 · `decisions` + `evidence` + `scripts/seed-local.ts`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/sample-data.md](../Requirements/sample-data.md) (R1–R9)
 **Builds on:** [decisions.md](decisions.md) (F5), [research-phases.md](research-phases.md) (F21), [evidence-layers.md](evidence-layers.md) (F3), [provenance.md](provenance.md) (F4)
 **Release:** 1

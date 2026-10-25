@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-UPlan is a greenfield **urban planning application**, delivered as one application to both browser and mobile. The implementation stack is TypeScript/Node. The repo currently contains no application code.
+UPlan is an **urban planning application** delivered as one responsive web application. The implementation stack is TypeScript/Node: Next.js 16, React 19, PostgreSQL/PostGIS, and graphile-worker. It is built and runnable; `Requirements/features.md` records which features are built, backend-only, or not built.
+
+The current deployment is Vercel for the web app, Supabase for PostgreSQL/PostGIS/pgvector, Auth, and Storage, and one managed always-on worker container for analysis, PDF rendering, and ingestion. See `TechDesign/deployment-guide.md`.
 
 The product charter settles scope, users, and posture. It is a live draft — anything it marks as *proposed* or lists under *open questions* is not decided, so do not build on it as though it were:
 
@@ -19,21 +21,21 @@ Work moves in one direction: **charter → intents → feature list → Requirem
 Each feature is a matched pair of Markdown docs sharing one kebab-case basename:
 
 ```
-Requirements/study-area-screening.md    what the system must do, and why
-TechDesign/study-area-screening.md      how it will be built
+Requirements/study-scoping.md    what the system must do, and why
+TechDesign/study-scoping.md      how it will be built
 ```
 
 Keep the pair in sync — changing a requirement means revisiting its design doc. Requirements are numbered (`R1`, `R2`, …) so the design doc can cite them by ID.
 
 `Requirements/charter.md`, `Requirements/intents.md`, and `Requirements/features.md` are product-level documents with no TechDesign counterpart; the pairing rule covers feature docs only. Name each pair with the basename its feature has in `Requirements/features.md`.
 
-## No toolchain exists yet
+## Toolchain
 
-There is no `package.json`, `tsconfig.json`, test runner, linter, or formatter in this repo. Do not run or recommend `npm test`, `npm run build`, or any other script until that script actually exists in a `package.json` — read the manifest before claiming a command works.
+The repository has a working `package.json`, `tsconfig.json`, ESLint/Prettier, Vitest, Playwright, Drizzle, and the Next.js app. Use **npm** (Node 24, npm 11). Read `package.json` before claiming a script exists.
 
-Use **npm**. `pnpm`, `yarn`, `bun`, `make`, and `gh` are not installed on this machine.
+Common commands: `npm run dev`, `npm run build`, `npm run worker:dev`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:integration`, `npm run test:e2e`, `npm run db:migrate`, `npm run db:seed:local -- <email>`.
 
-This directory is not a git repository. Git and GitHub workflows are unavailable until `git init` is run.
+This directory is a git repository. Do not assume `pnpm`, `yarn`, `bun`, `make`, or `gh` are installed.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

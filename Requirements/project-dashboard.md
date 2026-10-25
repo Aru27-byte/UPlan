@@ -2,6 +2,7 @@
 
 **Feature:** F20 · `decisions` (list, delete) + `workflow` (summaries) + the dashboard, shell, and city profile access
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** every intent · **Release:** 1 _(added 2026-09-27)_
 **Derived from:** [charter.md](charter.md) (_Core object_, _Users_), [features.md](features.md) (F5, F11, F20), [intents.md](intents.md)
 **Related design doc:** [TechDesign/project-dashboard.md](../TechDesign/project-dashboard.md)

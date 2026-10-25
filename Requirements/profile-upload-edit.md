@@ -2,6 +2,7 @@
 
 **Feature:** F17 · `profiles`
 **Status:** Draft — changes apply at once, with no review step (2026-10-04); sources list added
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I9 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Uploaded and edited by planners_), [features.md](features.md) (F17), [system-architecture.md](../TechDesign/system-architecture.md) (_Key flows: Profile upload or edit_)
 **Related design doc:** [TechDesign/profile-upload-edit.md](../TechDesign/profile-upload-edit.md)

@@ -2,6 +2,7 @@
 
 **Feature:** F7 · `analysis`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Requirements:** [Requirements/evidence-base.md](../Requirements/evidence-base.md) (R1–R8)
 **Builds on:** [system-architecture.md](system-architecture.md) (_Key flows: Analysis run_, _Impact engine_), [data-model.md](data-model.md) (`analysis_run`, `analysis_run_dataset`)
 **Shared module with:** [impact-analysis.md](impact-analysis.md) (F9 — the other half of the same run's results)

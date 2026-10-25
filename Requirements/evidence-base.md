@@ -2,6 +2,7 @@
 
 **Feature:** F7 · `analysis`
 **Status:** Draft
+**Implementation:** Built in release 1; current as of 2026-10-24.
 **Serves:** I2 · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Jobs: evidence assembly_), [features.md](features.md) (F7), [intents.md](intents.md) (I2)
 **Related design doc:** [TechDesign/evidence-base.md](../TechDesign/evidence-base.md)
