@@ -26,7 +26,7 @@ src/app/(app)/
   projects/actions.ts                createProject, createSampleProject, deleteProject, startResearchChange (Server Functions)
   projects/new/page.tsx              F20 R9: the new-research form
   projects/[projectId]/layout.tsx    header, stage rail, analysis banner (F18)
-  projects/[projectId]/actions.ts    review, details, boundary, resolution, finish, cancel (Server Functions bound to the project)
+  projects/[projectId]/actions.ts    section chat, details, boundary, resolution, finish, cancel (Server Functions bound to the project)
   projects/[projectId]/overview/…    F18
   projects/[projectId]/site/…        F5/F6/F8: study area, map
   projects/[projectId]/evidence/…    F7/F19
@@ -66,17 +66,17 @@ export type ProjectSummary = {
   decision: Decision;
   state: "in-progress" | "finishing" | "completed";
   latestVersion: number | null;        // the highest released document version
-  phasesReviewed: number;              // of PHASES.length, at each phase's current output
+  phasesReady: number;                 // of PHASES.length, in the Ready section state
   phasesTotal: number;
   nextAction: NextAction | null;       // the first of deriveNextActions (F18 R6)
   phases: Pick<PhaseView, "phase" | "state">[]; // each phase's state, for the status graphic
   usesSampleData: boolean;             // F23: shown as a label on the row
   lastActivityAt: Date;
 };
-export async function listProjectSummaries(actor: Actor): Promise<ProjectSummary[]>;
+export async function listProjectSummaries(actor: Actor, jurisdictionId: string): Promise<ProjectSummary[]>;
 ```
 
-`listProjectSummaries` calls `listDecisions`, then `getWorkflow` for each (F18) with the reads for one project done as one small batch. It carries a hard limit of 100 projects, and says so on the page when a person has more, so the cost per page load is bounded and the limit is visible instead of a silent truncation. `lastActivityAt` is the greatest of the decision's creation, its latest geometry revision, its latest phase review, and its latest document request, taken in one SQL query per project.
+`listProjectSummaries` calls `listDecisions`, then `getWorkflow` for each (F18) with the reads for one project done as one small batch. It carries a hard limit of 100 projects, and says so on the page when a person has more, so the cost per page load is bounded and the limit is visible instead of a silent truncation. `lastActivityAt` is the greatest of the decision's creation, its latest geometry revision, its latest report section version, and its latest document request, taken in one SQL query per project.
 
 Counts are integers. Nothing in the type is a percentage or a rating (R3, R7).
 
@@ -161,7 +161,7 @@ Every page in UPlan, public and signed in, uses one visual system, taken from th
 
 ## The pages
 
-**Dashboard (R1–R7).** A Server Component. It calls `listProjectSummaries` and `getCity`, then renders: the header, titled "Welcome back, {first name}" with the line "Your {city} research", and **View city profile** beside **New research**; then one **My Research Projects** table. Its header carries two `StatBox`es (in progress, completed). Rows are sorted by phases left to review (`phasesTotal - phasesReviewed`), most first, then by last activity, newest first. Each row is an `ExpandableRow` (client: it holds only the open state; the summary, actions, and details are rendered on the server). Collapsed, a row shows the title, the progress badge, a small counter of phases left for review, a "Sample data" badge if needed, and the last-updated time, with the actions beside it. Opened, it shows `PhaseStatus`: six numbered nodes joined by a track, each with an icon, the phase name, and its state in words, linking to that phase, with "Phases left for review" at the top right, and links to the overview (and, once completed, the document). The actions:
+**Dashboard (R1–R7).** A Server Component. It calls `listProjectSummaries` and `getCity`, then renders: the header, titled "Welcome back, {first name}" with the line "Your {city} research", and **View city profile** beside **New research**; then one **My Research Projects** table. Its header carries two `StatBox`es (in progress, completed). Rows are sorted by phases left to become ready (`phasesTotal - phasesReady`), most first, then by last activity, newest first. Each row is an `ExpandableRow` (client: it holds only the open state; the summary, actions, and details are rendered on the server). Collapsed, a row shows the title, the progress badge, a small counter of phases left to become ready, a "Sample data" badge if needed, and the last-updated time, with the actions beside it. Opened, it shows `PhaseStatus`: six numbered nodes joined by a track, each with an icon, the phase name, and its state in words, linking to that phase, with "Phases left to become ready" at the top right, and links to the overview (and, once completed, the document). The actions:
 
 | State | Actions |
 | --- | --- |
@@ -208,7 +208,7 @@ An empty list renders an empty state with the two ways to begin (R1).
 ## Verification
 
 - Vitest unit tests: `resolveCity` returns the only city without a choice, the chosen city when several exist, `choose` for no choice, a choice that is not a city, and a choice that is not a UUID, and `problem` for none (R13); `runAction` maps each expected error class to `{ error }` and rethrows an unexpected error and a redirect (R10); the token contrast test (R8); `safeNextPath` and `DEFAULT_LANDING_PATH` (R1).
-- Testcontainers integration tests: `listDecisions` returns only the actor's own non-deleted projects, and a second actor gets `NotFoundError` from `getDecision` on the first's project (R2); `deleteDecision` hides the project, leaves its geometry, runs, and reviews in place, and fails with `ConflictError` on a stale `row_version` and while a document is being generated (R5); **a race test** fires two `deleteDecision` calls on one version at once and asserts one succeeds (R5); `listProjectSummaries` for a project in each state (R3, R4).
+- Testcontainers integration tests: `listDecisions` returns only the actor's own non-deleted projects, and a second actor gets `NotFoundError` from `getDecision` on the first's project (R2); `deleteDecision` hides the project, leaves its geometry, runs, and report sections in place, and fails with `ConflictError` on a stale `row_version` and while a document is being generated (R5); **a race test** fires two `deleteDecision` calls on one version at once and asserts one succeeds (R5); `listProjectSummaries` for a project in each state (R3, R4).
 - Playwright: sign in, land on the dashboard, see the research table sorted by phases left, expand a row to see its phase status, see the correct actions for an in-progress and a completed project, delete with confirmation, and pass `@axe-core/playwright` at desktop and phone widths (R1–R8).
 
 ## Open questions

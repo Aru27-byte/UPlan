@@ -9,7 +9,7 @@ If this overview and one of those docs disagree, the detailed doc wins. Fix this
 
 ## 1. What the system does
 
-UPlan helps municipal planners build the evidence behind a decision to develop habitat. A planner draws a **study area** and a **proposal footprint**. UPlan measures them in PostGIS against the city's **jurisdiction profile**, which holds the regulated critical-area types, buffers, and study triggers as versioned configuration, and against **evidence layers** taken from free public GIS data. The planner reviews each phase (Site, Evidence, Screening, Studies, Footprint, Impact) and then publishes a **locked, versioned PDF report**.
+UPlan helps municipal planners build the evidence behind a decision to develop habitat. A planner draws a **study area** and a **proposal footprint**. UPlan measures them in PostGIS against the city's **jurisdiction profile**, which holds the regulated critical-area types, buffers, and study triggers as versioned configuration, and against **evidence layers** taken from free public GIS data. The planner reads and edits each phase's report section (Site, Evidence, Screening, Studies, Footprint, Impact) and then publishes a **locked, versioned PDF report**.
 
 Four product rules shape the architecture:
 
@@ -76,7 +76,7 @@ All domain logic lives in `src/modules/<module>/`. Other code reaches a module o
 flowchart TB
   R["src/app routes · src/worker/tasks.ts"]
   subgraph Orchestrators["Orchestrators: only routes and the worker import these"]
-    WF["workflow<br/>phases · reviews · finish · research changes"]
+    WF["workflow<br/>phases · sections · finish · research changes"]
     AS["assist<br/>AI suggestions · checks · caps"]
   end
   subgraph Domain
@@ -137,7 +137,7 @@ flowchart TB
 | People | `app_user` (linked to Supabase by `auth_id`), `staff_member` | Staff rights come only from a row an operator creates |
 | City rules | `jurisdiction` (with a current-version pointer), `profile_change`, `profile_version`, `profile_upload`, `profile_source` | The profile is an **immutable JSON document per version**. Rules carry `effectiveOn` and `repealedOn`. `rulesInForce(document, date)` is the single resolver |
 | Evidence | `dataset`, `dataset_version`, `evidence_feature`, `jurisdiction_dataset` | A new version per refresh. The current pointer moves only when a version is `ready`. Each dataset records its license, which must be on an allow-list |
-| Projects | `decision`, `decision_geometry` (PK: decision, kind, revision), `evidence_resolution`, `phase_review` | Geometry is saved as revisions. Reviews and resolutions are append-only |
+| Projects | `decision`, `decision_geometry` (PK: decision, kind, revision), `evidence_resolution`, `report_section_version` | Geometry is saved as revisions. Section versions and resolutions are append-only |
 | Analysis | `analysis_run`, `analysis_run_dataset` | Pins its exact inputs and is deduplicated by `input_sha256`. Immutable once finished |
 | Output | `report` | `releasing → released \| failed`. Holds the PDF as `bytea` plus its SHA-256 and a gap-free `version_number` |
 | Records | `retention_flag`, `records_export` | Flags for staff review. UPlan never deletes anything on its own authority |
@@ -198,11 +198,11 @@ sequenceDiagram
   participant W as web · workflow.finishResearch
   participant DB as Postgres
   participant WK as worker · release_report
-  P->>W: Finish research (row version, phase fingerprints, reason)
+  P->>W: Finish research (row version, section hashes, reason)
   W->>DB: BEGIN · SELECT decision FOR UPDATE
-  W->>DB: Recheck: in_progress, nothing changed, every phase reviewed at its current output
+  W->>DB: Recheck: in_progress, nothing changed, every section ready at the current output
   W->>DB: CAS decision in_progress → finishing (must hit 1 row)
-  W->>DB: INSERT report 'releasing' + review snapshot · add_job release_report (max 3)
+  W->>DB: INSERT report 'releasing' + section snapshot · add_job release_report (max 3)
   W->>DB: COMMIT
   DB-->>WK: Job
   WK->>DB: Read only pinned records: run, its geometry revisions, profile version, snapshot
@@ -309,7 +309,7 @@ Each guard is required to have a race test: two real database connections run th
 - **Crash safety.**
   - Transactional enqueue means a change never exists without its job, or a job without its change.
   - A killed AI call leaves a `running` row. The next request for the same key releases it as `interrupted` by compare-and-set.
-- **Fail-fast configuration.** `platform/env.ts` parses the environment at import, so a missing variable crashes at startup, not mid-request. The one exception is `NVIDIA_API_KEY`, which is optional: when it is unset, the assist panel shows that assist isn't set up, and every phase still works.
+- **Fail-fast configuration.** `platform/env.ts` parses the environment at import, so a missing variable crashes at startup, not mid-request. The one exception is `NVIDIA_API_KEY`, which is optional: when it is unset, the section chat and the profile assist panel show that assist isn't set up, and every phase still works.
 - **Health check.** `GET /api/health` returns 200, or 503 naming the failing checks. It checks: the database, a worker heartbeat no more than 15 minutes old, WAL archiving, a backup within 26 hours, disk below 85%, and any job that used up its attempts in the last 24 hours. On the reference stack, an OCI synthetic monitor polls it every 10 minutes and emails staff.
 - **Backups.**
   - *Reference stack:* pgBackRest with continuous WAL archiving (RPO about 15 minutes), nightly full or differential backups, encrypted, sent to a dedicated bucket. A restore is rehearsed quarterly.

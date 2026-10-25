@@ -59,7 +59,7 @@ flowchart LR
   end
 
   subgraph DATA["Data"]
-    PG[("PG · PostgreSQL + PostGIS<br/>projects · phases · reviews · evidence<br/>document versions bytea · job queue")]
+    PG[("PG · PostgreSQL + PostGIS<br/>projects · phases · sections · evidence<br/>document versions bytea · job queue")]
     OS[("OS · Object Storage<br/>raw uploads · backups")]
   end
 
@@ -151,15 +151,15 @@ sequenceDiagram
   end
 
   rect rgb(244, 236, 216)
-  Note over U,DB: C · Review a phase
-  U->>W: SA recordReview (approve · note · reject)
-  W->>M: bind review to the output fingerprint
-  M->>DB: append-only phase_review
+  Note over U,DB: C · Change or revert a report section
+  U->>W: SA changeSection (chat) · revertSection · updateSectionToCurrent
+  W->>M: bind the change to the section content hash and the output fingerprint
+  M->>DB: append-only report_section_version
   end
 
   rect rgb(228, 239, 208)
   Note over U,Q: D · Finish and download the document
-  U->>W: SA finishResearch (all phases reviewed)
+  U->>W: SA finishResearch (all sections ready)
   W->>M: check readiness · status → finishing
   M->>DB: add_job release_report (same transaction)
   Q->>DB: render + tagged PDF → next document version (bytea + sha256)
@@ -171,7 +171,7 @@ sequenceDiagram
   Note over U,DB: E · Change completed research
   U->>W: SA startResearchChange
   W->>M: reopen phases that the change affects
-  Note right of M: loop back to B, C, D → version N+1<br/>earlier versions stay unchanged
+  Note right of M: loop back to B, C, D → version N+1<br/>earlier versions and section versions stay unchanged
   end
 ```
 
@@ -184,9 +184,9 @@ sequenceDiagram
 | RH | `/auth/callback` | Public | X1 | Confirms an emailed link |
 | Page | `/dashboard` | Signed in | `workflow`, `profiles` | Current and completed research, city profile |
 | Page | `/projects`, `/projects/new` | Signed in | `workflow`, `decisions` | List; create form |
-| Page | `/projects/:id/overview … /report` | Owner only | `workflow`, `analysis`, `reports` | Eight phase pages, each with drafted output, inputs, and review |
+| Page | `/projects/:id/overview … /report` | Owner only | `workflow`, `analysis`, `reports` | Eight phase pages, each with its report section, chat, inputs, and data |
 | Page | `/profile`, `/help` | Signed in | `profiles` | City rules and settings; guidance |
-| SA | project actions | Owner only | `decisions`, `workflow`, `reports` | Create, sample, delete, details, geometry, review, finish, research change |
+| SA | project actions | Owner only | `decisions`, `workflow`, `reports` | Create, sample, delete, details, geometry, section change, revert, finish, research change |
 | SA | profile actions | Signed in; staff approve | `profiles` | Upload, edit, preview, approve |
 | RH | `/api/projects/:id/documents/:v` | Owner only | `reports` | Document version download |
 | RH | `/api/tiles/:version/:z/:x/:y` | Public path, no decision data | `evidence` | Vector tile from PostGIS |
@@ -221,7 +221,7 @@ sequenceDiagram
 | RH | Downloads, tiles, the health check, and the email link callback |
 | M1 | Sign-in wiring, city profile and rules, the provenance formatter |
 | M2 | Projects (decisions), study areas and footprints, evidence datasets |
-| M3 | Phases and reviews, the document, records export, health |
+| M3 | Phases and sections, the document, records export, health |
 | AI-1 | **AI.** The analysis engine: PostGIS measurements, same inputs give the same results. Not a language model |
 | AI-2 | **AI.** Phase drafting: fixed sentence templates over the measured numbers. Not a language model |
 | AI-3 | **AI, later.** AI assist and F2 drafting: hosted models reached through one server-side client. Suggestions are labeled, quote their source, and are stored beside the analysis. Dashed because it is not built |
@@ -229,7 +229,7 @@ sequenceDiagram
 | J2 | Job `release_report`: renders the document and stores the next version |
 | J3 | The other jobs: dataset ingest, profile preview, records export, heartbeat, daily maintenance |
 | J4 | F2 jobs: check a code source, index it, draft a change. Later |
-| PG | Holds projects, reviews, evidence, document versions (bytea with sha256), and the job queue |
+| PG | Holds projects, report sections, evidence, document versions (bytea with sha256), and the job queue |
 | OS | Holds raw uploads and backups. Documents are **not** here |
 | X1 | Supabase Auth: email and password |
 | X2 | Free public GIS data that J3 downloads |

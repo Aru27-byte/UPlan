@@ -18,7 +18,7 @@ export function SignInForm({ next }: { next?: string }) {
     <Form action={formAction} validationErrors={state.fieldErrors} className="flex flex-col gap-5">
       {next === undefined ? null : <input type="hidden" name="next" value={next} />}
       {state.error === undefined ? null : (
-        <p role="alert" className="rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
+        <p role="alert" className="message-in rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
           {state.error}
         </p>
       )}

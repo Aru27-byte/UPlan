@@ -37,7 +37,7 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
         aria-haspopup="dialog"
         title="Profile settings"
         onClick={() => dialogRef.current?.showModal()}
-        className="inline-flex size-11 items-center justify-center rounded-full border border-accent-gold/50 bg-accent-gold/[0.08] text-accent-gold hover:bg-accent-gold hover:text-ink [&_svg]:size-5"
+        className="inline-flex size-11 items-center justify-center rounded-full border border-accent-gold/50 bg-accent-gold/[0.08] text-accent-gold transition-[background-color,color,border-color,transform] duration-200 hover:bg-accent-gold hover:text-ink motion-safe:hover:scale-105 [&_svg]:size-5"
       >
         <Icon name="gear" />
       </button>
@@ -64,7 +64,7 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
                 type="button"
                 aria-label="Close profile settings"
                 onClick={() => dialogRef.current?.close()}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-line-strong text-nav-text hover:border-accent-gold hover:text-accent-gold"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-line-strong text-nav-text transition-[background-color,color,border-color,transform] duration-200 hover:border-accent-gold hover:text-accent-gold motion-safe:hover:rotate-90"
               >
                 <Icon name="close" />
               </button>
@@ -84,8 +84,8 @@ export function ProfileFlyout({ settings, sources, sourceCount }: { settings: Re
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => setView(v.id)}
                     onKeyDown={onTabKeyDown}
-                    className={`inline-flex items-center gap-2 rounded-t-xl border-x border-t px-4 py-2 text-sm font-semibold ${
-                      isActive ? "border-line bg-canvas text-accent-lime" : "border-transparent text-nav-muted hover:text-nav-text"
+                    className={`inline-flex items-center gap-2 rounded-t-xl border-x border-t px-4 py-2 text-sm font-semibold transition-[background-color,color,border-color] duration-200 ${
+                      isActive ? "border-line bg-canvas text-accent-lime" : "border-transparent text-nav-muted hover:border-line hover:bg-canvas/40 hover:text-nav-text"
                     }`}
                   >
                     {v.label}

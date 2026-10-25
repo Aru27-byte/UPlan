@@ -75,16 +75,26 @@
 :root {
   /* Native controls (a select's list, a date picker, scrollbars) draw themselves dark to match. */
   color-scheme: dark;
+  /* Anchor links land below the sticky masthead instead of beneath it. */
+  scroll-padding-top: 5.5rem;
 }
 
 body {
   background-color: var(--color-page);
   color: var(--color-text);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   text-underline-offset: 3px;
+}
+
+::selection {
+  background-color: rgb(170 220 110 / 0.28);
+  color: var(--color-heading);
 }
 
 /* Every interactive element shows a gold outline when focused from the keyboard, and it is never removed. */
@@ -99,17 +109,28 @@ a {
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
-@media (prefers-reduced-motion: no-preference) {
-  a,
-  button,
-  input,
-  select,
-  textarea {
-    transition:
-      background-color 150ms ease,
-      color 150ms ease,
-      border-color 150ms ease,
-      box-shadow 150ms ease;
+@layer base {
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary {
+      transition:
+        background-color 150ms ease,
+        color 150ms ease,
+        border-color 150ms ease,
+        box-shadow 150ms ease;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
@@ -393,5 +414,251 @@ a {
   }
   .flyout[open]::backdrop {
     animation: flyout-backdrop-in 220ms ease-out;
+  }
+}
+
+/* The shared motion system. Everything here is short, one-shot, and optional: page changes fade up a few
+   pixels, cards rise on hover, links draw their underline, and a pressed control settles instead of jumping.
+   The loading bars shimmer rather than pulse, which reads as progress without drawing the eye. Nothing moves
+   for anyone who asks their system for reduced motion: the classes below are switched off at the end of this
+   file, and the hover lifts are wrapped in a no-preference media query. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes accordion-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -180% 0;
+  }
+}
+
+@layer components {
+  /* A page's content fades in when it is swapped in by navigation (src/ui/page-enter.tsx). */
+  .page-enter {
+    animation: page-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* The landing page's opening blocks, staggered with inline animation delays. */
+  .enter-up {
+    animation: rise-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* An inline notice that has just appeared (an action's error, a notice, a refusal). */
+  .message-in {
+    animation: message-in 200ms ease-out both;
+  }
+
+  /* A card or tile that is not a link but still answers the pointer: it rises a few pixels and deepens its
+     shadow. The transition is on the element; the movement itself is gated below for reduced motion. */
+  .lift {
+    transition:
+      transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 260ms ease,
+      border-color 260ms ease,
+      background-color 260ms ease;
+  }
+
+  /* A quiet navigation link whose underline draws in from the left. */
+  .nav-link {
+    position: relative;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: -0.3rem;
+    left: 0;
+    height: 2px;
+    border-radius: 9999px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  /* The same idea for a line of prose: a rule that grows under the words. */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 1px;
+    transition: background-size 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    background-size: 100% 1px;
+  }
+
+  /* A loading block, sized by its caller. The moving highlight is what says "working". */
+  .skeleton-block {
+    background-image: linear-gradient(
+      100deg,
+      rgb(238 201 117 / 0.07) 22%,
+      rgb(238 201 117 / 0.17) 38%,
+      rgb(238 201 117 / 0.07) 54%
+    );
+    background-size: 220% 100%;
+    animation: skeleton-shimmer 1.8s linear infinite;
+  }
+
+  /* A native dialog's entrance. Its backdrop fades in separately so the page behind never flashes. */
+  .dialog-pop[open] {
+    animation: dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .dialog-pop[open]::backdrop {
+    animation: backdrop-in 200ms ease-out both;
+  }
+
+  /* The opening of a native <details>, on any page. */
+  details[open] > :not(summary) {
+    animation: accordion-in 200ms ease-out both;
+  }
+
+  /* The profile flyout's two panels; the hidden one does not animate until it is shown. */
+  .flyout [role="tabpanel"]:not([hidden]) {
+    animation: message-in 200ms ease-out both;
+  }
+
+  .animate-slide-in {
+    animation: slide-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 200ms ease-out both;
+  }
+
+  /* An inline success or error message enters with a short settle instead of appearing between frames. */
+  [role="status"].message-in,
+  [role="alert"].message-in {
+    animation: message-in 200ms ease-out both;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lift:hover {
+    transform: translateY(-3px);
+  }
+}
+
+/* The few one-shot animations used directly in markup also stop for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-in {
+    animation: sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .enter-up,
+  .message-in,
+  .dialog-pop[open],
+  .dialog-pop[open]::backdrop,
+  .sheet-in,
+  details[open] > :not(summary),
+  .flyout [role="tabpanel"]:not([hidden]) {
+    animation: none;
+  }
+  .skeleton-block {
+    animation: none;
+    background-image: none;
+    background-color: rgb(238 201 117 / 0.1);
+  }
+  .lift,
+  .nav-link::after,
+  .link-underline {
+    transition: none;
   }
 }

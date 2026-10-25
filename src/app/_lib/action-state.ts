@@ -28,6 +28,26 @@ export async function runAction(perform: () => Promise<string | void>): Promise<
   return notice ? { notice } : {};
 }
 
+/** Like runAction but allows returning custom data alongside the notice/error. */
+export async function runChatAction<T>(perform: () => Promise<{ notice?: string; error?: string; data: T }>): Promise<ActionState & { data?: T }> {
+  try {
+    const result = await perform();
+    refresh();
+    if (result.error) return { error: result.error };
+    return { notice: result.notice, data: result.data };
+  } catch (err) {
+    if (
+      err instanceof ValidationError ||
+      err instanceof ConflictError ||
+      err instanceof ForbiddenError ||
+      err instanceof NotFoundError
+    ) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+}
+
 /** A required text field from a form, or a ValidationError naming it. */
 export function requiredText(formData: FormData, name: string, label: string): string {
   const value = formData.get(name);

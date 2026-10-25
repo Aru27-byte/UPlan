@@ -448,21 +448,23 @@ Prettier handles formatting.
 
 **Revisit when.** A city's retention setting requires disposal to be actioned in UPlan.
 
-## D26. Phase outputs are derived and reviews are append-only; drafting stays deterministic
+## D26. Phase outputs are derived and report section versions are append-only; drafting stays deterministic
 
-**Chosen.** A phase's output is computed from immutable records and fingerprinted; it is never stored. A planner's review is one append-only row bound to the fingerprint it was made on. The drafted summaries are fixed sentence templates over PostGIS measurements. No language model writes any phase output, in this or any release-1 feature.
+**Chosen.** A phase's output is computed from immutable records and fingerprinted; it is never stored. A planner's section version is one append-only row bound to the section content and the fingerprint it was made on. The drafted summaries are fixed sentence templates over PostGIS measurements. No language model writes any phase output, in this or any release-1 feature.
 
 **Considered.**
 
 - _Storing each output_ — duplicates the run's results and adds a second place for numbers to disagree.
 - _A language model to write summaries_ — reads well, but every sentence becomes untestable, it can't be pinned to a measurement, it contradicts `do-not.md` and the charter's posture, and a released report would depend on a model file. F2's model drafts only profile rules, with quoted sources.
-- _A single "phase approved" flag_ — goes stale the moment an input changes, and can't say what was reviewed.
+- _A single "phase approved" flag_ — goes stale the moment an input changes, and can't say what was adopted.
 
 **Trade-offs accepted.** The summaries are plainer than generated prose. Their wording is changed in code, reviewed in a pull request, and versioned by `TEMPLATE_VERSION`.
 
 **Revisit when.** A model can be constrained so that every sentence it writes is provably backed by a measurement, and the charter's posture allows it.
 
 **Amended 2026-10-10 (D27).** The decision stands for phase outputs. AI assist (F24) is a separate, labeled aid beside them, so the model still never sits between a measurement and its sentence.
+
+**Amended 2026-10-22 (F21).** A phase's drafted summary is the section's starting content. A stored section version, not a review, is the record, and it carries the wording the document prints; a version built on an earlier analysis stays out of date until the planner updates it or reverts.
 
 ## D27. AI assist on NVIDIA's hosted inference, beside the analysis and never inside it
 

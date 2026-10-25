@@ -15,7 +15,7 @@ import { SubmitButton } from "@/ui/submit-button.client";
 
 import { finishResearchAction } from "../actions";
 
-const BLOCKING_TEXT: Record<Exclude<FinishReadiness["blocking"][number]["key"], "phase-not-reviewed">, string> = {
+const BLOCKING_TEXT: Record<Exclude<FinishReadiness["blocking"][number]["key"], "section-not-ready">, string> = {
   "analysis-not-current": "Wait for the analysis of the current inputs to finish.",
   "analysis-failed": "The analysis failed. Read its error on the Overview, then change an input or ask UPlan staff.",
   "filing-date-missing": "Record the application's filing date in the project details.",
@@ -24,7 +24,7 @@ const BLOCKING_TEXT: Record<Exclude<FinishReadiness["blocking"][number]["key"], 
 
 // The Report step (TechDesign/research-changes.md, locked-report.md): what finishing needs, the button that
 // publishes the final document, and every version ever published. The document is generated in the
-// background from the pinned run and the reviews (F22 R11), stored in UPlan's database with its hash, and
+// background from the pinned run and sections (F22 R11), stored in UPlan's database with its hash, and
 // never changed afterward (F10 R7). The readiness list here is advice: finishResearch decides, in one
 // transaction, so a stale page can't cause a bad publication.
 export default async function ReportPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -53,7 +53,7 @@ export default async function ReportPage({ params }: { params: Promise<{ project
           description="Finishing generates the final document: one PDF that UPlan stores, hashes, and never changes."
         >
           {attempt?.status === "failed" ? (
-            <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-text">
+            <p role="alert" className="message-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-text">
               <span className="font-semibold text-danger">The last attempt to generate the document failed.</span>{" "}
               {attempt.errorDetail ?? "No reason was recorded."} Nothing was published or numbered. You can try again.
             </p>
@@ -64,21 +64,21 @@ export default async function ReportPage({ params }: { params: Promise<{ project
             {readiness.blocking.length === 0 ? (
               <li className="flex items-start gap-2 text-text">
                 <StatusLabel tone="ok">Ready</StatusLabel>
-                <span>Every phase is reviewed and the analysis is current.</span>
+                <span>Every section is ready and the analysis is current.</span>
               </li>
             ) : (
               readiness.blocking.map((item) => (
                 <li key={`${item.key}:${item.phase ?? ""}`} className="flex items-start gap-2 text-text">
                   <StatusLabel tone="warn">To do</StatusLabel>
-                  {item.key === "phase-not-reviewed" && item.phase ? (
+                  {item.key === "section-not-ready" && item.phase ? (
                     <span>
-                      Review the{" "}
+                      Make the{" "}
                       <Link href={projectHref(projectId, item.phase)} className="font-medium text-brand underline underline-offset-2">
                         {PHASE_TITLE[item.phase]}
                       </Link>{" "}
-                      phase.
+                      section ready.
                     </span>
-                  ) : item.key === "phase-not-reviewed" ? null : (
+                  ) : item.key === "section-not-ready" ? null : (
                     <span>{BLOCKING_TEXT[item.key]}</span>
                   )}
                 </li>
@@ -124,8 +124,8 @@ export default async function ReportPage({ params }: { params: Promise<{ project
 
       {w.decisionStatus === "finishing" ? (
         <Panel title="Generating the document">
-          <p role="status" className="text-sm text-text">
-            The final document is being generated from the reviewed records. Nothing can change until it finishes. This
+          <p role="status" className="message-in text-sm text-text">
+            The final document is being generated from the pinned sections. Nothing can change until it finishes. This
             page updates on its own.
           </p>
         </Panel>

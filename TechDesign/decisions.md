@@ -88,7 +88,7 @@ export async function lockEditableDecision(tx: DbOrTx, actor: Actor, decisionId:
 }
 ```
 
-`select … for update` serializes every writer of one project: `saveGeometry`, `updateDecisionDetails`, `saveResolution`, `recordReview`, `finishResearch`, and `deleteDecision`. It is cheap because the row is per project. The `switch` lists every status with no `default`, so a fourth status fails to compile until handled (conventions).
+`select … for update` serializes every writer of one project: `saveGeometry`, `updateDecisionDetails`, `saveResolution`, `commitSectionChange`, `revertSection`, `finishResearch`, and `deleteDecision`. It is cheap because the row is per project. The `switch` lists every status with no `default`, so a fourth status fails to compile until handled (conventions).
 
 ### Details, delete, reopen, finishing
 
@@ -124,7 +124,7 @@ export async function markFinishFailed(decisionId, tx): Promise<void>;          
 - **R12.** It enqueues only when the filing date changed, because no other detail is an analysis input. The job key collapses a still-pending duplicate.
 - **R14.** `deleteDecision` is `update decision set deleted_at = now(), deleted_by = $actor, row_version = row_version + 1 where id = $id and created_by = $actor and deleted_at is null and row_version = $expected and status <> 'finishing'`. Zero rows means `ConflictError`, or `NotFoundError` when the row isn't the actor's (a second read tells which). Nothing else is written, and no other table is touched.
 - `beginFinish`, `markReportReleased`, and `markFinishFailed` are the three status moves of a document's life. Each is `update … where id = $id and status = $from` and throws `ConflictError` unless it affected exactly one row. `markReportReleased` is called by `reports` in the same transaction that stores the document.
-- **R9.** `created_by` and `created_at` are set once. `deleted_by` and `deleted_at` record a delete. The document history (`report` rows) and reviews record the rest of a decision's life, so no separate audit table is needed.
+- **R9.** `created_by` and `created_at` are set once. `deleted_by` and `deleted_at` record a delete. The document history (`report` rows) and section versions record the rest of a decision's life, so no separate audit table is needed.
 
 `listOpenDecisions(jurisdictionId, tx)` (used when a profile version or dataset version is approved, F1 and F3) and `listOpenDecisionsIntersecting(tx, coverage)` stay, and now filter on `status = 'in_progress' and deleted_at is null`. They are system-authority reads for job bodies, with no actor, like `getDecisionForAnalysis`.
 
@@ -171,7 +171,7 @@ export async function saveGeometry(actor, decisionId, kind: GeometryKind, geojso
 | R6 | Primary key `(decision_id, kind, revision)` | Race test |
 | R7 | `assertValidGeometry` | Rejected with PostGIS's reason, never repaired |
 | R8 | `reopen` | One compare-and-set plus an enqueue |
-| R9 | `created_by`, `created_at`, `deleted_by`, `deleted_at`; reports and reviews | |
+| R9 | `created_by`, `created_at`, `deleted_by`, `deleted_at`; reports and section versions | |
 | R10 | Nullable detail columns; `projectManager` is text | "Not yet recorded" is shown for null |
 | R11 | `updateDecisionDetails`'s compare-and-set | |
 | R12 | The enqueue inside the same transaction | Only when the filing date changed |
@@ -187,7 +187,7 @@ export async function saveGeometry(actor, decisionId, kind: GeometryKind, geojso
   - **Details (R10–R12):** `updateDecisionDetails` with a stale `row_version` fails with `ConflictError`, **and a race test** fires two updates on one version at once on separate connections and asserts one succeeds; changing the filing date leaves one pending `run_analysis` job and changing only the applicant leaves none.
   - **Geometry (R5–R7):** an invalid drawing is rejected with the real `ST_IsValidReason` text; two saves of one revision, sequential and **concurrent**, leave exactly one row and one `ConflictError`; saving a boundary does not change `row_version`.
   - **The lock (R13):** every writer fails with `ConflictError` on a `report_released` and on a `finishing` decision; a concurrent `saveGeometry` and `deleteDecision` serialize.
-  - **Delete (R14):** hides the project, leaves geometry, runs, reviews, and reports in place, fails on a stale version and on `finishing`, and **a race test** fires two deletes at once and asserts one succeeds.
+  - **Delete (R14):** hides the project, leaves geometry, runs, section versions, and reports in place, fails on a stale version and on `finishing`, and **a race test** fires two deletes at once and asserts one succeeds.
   - `listOpenDecisions` excludes completed, generating, and deleted decisions (R4).
 
 ## Open questions

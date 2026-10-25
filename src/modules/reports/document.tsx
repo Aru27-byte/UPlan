@@ -16,16 +16,15 @@ import {
   StudiesSection,
   type ReportResolution,
   type RunContent,
-  type SectionSummary,
 } from "./sections";
-import type { PhaseKey, ReportPhase, ReportSnapshot } from "./snapshot";
+import type { PhaseKey, ReportSection, ReportSnapshot } from "./snapshot";
 
 // TechDesign/locked-report.md — the document's React tree, stitched from the per-step sections in
 // sections.tsx. Server Components only; never interactive (D12: printed by Playwright, not screenshotted).
 // Every prop is already-resolved, pinned data: nothing here fetches, and nothing reads "current" (F22 R11).
 // No prop carries a judgment, a recommendation, or free text a future change could repurpose for one (R6):
-// the only free text is the planner's own reason and review notes, printed in labeled places as the
-// planner's words, never as UPlan's finding (see the denylist check in document.test.ts).
+// the only free text is the planner's own reason and adopted section narrative, printed in labeled places
+// as the planner's words, never as UPlan's finding (see the denylist check in document.test.ts).
 
 export type ReportDocumentProps = {
   cityName: string;
@@ -68,12 +67,11 @@ const PRINT_STYLES = `
 export function ReportDocument(props: ReportDocumentProps) {
   const { snapshot, results, profileDocument } = props;
   const details = snapshot.details;
-  const phaseOf = (key: PhaseKey): ReportPhase => {
-    const found = snapshot.phases.find((p) => p.phase === key);
-    if (!found) throw new Error(`the snapshot has no ${key} phase`);
+  const sectionOf = (key: PhaseKey): ReportSection => {
+    const found = snapshot.sections.find((s) => s.phase === key);
+    if (!found) throw new Error(`the snapshot has no ${key} section`);
     return found;
   };
-  const summaryOf = (key: PhaseKey): SectionSummary => phaseOf(key).summary;
   const when = (instant: Date | string): string => formatTimestamp(instant, props.timeZone);
   const run: RunContent = props;
 
@@ -102,6 +100,12 @@ export function ReportDocument(props: ReportDocumentProps) {
           <p className="meta">
             {props.cityName}, {props.stateCode} · Version {props.versionNumber} · Research finished {when(props.requestedAt)}
           </p>
+          <p className="meta">
+            Built from:{" "}
+            {snapshot.sections
+              .map((s) => `${PHASE_TITLE[s.phase]} ${s.sectionVersionNumber === null ? "analysis draft" : `section version ${s.sectionVersionNumber}`}`)
+              .join("; ")}
+          </p>
 
           <DetailsSection details={details} profileVersionNumber={props.profileVersionNumber} />
           <RulesSection run={run} />
@@ -113,25 +117,25 @@ export function ReportDocument(props: ReportDocumentProps) {
                 <strong>Reason given by the planner:</strong> {props.changeNote ?? NOT_RECORDED}
               </p>
               <ul>
-                {snapshot.phases
-                  .filter((p) => p.changed)
-                  .map((p) => (
-                    <li key={p.phase}>The {PHASE_TITLE[p.phase]} phase&apos;s output changed and was reviewed again.</li>
+                {snapshot.sections
+                  .filter((s) => s.changed)
+                  .map((s) => (
+                    <li key={s.phase}>The {PHASE_TITLE[s.phase]} section changed.</li>
                   ))}
                 {snapshot.detailsChanged ? <li>The project details changed.</li> : null}
-                {!snapshot.detailsChanged && snapshot.phases.every((p) => !p.changed) ? (
-                  <li>No phase output or project detail differs from the previous version.</li>
+                {!snapshot.detailsChanged && snapshot.sections.every((s) => !s.changed) ? (
+                  <li>No section or project detail differs from the previous version.</li>
                 ) : null}
               </ul>
             </>
           ) : null}
 
-          <SiteSection summary={summaryOf("site")} studyAreaSvg={props.studyAreaSvg} />
-          <FootprintSection summary={summaryOf("footprint")} studyAreaSvg={props.studyAreaSvg} footprintSvg={props.footprintSvg} />
-          <EvidenceSection summary={summaryOf("evidence")} run={run} />
-          <ScreeningSection summary={summaryOf("screening")} run={run} />
-          <StudiesSection summary={summaryOf("studies")} run={run} />
-          <ImpactSection summary={summaryOf("impact")} run={run} />
+          <SiteSection content={sectionOf("site")} studyAreaSvg={props.studyAreaSvg} />
+          <FootprintSection content={sectionOf("footprint")} studyAreaSvg={props.studyAreaSvg} footprintSvg={props.footprintSvg} />
+          <EvidenceSection content={sectionOf("evidence")} run={run} />
+          <ScreeningSection content={sectionOf("screening")} run={run} />
+          <StudiesSection content={sectionOf("studies")} run={run} />
+          <ImpactSection content={sectionOf("impact")} run={run} />
 
           <h2>Source register</h2>
           <h3>Datasets</h3>
@@ -167,33 +171,6 @@ export function ReportDocument(props: ReportDocumentProps) {
             })}
           </ul>
 
-          <h2>Review record</h2>
-          <p className="note">
-            Each phase was reviewed by the planner before this version was published. A review is the planner&apos;s own
-            record that they read that output; it is not a sign-off by anyone else.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Phase</th>
-                <th scope="col">Reviewed by</th>
-                <th scope="col">When</th>
-                <th scope="col">Note, in the reviewer&apos;s words</th>
-                <th scope="col">Output fingerprint</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.phases.map((p) => (
-                <tr key={p.phase}>
-                  <th scope="row">{PHASE_TITLE[p.phase]}</th>
-                  <td>{p.reviewedByName}</td>
-                  <td>{when(p.reviewedAt)}</td>
-                  <td>{p.note ?? "—"}</td>
-                  <td>{p.contentSha256.slice(0, 12)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </main>
       </body>
     </html>

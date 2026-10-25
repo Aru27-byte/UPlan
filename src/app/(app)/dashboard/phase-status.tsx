@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { PHASE_TITLE, projectHref, reviewStateLabel } from "@/app/_lib/workflow-labels";
-import type { ProjectSummary } from "@/modules/workflow";
+import { PHASE_TITLE, projectHref, sectionStateLabel } from "@/app/_lib/workflow-client";
+import type { ProjectSummary } from "@/app/_lib/workflow-types";
 import { Icon, type IconName } from "@/ui/icons";
 import { StatBox } from "@/ui/stat-box";
 import type { StatusTone } from "@/ui/status-label";
@@ -16,20 +16,20 @@ const NODE: Record<StatusTone, { icon: IconName; circle: string }> = {
 };
 
 // The six research phases in order as a track of numbered nodes, each linking to its page, with the count of
-// phases not yet reviewed at the top right. Counts and words only (project-dashboard.md R3).
+// phases not yet ready at the top right. Counts and words only (project-dashboard.md R3).
 export function PhaseStatus({ project }: { project: ProjectSummary }) {
-  const phasesLeft = project.phasesTotal - project.phasesReviewed;
+  const phasesLeft = project.phasesTotal - project.phasesReady;
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <p className="eyebrow text-muted">Phase status</p>
         <dl>
-          <StatBox label="Phases left for review" value={phasesLeft} />
+          <StatBox label="Phases left to become ready" value={phasesLeft} />
         </dl>
       </div>
       <ol className="grid grid-cols-2 gap-x-2 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
         {project.phases.map((p, index) => {
-          const state = reviewStateLabel(p.state);
+          const state = sectionStateLabel(p.state);
           const node = NODE[state.tone];
           const isLast = index === project.phases.length - 1;
           return (
@@ -37,18 +37,20 @@ export function PhaseStatus({ project }: { project: ProjectSummary }) {
               {isLast ? null : (
                 <span
                   aria-hidden="true"
-                  className={`absolute top-5 left-1/2 hidden h-1 w-full -translate-y-1/2 lg:block ${state.kind === "reviewed" ? "bg-ok" : "bg-line"}`}
+                  className={`absolute top-5 left-1/2 hidden h-1 w-full -translate-y-1/2 lg:block ${state.kind === "ready" ? "bg-ok" : "bg-line"}`}
                 />
               )}
               <Link
                 href={projectHref(project.decision.id, p.phase)}
                 aria-label={`${PHASE_TITLE[p.phase]}: ${state.text}`}
-                className="relative flex flex-col items-center gap-1.5 rounded-lg px-1 text-center"
+                className="group relative flex flex-col items-center gap-1.5 rounded-lg px-1 text-center"
               >
-                <span className={`flex size-10 items-center justify-center rounded-full border-2 ${node.circle}`}>
+                <span
+                  className={`flex size-10 items-center justify-center rounded-full border-2 transition-transform duration-200 motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:scale-105 ${node.circle}`}
+                >
                   <Icon name={node.icon} />
                 </span>
-                <span className="text-sm font-semibold text-text">
+                <span className="text-sm font-semibold text-text transition-colors duration-150 group-hover:text-accent-lime">
                   {index + 1}. {PHASE_TITLE[p.phase]}
                 </span>
                 <span className="text-xs font-medium text-muted">{state.text}</span>

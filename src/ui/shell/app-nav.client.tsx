@@ -38,8 +38,8 @@ export function AppNav({
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      <header className="flex items-center justify-between border-b border-line bg-nav/90 px-4 py-3 text-nav-text backdrop-blur lg:hidden">
-        <Link href="/dashboard" className="flex items-center rounded-lg">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line bg-nav/85 px-4 py-3 text-nav-text shadow-[0_10px_30px_rgb(0_0_0/0.22)] backdrop-blur-xl lg:hidden">
+        <Link href="/dashboard" className="flex items-center rounded-lg transition-opacity duration-200 hover:opacity-85">
           <Brand />
         </Link>
         <button
@@ -56,10 +56,10 @@ export function AppNav({
 
       <aside
         id="app-nav"
-        className={`${open ? "flex" : "hidden"} w-full flex-col justify-between gap-6 border-r border-line bg-nav/90 px-4 py-5 text-nav-text backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0`}
+        className={`${open ? "sheet-in flex" : "hidden"} w-full flex-col justify-between gap-6 border-r border-line bg-nav/90 px-4 py-5 text-nav-text backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0`}
       >
         <div className="flex flex-col gap-6">
-          <Link href="/dashboard" className="hidden items-center rounded-lg px-2 lg:flex">
+          <Link href="/dashboard" className="hidden items-center rounded-lg px-2 transition-opacity duration-200 hover:opacity-85 lg:flex">
             <Brand />
           </Link>
           <Link href="/projects/new" className={actionClassName("primary", "w-full")} onClick={() => setOpen(false)}>
@@ -77,13 +77,13 @@ export function AppNav({
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium ${
+                      className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-[transform,background-color,border-color,color,box-shadow] duration-200 motion-safe:hover:translate-x-0.5 ${
                         active
-                          ? "border-accent-green/45 bg-accent-green/[0.14] font-semibold text-accent-lime"
-                          : "border-transparent text-nav-text hover:bg-cream/[0.06]"
+                          ? "border-accent-green/45 bg-accent-green/[0.14] font-semibold text-accent-lime shadow-[inset_3px_0_0_0_var(--color-accent-lime)]"
+                          : "border-transparent text-nav-text hover:border-line hover:bg-cream/[0.06]"
                       }`}
                     >
-                      <Icon name={item.icon} />
+                      <Icon name={item.icon} className="transition-transform duration-200 group-hover:scale-110" />
                       <span className="flex flex-col leading-tight">
                         {item.label}
                         {item.detail ? <span className="text-xs font-normal text-nav-muted">{item.detail}</span> : null}

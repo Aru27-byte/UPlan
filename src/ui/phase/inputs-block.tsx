@@ -4,9 +4,9 @@ import { Accordion } from "../accordion";
 
 import type { PhaseViewModel } from "./types";
 
-// "Drafted from" (research-phases.md R1, R9): what this output was drafted from, and where each input is
-// changed. Iterating on an output means changing one of these and reading the new draft. A closed accordion
-// (R16), whose summary counts the inputs.
+// "Drafted from" (research-phases.md R1, R9): what this section's analysis was drafted from, and where each
+// input is changed. Iterating on a section means changing one of these and reading the new draft. A closed
+// accordion (R16), whose summary counts the inputs.
 export function InputsBlock({ model }: { model: PhaseViewModel }) {
   return (
     <Accordion

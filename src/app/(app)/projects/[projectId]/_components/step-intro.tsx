@@ -1,35 +1,41 @@
+import { respondAssistAction } from "@/app/_lib/assist-actions";
+import { sectionChatModel } from "@/app/_lib/assist-view";
 import { loadProject } from "@/app/_lib/project";
-import { STEP_GROUP, STEP_TITLE } from "@/app/_lib/workflow-labels";
-import { formatTimestamp } from "@/modules/provenance";
-import { listSectionFeedbackInternal, type FeedbackStep } from "@/modules/workflow";
+import { shownSectionContent, toReportSectionModel } from "@/app/_lib/workflow-labels";
+import type { PhaseKey } from "@/app/_lib/workflow-types";
 import { ReportSectionPanel } from "@/ui/phase/report-section-panel.client";
 
-import { recordSectionFeedbackAction } from "../actions";
+import { changeSectionAction, explainSectionAction, revertSectionAction, updateSectionAction } from "../actions";
 
 import { SectionPreview } from "./section-preview";
 
-// The top of every step page except Report (research-phases.md R15): the report section the step produces,
-// shown as the document will print it, and the box for feedback on it. It reads through loadProject, which the
-// layout and the page already share.
-export async function StepIntro({ projectId, step }: { projectId: string; step: FeedbackStep }) {
-  // loadProject is the ownership check (a project that isn't theirs is a 404 before anything renders), so the
-  // feedback read runs beside it rather than after it: each sequential read is a full database round trip.
-  const [{ workflow: w }, feedback] = await Promise.all([
-    loadProject(projectId),
-    listSectionFeedbackInternal(projectId, step),
-  ]);
+// The top of every step page except Report (research-phases.md R1, R6): the report section the step produces,
+// shown as the document will print it, with the section chat beside it. It reads through loadProject, which the
+// layout and the page already share, so one request reads the project once.
+export async function StepIntro({ projectId, step }: { projectId: string; step: "overview" | PhaseKey }) {
+  const { actor, workflow: w } = await loadProject(projectId);
+  const view = step === "overview" ? null : w.phases.find((p) => p.phase === step);
+  if (step !== "overview" && !view) throw new Error(`the workflow has no ${step} phase`);
+
+  const model = toReportSectionModel(view ?? null, w, step, {
+    revertAction: revertSectionAction.bind(null, projectId),
+    updateAction: updateSectionAction.bind(null, projectId),
+  });
+  const chat = view
+    ? await sectionChatModel({
+        actor,
+        workflow: w,
+        decisionId: projectId,
+        phase: view.phase,
+        explainAction: explainSectionAction.bind(null, projectId),
+        changeAction: changeSectionAction.bind(null, projectId),
+        respondAction: respondAssistAction,
+      })
+    : null;
+
   return (
-    <ReportSectionPanel
-      model={{
-        step,
-        group: STEP_GROUP[step],
-        stepTitle: STEP_TITLE[step],
-        feedback: feedback.map((f) => ({ id: f.id, note: f.note, by: f.by, at: formatTimestamp(f.at, w.timeZone) })),
-        readOnly: w.decisionStatus !== "in_progress",
-      }}
-      action={recordSectionFeedbackAction.bind(null, projectId)}
-    >
-      <SectionPreview workflow={w} step={step} />
+    <ReportSectionPanel model={model} chat={chat} projectId={projectId}>
+      <SectionPreview workflow={w} step={step} content={view ? shownSectionContent(view.state) : null} />
     </ReportSectionPanel>
   );
 }

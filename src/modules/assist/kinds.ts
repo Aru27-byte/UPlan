@@ -1,15 +1,34 @@
 import { z } from "zod";
 
-// TechDesign/ai-assist.md, "The six kinds" and "Assist by phase". The model never writes free prose into a
+// TechDesign/ai-assist.md, "The eight kinds" and "Assist by phase". The model never writes free prose into a
 // page: it fills one of these `.strict()` shapes, and every shape has a place for the exact quote behind it.
 // A model asked to "recommend" has nowhere to put it (F24 R6). A key the shape doesn't name is a parse error,
 // so there is no way to smuggle an extra field through.
 
-export const ASSIST_KINDS = ["explain", "questions", "find", "compare", "metadata-draft", "rule-draft"] as const;
+export const ASSIST_KINDS = [
+  "explain",
+  "questions",
+  "find",
+  "compare",
+  "metadata-draft",
+  "rule-draft",
+  "section-explain",
+  "section-edit",
+] as const;
 export type AssistKind = (typeof ASSIST_KINDS)[number];
 
-export const ASSIST_PHASES = ["profile", "evidence", "screening", "studies", "impact"] as const;
+export const ASSIST_PHASES = ["profile", "site", "evidence", "screening", "studies", "footprint", "impact"] as const;
 export type AssistPhase = (typeof ASSIST_PHASES)[number];
+
+export const SECTION_ASSIST_KINDS = ["section-explain", "section-edit"] as const;
+export type SectionAssistKind = (typeof SECTION_ASSIST_KINDS)[number];
+
+/** What `ai_suggestion.assist_id` holds: a phase's button, or a section chat kind when no button was chosen. */
+export type StoredAssistId = AssistId | SectionAssistKind;
+
+export function isSectionAssistKind(kind: string): kind is SectionAssistKind {
+  return (SECTION_ASSIST_KINDS as readonly string[]).includes(kind);
+}
 
 export const REF_KINDS = ["line", "row", "gap", "limit", "flag", "range", "study", "rule"] as const;
 export type RefKind = (typeof REF_KINDS)[number];
@@ -17,6 +36,34 @@ export type RefKind = (typeof REF_KINDS)[number];
 /** A quote names the passage it was taken from; the check is that its text is in that passage, word for word. */
 export const QuoteSchema = z.object({ sourceId: z.string().min(1), text: z.string().min(1) }).strict();
 export type Quote = z.infer<typeof QuoteSchema>;
+
+// F24's section chat (TechDesign/ai-assist.md, "The section chat"). Explain answers a question about one report
+// section and changes nothing; Change returns the narrative and table formats the planner asked for. Neither
+// shape has a field for a table value, a map, a list, a notice, or a verdict.
+export const SectionExplainSchema = z
+  .object({
+    paragraphs: z
+      .array(z.object({ text: z.string().min(1), quotes: z.array(QuoteSchema) }).strict())
+      .min(1)
+      .max(8),
+  })
+  .strict();
+
+export const SectionEditTableSchema = z
+  .object({
+    key: z.string().min(1),
+    caption: z.string().min(1).max(300).nullish(),
+    columnOrder: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+
+export const SectionEditSchema = z
+  .object({
+    headline: z.string().min(1).max(300),
+    lines: z.array(z.string().min(1).max(2000)).min(1).max(40),
+    tables: z.array(SectionEditTableSchema).max(4).optional(),
+  })
+  .strict();
 
 export const ExplainSchema = z
   .object({
@@ -107,6 +154,8 @@ export type CompareReasonsContent = z.infer<typeof CompareReasonsSchema>;
 export type CompareChecklistContent = z.infer<typeof CompareChecklistSchema>;
 export type MetadataDraftContent = z.infer<typeof MetadataDraftSchema>;
 export type RuleDraftContent = z.infer<typeof RuleDraftSchema>;
+export type SectionExplainContent = z.infer<typeof SectionExplainSchema>;
+export type SectionEditContent = z.infer<typeof SectionEditSchema>;
 
 export type SuggestionContent =
   | ExplainContent
@@ -115,17 +164,20 @@ export type SuggestionContent =
   | CompareReasonsContent
   | CompareChecklistContent
   | MetadataDraftContent
-  | RuleDraftContent;
+  | RuleDraftContent
+  | SectionExplainContent
+  | SectionEditContent;
 
 export const ASSIST_IDS = ["PR1", "PR2", "EV1", "EV2", "EV3", "SC1", "SC2", "SC3", "ST1", "ST2", "ST3", "IM1", "IM2", "IM3"] as const;
 export type AssistId = (typeof ASSIST_IDS)[number];
 export const AssistIdSchema = z.enum(ASSIST_IDS);
+export const StoredAssistIdSchema = z.union([AssistIdSchema, z.enum(SECTION_ASSIST_KINDS)]);
 
 // What a person points at when they press the button. The subject key is part of the unique key (R13).
 export type SubjectType = "phase" | "row" | "gap" | "range" | "study" | "dataset" | "document" | "question";
 
 export type AssistDef = {
-  id: AssistId;
+  id: StoredAssistId;
   phase: AssistPhase;
   kind: AssistKind;
   wave: 1 | 2 | 3;
@@ -151,6 +203,35 @@ export const FIND_PROMPT_VERSION = 1;
 export const COMPARE_PROMPT_VERSION = 1;
 export const METADATA_DRAFT_PROMPT_VERSION = 1;
 export const RULE_DRAFT_PROMPT_VERSION = 1;
+export const SECTION_EXPLAIN_PROMPT_VERSION = 1;
+export const SECTION_EDIT_PROMPT_VERSION = 1;
+
+export type SectionAssistDef = {
+  kind: SectionAssistKind;
+  promptVersion: number;
+  task: string;
+  maxWords: number;
+  schema: z.ZodType<SuggestionContent>;
+};
+
+// The two kinds the section chat adds (F24 R19). They have no button and no phase of their own: a request
+// carries the phase it was made on, and a prompt filler runs its own kind instead.
+export const SECTION_ASSISTS: Record<SectionAssistKind, SectionAssistDef> = {
+  "section-explain": {
+    kind: "section-explain",
+    promptVersion: SECTION_EXPLAIN_PROMPT_VERSION,
+    task: "Answer the planner's question about this report section in plain words. Quote the section or the data, naming the passage each quote comes from. Do not propose a change unless the question asks for one.",
+    maxWords: 300,
+    schema: SectionExplainSchema,
+  },
+  "section-edit": {
+    kind: "section-edit",
+    promptVersion: SECTION_EDIT_PROMPT_VERSION,
+    task: "Rewrite this report section's headline and narrative lines as the instruction asks. You may set a table's caption and reorder its columns, but every table keeps every column and you write no table value. Copy every figure exactly as it appears in the section or the data.",
+    maxWords: 400,
+    schema: SectionEditSchema,
+  },
+};
 
 export const ASSISTS: Record<AssistId, AssistDef> = {
   PR1: {

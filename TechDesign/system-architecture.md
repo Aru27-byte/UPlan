@@ -198,7 +198,7 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 | `evidence`      | F3, F19           | Datasets and their attributes, versions, ingestion, tiles, dataset mapping per city      | 1           |
 | `decisions`     | F5, F8            | Decisions, study area and footprint revisions                                            | 1           |
 | `analysis`      | F7, F9, F14, F19  | Analysis runs, evidence base, impact engine, screening and study flags, source resolutions, previews | 1           |
-| `workflow`      | F18, F20–F22      | Phases and their drafted outputs, planner reviews (`phase_review`), the stage rail and Overview, the dashboard summaries, finishing and cancelling a research change | 1 |
+| `workflow`      | F18, F20–F22      | Phases and their report sections and section versions (`report_section_version`), the stage rail and Overview, the dashboard summaries, finishing and cancelling a research change | 1 |
 | `reports`       | F10, F22; later F12 | The document, its versions, PDF rendering, storage in the database                     | 1           |
 | `records`       | F16               | Retention flags, records exports                                                         | 1           |
 | `operations`    | —                 | The health check, the worker heartbeat, and backup run records                           | 1           |
@@ -208,7 +208,7 @@ All domain logic lives in modules under `src/modules/`. Routes and job handlers 
 
 - F6 (map workspace) and F15 (phone look-up) are UI: routes in `src/app/` and components in `src/ui/`, built on the modules above.
 - F14 (study scoping) extends `analysis` instead of adding a module, because it runs the same engine. F19's resolutions live in `analysis` too, since it owns the disagreement they refer to.
-- F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them and nothing imports it but routes and the worker, so it adds no cycle. It owns one table, `phase_review` (F21), and it is the one place that starts a document (F22), because that needs the planner's reviews and `reports` can't import `workflow`. `reports` receives what it needs as arguments: the snapshot, and the worker-injected drafting function.
+- F18 needs a module of its own, `workflow`, because it reads `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`, so placing the combination in any one of them would create an import cycle. It sits above them and nothing imports it but routes and the worker, so it adds no cycle. It owns one table, `report_section_version` (F21), and it is the one place that starts a document (F22), because that needs the project's current sections and `reports` can't import `workflow`. `reports` receives what it needs as an argument: the snapshot, which carries every section's content. The worker-injected drafting function is gone.
 - F24 needs a module of its own, `assist`, for the reason `workflow` has one: it reads `analysis`, `workflow`, `profiles`, and `evidence`, so placing it in any of them would create an import cycle. It sits above them, only routes import it, and `reports` must not, so a suggestion can never reach a released document. It owns two tables, `ai_suggestion` and `ai_suggestion_response`.
 - Clients for PostgreSQL, object storage, and the model service live in `src/platform/`. Only `assist` and `code-tracking` call the model service.
 
@@ -242,7 +242,7 @@ Changed 2026-10-04: a change applies the moment it is saved. There is no pending
 2. One transaction does the claim (`finishResearch`):
    - Lock the decision row `FOR UPDATE`. Every input write, review, delete, and start of a research change takes the same lock.
    - Check that the project is `in_progress`, and that no input changed after the page was loaded (the row version and each phase's output fingerprint).
-   - Read the current run and each phase's latest review, and check that every phase is reviewed at its current output and, for a research change, that something changed.
+   - Read the current run and each phase's newest section version, and check that every section is ready at its current output and, for a research change, that something changed.
    - Compare-and-set the decision `in_progress → finishing`, insert the `report` as `releasing` with the review snapshot, and enqueue `release_report`.
 3. While `finishing`, the project is read-only. The worker renders the HTML from pinned records (the run, its recorded geometry revisions, its profile version, and the snapshot), prints the tagged PDF, and in one transaction stores it in `report.pdf` with its SHA-256 as the next `version_number`, and moves the decision `finishing → report_released`.
 4. A published row is immutable: a trigger rejects any update or delete. A retried job that finds the row already released does nothing. After the last retry, the report is marked `failed`, the decision returns to `in_progress`, and the failure is shown.
@@ -392,7 +392,7 @@ Race conditions are prevented by design, not by timing:
 - **Network:** the VM's security list allows inbound TCP 80 and 443 and UDP 443 from the internet, and SSH only from the Bastion. Only `caddy` publishes ports. `web`, `worker`, `postgres`, and `models` are reachable only on the Compose network.
 - **Uploads:** `.xlsx` only, at most 5 MB, parsed with row limits.
 - **Immutability is enforced in two places.**
-  - In the database, the application's role can't update or delete immutable tables, and triggers block changes to finished runs, published documents (and every delete of one), phase reviews, source resolutions, ready dataset versions, indexed documents, and finished drafts.
+  - In the database, the application's role can't update or delete immutable tables, and triggers block changes to finished runs, published documents (and every delete of one), report section versions, source resolutions, ready dataset versions, indexed documents, and finished drafts.
   - In Object Storage, the application's credentials can create and read objects but never overwrite or delete them. Published documents are not in Object Storage since 2026-09-27; they are in the database, behind the trigger above.
 - **Secrets** live in two root-only files on the VM, one for the application containers and one for `postgres` and its backups, never in the repository, images, or logs.
 - **Models run on the VM** and receive only public code text. No UPlan data goes to an external AI API.
@@ -510,7 +510,7 @@ A change that raises use of an allowance updates this table in the same change.
   - `accounts`: planners (everyone signed in) and UPlan staff, who approve profile changes.
   - `profiles`, `provenance`, `evidence`, `decisions`, `records`, and `operations`.
   - `analysis`: evidence base, screening and study flags, impact, and the source resolutions.
-  - `workflow`: phases, drafted outputs and reviews, the stage rail, Overview, dashboard summaries, finishing and research changes.
+  - `workflow`: phases, report sections and their versions, the stage rail, Overview, dashboard summaries, finishing and research changes.
   - `reports`: the document, its versions, and storage in the database, without sign-off.
   - The map workspace UI.
 - **Release 1 also builds `assist`** (F24), in waves: explain and find first, then questions and comparison, then staff drafts. It needs no worker and no container.

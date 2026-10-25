@@ -14,14 +14,14 @@ import { ConflictError, ValidationError } from "@/platform/errors";
 
 import { detailsDiffer, summarizeChanges } from "./changes";
 import { loadPhaseFacts } from "./facts";
-import { applicableResolutionsOf, buildPhaseViews, type PhaseView } from "./phases";
-import { listReviewsInternal } from "./reviews";
+import { applicableResolutionsOf } from "./phases";
+import { contentSha256, loadSectionViews, type PhaseView } from "./sections";
 import { detailsOf } from "./workflow";
 
 // TechDesign/research-changes.md, "Finishing research" and "Cancel" (F22 R1, R6, R7, R8). One transaction,
-// one lock: the decision row is held for the whole function, so an input write, a review, a second finish,
-// and a delete all wait, and the fingerprints and reviews are read inside the lock. What is published is
-// what was reviewed (R1, R8, R11).
+// one lock: the decision row is held for the whole function, so an input write, a section change, a second
+// finish, and a delete all wait, and the fingerprints and sections are read inside the lock. What is
+// published is what the planner had adopted at that moment (R1, R8, R11).
 
 const FinishInputSchema = z.object({
   changeNote: z
@@ -66,15 +66,14 @@ export async function finishResearch(actor: Actor, decisionId: string, input: Fi
       throw new ValidationError("The analysis for the current inputs hasn't finished. Try again when it has.");
     }
 
-    const reviews = await listReviewsInternal(decisionId);
-    const views = buildPhaseViews(facts, reviews);
-    const notReviewed = views.filter((v) => v.state.kind !== "reviewed");
-    if (notReviewed.length > 0) throw new ValidationError(`Review ${listNames(notReviewed)} first.`); // R1
+    const views = await loadSectionViews(decisionId, facts, tx);
+    const notReady = views.filter((v) => v.state.kind !== "ready");
+    if (notReady.length > 0) throw new ValidationError(`Update ${listNames(notReady)} to the current analysis first.`); // R1
 
     const base = await getLatestReleasedSnapshot(tx, decisionId);
     const details = detailsOf(decision, usesSampleData);
     if (base) {
-      const changes = summarizeChanges(views, base, details);
+      const changes = summarizeChanges(views, base.snapshot, base.versionNumber, details);
       if (!changes.hasChanges) {
         throw new ConflictError(`Nothing has changed since version ${base.versionNumber}. Cancel the research change instead.`); // R6
       }
@@ -86,19 +85,20 @@ export async function finishResearch(actor: Actor, decisionId: string, input: Fi
       details,
       runId: facts.run.id,
       profileVersionId: facts.run.profileVersionId,
-      phases: views.map((view) => {
-        const review = view.state.kind === "reviewed" ? view.state.review : null;
-        if (!review || !view.output) throw new Error(`phase ${view.phase} is reviewed but has no review or output`);
-        const before = base?.snapshot.phases.find((p) => p.phase === view.phase);
+      sections: views.map((view) => {
+        if (view.state.kind !== "ready" || !view.output) throw new Error(`phase ${view.phase} is ready but has no output`);
+        const content = view.state.content;
+        const hash = contentSha256(content);
+        const before = base?.snapshot.sections.find((s) => s.phase === view.phase);
         return {
           phase: view.phase,
-          contentSha256: view.output.contentSha256,
-          verdict: "reviewed",
-          note: review.note,
-          reviewedAt: review.reviewedAt.toISOString(),
-          reviewedByName: review.reviewedByName,
-          changed: before?.contentSha256 !== view.output.contentSha256,
-          summary: { templateVersion: review.summary.templateVersion, headline: view.output.headline, lines: view.output.lines },
+          sectionVersionNumber: view.state.version?.versionNumber ?? null,
+          contentSha256: hash,
+          outputSha256: view.state.version?.outputSha256 ?? view.output.contentSha256,
+          headline: content.headline,
+          lines: content.lines,
+          tables: content.tables,
+          changed: before?.contentSha256 !== hash,
         };
       }),
       resolutions: applicableResolutionsOf(facts.run.results, facts.resolutions).map((r) => ({
@@ -130,8 +130,8 @@ export async function cancelResearchChange(actor: Actor, decisionId: string, exp
     if (!base) throw new ValidationError("There is no published version to return to.");
 
     const { facts, usesSampleData } = await loadPhaseFacts(decision);
-    const views = buildPhaseViews(facts, await listReviewsInternal(decisionId));
-    if (summarizeChanges(views, base, detailsOf(decision, usesSampleData)).hasChanges) {
+    const views = await loadSectionViews(decisionId, facts, tx);
+    if (summarizeChanges(views, base.snapshot, base.versionNumber, detailsOf(decision, usesSampleData)).hasChanges) {
       throw new ConflictError("This research change has changes in it. Finish it, or change the inputs again.");
     }
     await restoreCompleted(tx, decisionId);

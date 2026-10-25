@@ -7,8 +7,6 @@ import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
-import { recordReviewAction } from "../actions";
-import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
 
 // A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
@@ -21,14 +19,12 @@ export const maxDuration = 60;
 // (charter, Pilot context). So the page never says a study is not needed — only that mapped data doesn't flag it.
 export default async function StudiesPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { actor, workflow: w } = await loadProject(projectId);
+  const { workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "studies");
   const { run, rules } = w.facts;
-  const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="studies" />;
-  const assist = <PhaseAssist projectId={projectId} phase="studies" actor={actor} workflow={w} group={model.group} />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
+  if (!run || !rules) return <PhasePage model={model} intro={intro} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -86,7 +82,7 @@ export default async function StudiesPage({ params }: { params: Promise<{ projec
   const gaps = run.results.evidenceBase.gaps;
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
+    <PhasePage model={model} intro={intro}>
       <Accordion
         group={model.group}
         title="Studies named in the city's profile"

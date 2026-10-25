@@ -111,9 +111,9 @@ function SourceItem({
   // profile_source_url_shape guarantees a web source has an address; a row without one is a defect to surface.
   if (isWeb && source.url === null) throw new Error(`web source ${source.id} has no address`);
   return (
-    <li className="flex items-start gap-2 rounded-xl border border-line bg-surface p-3 has-[details[open]]:border-accent-green/50">
+    <li className="flex items-start gap-2 rounded-xl border border-line bg-surface p-3 transition-[border-color,background-color] duration-200 hover:border-line-strong has-[details[open]]:border-accent-green/50">
       <details className="group min-w-0 flex-1">
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-3 rounded transition-colors duration-150 [&::-webkit-details-marker]:hidden">
           <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${isWeb ? "bg-info-soft text-info" : "bg-brand-soft text-brand"}`}>
             <Icon name={isWeb ? "link" : "spreadsheet"} />
           </span>
@@ -126,7 +126,7 @@ function SourceItem({
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
             <Icon name="pencil" />
             Edit
-            <Icon name="chevron-down" className="transition-transform group-open:rotate-180" />
+            <Icon name="chevron-down" className="transition-transform duration-300 group-open:rotate-180" />
           </span>
         </summary>
 

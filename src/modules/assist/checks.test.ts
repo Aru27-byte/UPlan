@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ProfileDocument } from "@/modules/profiles";
 
 import { checkOutput, normalizeForQuote, verdictWordIn } from "./checks";
-import { ASSISTS } from "./kinds";
+import { ASSISTS, SECTION_ASSISTS, type AssistDef, type SectionAssistKind } from "./kinds";
 import { AssistRequestSchema, type AssistRequest } from "./request";
 
 // F24 R4–R6, R16: every way a model's output can be wrong is rejected, and the rejection names the check.
@@ -34,6 +34,33 @@ const questionsRequest = request({ assistId: "SC2", kind: "questions" });
 
 const run = (assistId: keyof typeof ASSISTS, req: AssistRequest, answer: unknown, baseDocument: ProfileDocument | null = null) =>
   checkOutput({ assist: ASSISTS[assistId], request: req, rawText: typeof answer === "string" ? answer : JSON.stringify(answer), baseDocument });
+
+function sectionDef(kind: SectionAssistKind, phase: AssistDef["phase"] = "screening"): AssistDef {
+  const def = SECTION_ASSISTS[kind];
+  return { id: kind, phase, kind, wave: 1, label: "", staff: false, subject: "phase", promptVersion: def.promptVersion, task: def.task, maxWords: def.maxWords, schema: def.schema };
+}
+
+const runSection = (kind: SectionAssistKind, req: AssistRequest, answer: unknown, phase: AssistDef["phase"] = "screening") =>
+  checkOutput({ assist: sectionDef(kind, phase), request: req, rawText: typeof answer === "string" ? answer : JSON.stringify(answer), baseDocument: null });
+
+const SECTION = {
+  headline: "Screening results",
+  lines: ["Wetlands are mapped in the study area."],
+  tables: [{ key: "screening", caption: null, columnOrder: ["resourceType", "finding", "source", "confidence"] }],
+};
+
+const sectionRequest = (assistId: "section-explain" | "section-edit") =>
+  request({
+    assistId,
+    kind: assistId,
+    passages: [
+      { id: "section:0", label: "The section's headline", text: SECTION.headline },
+      { id: "section:1", label: "A line of the section", text: SECTION.lines[0] ?? "" },
+    ],
+    section: SECTION,
+    instruction: "Make the second line plainer.",
+    tableFormats: [{ key: "screening", columns: ["resourceType", "finding", "source", "confidence"] }],
+  });
 
 const failedCheck = (r: ReturnType<typeof run>) => (r.ok ? null : r.failures[0]?.check);
 
@@ -243,6 +270,72 @@ describe("R7: rule drafts (K8)", () => {
 
   it("R7: a draft without the profile it was made against is rejected, never guessed at", () => {
     expect(failedCheck(run("PR1", req, change({}), null))).toBe("K8");
+  });
+});
+
+describe("R7/R19: section chat (K9)", () => {
+  it("R19: section-explain accepts a quoted line of the section", () => {
+    const r = runSection("section-explain", sectionRequest("section-explain"), {
+      paragraphs: [{ text: "The section states where wetlands are mapped.", quotes: [{ sourceId: "section:1", text: "Wetlands are mapped in the study area." }] }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("R19: section-explain rejects a quote that is not in the section", () => {
+    const r = runSection("section-explain", sectionRequest("section-explain"), {
+      paragraphs: [{ text: "The section states where wetlands are mapped.", quotes: [{ sourceId: "section:1", text: "Wetlands cover half the site." }] }],
+    });
+    expect(failedCheck(r)).toBe("K2");
+  });
+
+  it("R19: K7 applies the 150-word paragraph cap to section-explain", () => {
+    const long = Array.from({ length: 200 }, () => "word").join(" ");
+    const r = runSection("section-explain", sectionRequest("section-explain"), { paragraphs: [{ text: long, quotes: [] }] });
+    expect(failedCheck(r)).toBe("K7");
+  });
+
+  it("R7: K9 accepts a new caption and a reordered column list", () => {
+    const r = runSection("section-edit", sectionRequest("section-edit"), {
+      headline: "Screening results",
+      lines: ["Wetlands are mapped in the study area."],
+      tables: [{ key: "screening", caption: "Screening register", columnOrder: ["confidence", "source", "finding", "resourceType"] }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("R7: K9 rejects a column list that drops a provenance column", () => {
+    const r = runSection("section-edit", sectionRequest("section-edit"), {
+      headline: "Screening results",
+      lines: ["Wetlands are mapped in the study area."],
+      tables: [{ key: "screening", caption: null, columnOrder: ["resourceType", "finding", "source"] }],
+    });
+    expect(failedCheck(r)).toBe("K9");
+  });
+
+  it("R7: K9 rejects a table the section does not have", () => {
+    const r = runSection("section-edit", sectionRequest("section-edit"), {
+      headline: "Screening results",
+      lines: ["Wetlands are mapped in the study area."],
+      tables: [{ key: "resolutions", caption: null, columnOrder: ["resourceType", "sources", "reliedOn", "reason", "recordedBy"] }],
+    });
+    expect(failedCheck(r)).toBe("K9");
+  });
+
+  it("R7: a section change belongs to a research phase, never the profile", () => {
+    const r = runSection("section-edit", sectionRequest("section-edit"), {
+      headline: "Screening results",
+      lines: ["Wetlands are mapped in the study area."],
+    }, "profile");
+    expect(failedCheck(r)).toBe("K9");
+  });
+
+  it("R7: K1 rejects a section change with an extra key", () => {
+    const r = runSection("section-edit", sectionRequest("section-edit"), {
+      headline: "Screening results",
+      lines: ["Wetlands are mapped in the study area."],
+      recommendation: "approve",
+    });
+    expect(failedCheck(r)).toBe("K1");
   });
 });
 

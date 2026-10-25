@@ -10,7 +10,7 @@
 
 The Overview and the stage rail are a read model over records that already exist. They need one new module, because they combine `decisions`, `analysis`, `profiles`, and `reports`, and `analysis` and `reports` already import `decisions`. Putting the combination in any of those four would make an import cycle.
 
-_Revised 2026-09-27:_ the module owns one table, `phase_review` (F21), so it is no longer read-only. Step states are still derived, never stored; the reviews are the planner's own records that the derivation reads. The routes are under `projects/[projectId]`, and the module list, the review states, and the phase pages are in [research-phases.md](research-phases.md).
+_Revised 2026-09-27:_ the module owns one table (F21), so it is no longer read-only. _Revised 2026-10-22:_ that table is `report_section_version`; the review states are replaced by section states. Step states are still derived, never stored; the section versions are the planner's own records that the derivation reads. The routes are under `projects/[projectId]`, and the module list, the section states, and the phase pages are in [research-phases.md](research-phases.md).
 
 **Rejected:** doing the combination in the route or layout. Step states and next actions are domain rules, and `file-structure-and-imports.md` keeps domain rules out of `src/app/`.
 
@@ -19,12 +19,12 @@ _Revised 2026-09-27:_ the module owns one table, `phase_review` (F21), so it is 
 ## Module
 
 ```
-src/modules/workflow/          owns phase_review (F21)
+src/modules/workflow/          owns report_section_version (F21)
   index.ts                     getWorkflow, and the F21/F22 functions
   workflow.ts                  getWorkflow: loads the facts, calls the pure functions
   steps.ts                     deriveSteps(facts): StepState[]        — pure
   next-actions.ts              deriveNextActions(facts): NextAction[] — pure
-  (phases, drafting, reviews, finish, summaries: see research-phases.md and research-changes.md)
+  (phases, sections, drafting, finish, summaries: see research-phases.md and research-changes.md)
   *.test.ts
 ```
 
@@ -98,12 +98,12 @@ export type StepKey =
   | "impact"
   | "report";
 export type StepState =
-  | { step: PhaseKey; state: ReviewState }                                   // the six phases (research-phases.md)
+  | { step: PhaseKey; state: SectionState }                                  // the six phases (research-phases.md)
   | { step: "overview"; state: "recorded" | "needs-attention" }
   | { step: "report"; state: "not-ready" | "ready" | "generating" | "published"; latestVersion: number | null };
 
 export type WorkflowFacts = {
-  phases: PhaseView[];             // research-phases.md: outputs, review states, history
+  phases: PhaseView[];             // research-phases.md: outputs, section states, versions
   filedOn: string | null;
   vestingRuleSetExists: boolean;
   status: AnalysisStatus;
@@ -119,8 +119,8 @@ The rules, one per step:
 | Step | State |
 | --- | --- |
 | Overview | _Needs attention_ when a vesting rule set exists and the filing date is missing; otherwise _Recorded_ |
-| Site … Impact | The phase's `ReviewState` (research-phases.md R5): _To do_, _Updating_, _Needs review_, _Reviewed_, or _Revision requested_. A failed analysis shows _Needs attention_ on the analysis phases |
-| Report | _Generating_ while `finishing`; _Version N published_ when completed; _Ready to finish_ when every phase is _Reviewed_ and the analysis is current; otherwise _Not ready_ |
+| Site … Impact | The phase's `SectionState` (research-phases.md R5): _To do_, _Updating_, _Ready_, or _Out of date_. A failed analysis shows _Needs attention_ on the analysis phases |
+| Report | _Generating_ while `finishing`; _Version N published_ when completed; _Ready to finish_ when every phase's section is _Ready_ and the analysis is current; otherwise _Not ready_ |
 
 A step whose analysis is `out-of-date`, `running`, or `failed` shows the analysis status beside its state rather than changing its own state (R7). Nothing in `steps.ts` returns a state named done, complete, clear, or approved (R2).
 
@@ -132,27 +132,27 @@ A step whose analysis is `out-of-date`, `running`, or `failed` shows the analysi
 // next-actions.ts — pure; the array order is the priority order
 export type NextAction = { step: StepKey; key: NextActionKey; count?: number };
 
-// A phase "needs work" while its state is needs-review or revision-requested (research-phases.md).
+// A phase needs an update while its stored section is out of date (research-phases.md R5).
 const RULES: { key: NextActionKey; step: StepKey; when: (f: WorkflowFacts) => number | boolean }[] = [
   { key: "finish-generating", step: "report", when: (f) => f.decisionStatus === "finishing" },
   { key: "draw-study-area", step: "site", when: (f) => stateOf(f, "site") === "to-do" },
   { key: "record-filing-date", step: "overview", when: (f) => f.vestingRuleSetExists && f.filedOn === null },
   { key: "review-failed-analysis", step: "overview", when: (f) => f.status.kind === "failed" },
   { key: "wait-for-analysis", step: "overview", when: (f) => f.status.kind === "running" || f.status.kind === "out-of-date" },
-  { key: "review-site", step: "site", when: (f) => needsReview(f, "site") },
-  { key: "review-evidence", step: "evidence", when: (f) => needsReview(f, "evidence") },
-  { key: "review-disagreements", step: "evidence", when: (f) => f.unresolvedDisagreements },
-  { key: "review-screening", step: "screening", when: (f) => needsReview(f, "screening") },
-  { key: "review-studies", step: "studies", when: (f) => needsReview(f, "studies") },
+  { key: "update-section", step: "site", when: (f) => stateOf(f, "site") === "out-of-date" },
+  { key: "update-section", step: "evidence", when: (f) => stateOf(f, "evidence") === "out-of-date" },
+  { key: "resolve-disagreements", step: "evidence", when: (f) => f.unresolvedDisagreements },
+  { key: "update-section", step: "screening", when: (f) => stateOf(f, "screening") === "out-of-date" },
+  { key: "update-section", step: "studies", when: (f) => stateOf(f, "studies") === "out-of-date" },
   { key: "trace-footprint", step: "footprint", when: (f) => stateOf(f, "site") !== "to-do" && stateOf(f, "footprint") === "to-do" },
-  { key: "review-footprint", step: "footprint", when: (f) => needsReview(f, "footprint") },
-  { key: "review-impact", step: "impact", when: (f) => needsReview(f, "impact") },
-  { key: "finish-research", step: "report", when: (f) => f.decisionStatus === "in_progress" && allReviewed(f) },
+  { key: "update-section", step: "footprint", when: (f) => stateOf(f, "footprint") === "out-of-date" },
+  { key: "update-section", step: "impact", when: (f) => stateOf(f, "impact") === "out-of-date" },
+  { key: "finish-research", step: "report", when: (f) => f.decisionStatus === "in_progress" && allReady(f) },
   { key: "start-research-change", step: "report", when: (f) => f.decisionStatus === "report_released" },
 ];
 ```
 
-`NextActionKey` is a string literal union, and the label for each key is a fixed sentence in the route. The action list has no free-text field and takes no input from a model (R6). `stateOf`, `needsReview` (the state is _needs review_ or _revision requested_), and `allReviewed` are three small pure helpers over `facts.phases`. The dashboard's "Resume research" link goes to the first action's step (F20 R4).
+`NextActionKey` is a string literal union, and the label for each key is a fixed sentence in the route. The action list has no free-text field and takes no input from a model (R6). `stateOf` and `allReady` (every phase's section is _Ready_) are two small pure helpers over `facts.phases`. The dashboard's "Resume research" link goes to the first action's step (F20 R4).
 
 ## The Overview page (R4, R5, R8, R9, R11)
 

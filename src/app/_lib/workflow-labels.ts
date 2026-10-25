@@ -1,66 +1,34 @@
-import type { NextAction, PhaseKey, PhaseReview, PhaseView, StepState, Workflow } from "@/modules/workflow";
+import { contentSha256, sectionDiff } from "@/modules/workflow";
+import type { NextAction, PhaseView, SectionContent, StepState, Workflow } from "@/modules/workflow";
 import { formatTimestamp } from "@/modules/provenance";
 import type { AnalysisStatus, InputChange } from "@/modules/analysis";
-import type { StepGroup } from "@/ui/phase/group-tones";
-import type { PhaseViewModel } from "@/ui/phase/types";
+import type { Action, PhaseViewModel, ReportSectionModel, SectionVersionModel } from "@/ui/phase/types";
 import type { StatusTone } from "@/ui/status-label";
+
+import {
+  PHASE_TITLE,
+  STEP_GROUP,
+  STEP_TITLE,
+  projectHref,
+  publishedVersion,
+  sectionStateLabel,
+  type Labelled,
+} from "./workflow-client";
+
+export {
+  PHASE_TITLE,
+  STEP_GROUP,
+  STEP_TITLE,
+  projectHref,
+  publishedVersion,
+  sectionStateLabel,
+};
+export type { Labelled };
 
 // App-layer glue: the words the pages use for the workflow's states, in one place, so the rail, the
 // Overview, the dashboard, and every phase page say the same thing. Every label states a state and none
-// states a verdict: nothing here says done, complete, clear, safe, or approved (F18 R2, P2).
-
-export const PHASE_TITLE: Record<PhaseKey, string> = {
-  site: "Site",
-  evidence: "Evidence",
-  screening: "Screening",
-  studies: "Studies",
-  footprint: "Footprint",
-  impact: "Impact",
-};
-
-export const STEP_TITLE = { overview: "Overview", ...PHASE_TITLE, report: "Report" } as const;
-
-export const STEP_GROUP: Record<keyof typeof STEP_TITLE, StepGroup> = {
-  overview: "Set up",
-  site: "Set up",
-  evidence: "Assemble",
-  screening: "Analyze",
-  studies: "Analyze",
-  footprint: "Analyze",
-  impact: "Analyze",
-  report: "Report",
-};
-
-/** The number of the latest published version, for a page that only shows it once one exists. */
-export function publishedVersion(latestVersion: number | null): number {
-  if (latestVersion === null) throw new Error("a completed project has no published version");
-  return latestVersion;
-}
-
-export function projectHref(projectId: string, step: keyof typeof STEP_TITLE): string {
-  return `/projects/${projectId}/${step}`;
-}
-
-export type Labelled = { text: string; tone: StatusTone };
-
-/** The text and tone for a phase's review state (research-phases.md R5). */
-export function reviewStateLabel(state: PhaseView["state"]): Labelled & { kind: PhaseViewModel["state"]["kind"] } {
-  switch (state.kind) {
-    case "to-do":
-      return { kind: "to-do", text: "To do", tone: "neutral" };
-    case "updating":
-      // A failed or blocked analysis is not "updating": it needs the planner's eye (F18 R2).
-      return state.status.kind === "failed" || state.status.kind === "blocked"
-        ? { kind: "updating", text: "Needs attention", tone: "danger" }
-        : { kind: "updating", text: "Updating", tone: "info" };
-    case "needs-review":
-      return { kind: "needs-review", text: "Needs review", tone: "warn" };
-    case "reviewed":
-      return { kind: "reviewed", text: "Reviewed", tone: "ok" };
-    case "revision-requested":
-      return { kind: "revision-requested", text: "Revision requested", tone: "warn" };
-  }
-}
+// states a verdict: nothing here says done, complete, clear, safe, or approved (F18 R2, P2). A section is
+// To do, Updating, Ready, or Out of date (research-phases.md R5); there is no review verdict.
 
 export function stepLabel(step: StepState): Labelled {
   if (step.step === "overview") {
@@ -78,7 +46,7 @@ export function stepLabel(step: StepState): Labelled {
         return { text: step.latestVersion === null ? "Published" : `Version ${step.latestVersion} published`, tone: "info" };
     }
   }
-  return reviewStateLabel(step.state);
+  return sectionStateLabel(step.state);
 }
 
 /** The plain words for an analysis status (F18 R7). */
@@ -132,29 +100,32 @@ export const NEXT_ACTION_TEXT: Record<NextAction["key"], string> = {
   "record-filing-date": "Record the application's filing date in the project details.",
   "review-failed-analysis": "The analysis failed. Read its error, then change an input or ask UPlan staff.",
   "wait-for-analysis": "Wait for the analysis to finish.",
-  "review-site": "Review the Site output.",
-  "review-evidence": "Review the Evidence output.",
-  "review-disagreements": "Record which source you rely on where two sources disagree.",
-  "review-screening": "Review the Screening register.",
-  "review-studies": "Review the Studies output.",
+  "update-section": "Bring the section up to date with the current analysis.",
+  "resolve-disagreements": "Record which source you rely on where two sources disagree.",
   "trace-footprint": "Add the proposal's footprint: trace it, upload a boundary, or load the sample.",
-  "review-footprint": "Review the Footprint output.",
-  "review-impact": "Review the Impact output.",
-  "finish-research": "Every phase is reviewed. Finish research to publish the final document.",
+  "finish-research": "Every phase is ready. Finish research to publish the final document.",
   "start-research-change": "This project is completed. Start a research change to update it.",
 };
 
 const dateOf = (instant: Date, timeZone: string) => formatTimestamp(instant, timeZone);
 
-const VERDICT: Record<PhaseReview["verdict"], Labelled> = {
-  reviewed: { text: "Reviewed", tone: "ok" },
-  revision_requested: { text: "Revision requested", tone: "warn" },
-};
-
 const EMPTY_REASON = {
   "no-study-area": "This phase needs a study area. Add one on the Site page.",
   "no-footprint": "This phase needs a footprint. Add one on the Footprint page.",
 } as const satisfies Record<Extract<PhaseView["state"], { kind: "to-do" }>["reason"], string>;
+
+/** What the page shows: the Ready content, or the newest stored version when the analysis has moved past it. */
+export function shownSectionContent(state: PhaseView["state"]): SectionContent | null {
+  switch (state.kind) {
+    case "ready":
+      return state.content;
+    case "out-of-date":
+      return state.version.content;
+    case "to-do":
+    case "updating":
+      return state.version?.content ?? null;
+  }
+}
 
 /** Builds the plain shape a phase page renders from workflow's PhaseView, formatting every date here. */
 export function toPhaseViewModel(
@@ -163,17 +134,13 @@ export function toPhaseViewModel(
   changeLinks: PhaseViewModel["changeLinks"],
   inputs: PhaseViewModel["inputs"],
 ): PhaseViewModel {
-  const label = reviewStateLabel(view.state);
-  const timeZone = workflow.timeZone;
+  const label = sectionStateLabel(view.state);
   const readOnly = workflow.decisionStatus !== "in_progress";
   const analysis = analysisStatusText(workflow.facts.status);
 
   let emptyReason: string | null = null;
   if (!view.output) {
-    emptyReason =
-      view.state.kind === "to-do"
-        ? EMPTY_REASON[view.state.reason]
-        : `${analysis.text}. ${analysis.detail}`;
+    emptyReason = view.state.kind === "to-do" ? EMPTY_REASON[view.state.reason] : `${analysis.text}. ${analysis.detail}`;
   }
 
   return {
@@ -181,32 +148,103 @@ export function toPhaseViewModel(
     title: PHASE_TITLE[view.phase],
     group: STEP_GROUP[view.phase],
     state: { kind: label.kind, text: label.text, tone: label.tone },
-    output: view.output
-      ? { headline: view.output.headline, lines: view.output.lines, contentSha256: view.output.contentSha256 }
-      : null,
     emptyReason,
     inputs: inputs.length > 0 ? inputs : (view.output?.inputs ?? []),
     changeLinks,
-    changes:
-      view.changes && view.state.kind === "needs-review" && view.state.changedSince
-        ? { added: view.changes.added, removed: view.changes.removed, since: dateOf(view.state.changedSince.reviewedAt, timeZone) }
-        : null,
-    history: view.history.map((r) => ({
-      id: r.id,
-      verdictText: VERDICT[r.verdict].text,
-      tone: VERDICT[r.verdict].tone,
-      note: r.note,
-      by: r.reviewedByName,
-      at: dateOf(r.reviewedAt, timeZone),
-      headline: r.summary.headline,
-      lines: r.summary.lines,
-    })),
     readOnly,
-    readOnlyReason: !readOnly
-      ? null
-      : workflow.decisionStatus === "finishing"
-        ? "A document is being generated for this project, so nothing can change until it finishes."
-        : `Version ${publishedVersion(workflow.latestVersion)} is published. Start a research change on the Overview to review or edit this phase.`,
+    readOnlyReason: readOnlyReasonOf(workflow),
+  };
+}
+
+function readOnlyReasonOf(workflow: Workflow): string | null {
+  if (workflow.decisionStatus === "in_progress") return null;
+  return workflow.decisionStatus === "finishing"
+    ? "A document is being generated for this project, so nothing can change until it finishes."
+    : `Version ${publishedVersion(workflow.latestVersion)} is published. Start a research change on the Overview to edit this phase.`;
+}
+
+function versionSourceText(version: PhaseView["versions"][number]): string {
+  switch (version.source) {
+    case "analysis":
+      return "From the analysis";
+    case "ai":
+      return "Changed with UPlan Assist";
+    case "revert":
+      return version.sourceVersionNumber === null ? "Revert" : `Revert of version ${version.sourceVersionNumber}`;
+  }
+}
+
+/** The section panel's model: the shown content's hashes, the history, and the actions the page offers. */
+export function toReportSectionModel(
+  view: PhaseView | null,
+  workflow: Workflow,
+  step: keyof typeof STEP_TITLE,
+  actions: { revertAction?: Action; updateAction?: Action } = {},
+): ReportSectionModel {
+  const readOnly = workflow.decisionStatus !== "in_progress";
+  if (!view) {
+    return {
+      step,
+      group: STEP_GROUP[step],
+      stepTitle: STEP_TITLE[step],
+      state: null,
+      emptyReason: null,
+      versions: [],
+      changes: null,
+      draft: null,
+      contentSha256: null,
+      outputSha256: null,
+      readOnly: true,
+      readOnlyReason: null,
+      staleVersion: false,
+      editable: false,
+    };
+  }
+
+  const timeZone = workflow.timeZone;
+  const label = sectionStateLabel(view.state);
+  const analysis = analysisStatusText(workflow.facts.status);
+  const shown = shownSectionContent(view.state);
+  const emptyReason = view.output
+    ? null
+    : view.state.kind === "to-do"
+      ? EMPTY_REASON[view.state.reason]
+      : `${analysis.text}. ${analysis.detail}`;
+  const staleVersion =
+    view.state.kind === "out-of-date" || ((view.state.kind === "to-do" || view.state.kind === "updating") && view.state.version !== null);
+
+  const versions: SectionVersionModel[] = view.versions.map((version, index) => {
+    const previous = view.versions[index + 1];
+    return {
+      id: version.id,
+      versionNumber: version.versionNumber,
+      sourceText: versionSourceText(version),
+      instruction: version.instruction,
+      by: version.createdByName,
+      at: dateOf(version.createdAt, timeZone),
+      current: view.state.kind === "ready" && view.state.version?.id === version.id,
+      currentAnalysis: view.output !== null && version.outputSha256 === view.output.contentSha256,
+      changes: previous ? sectionDiff(previous.content, version.content) : null,
+    };
+  });
+
+  return {
+    step,
+    group: STEP_GROUP[view.phase],
+    stepTitle: STEP_TITLE[view.phase],
+    state: { kind: label.kind, text: label.text, tone: label.tone },
+    emptyReason,
+    versions,
+    changes: view.changes ? { added: view.changes.added, removed: view.changes.removed } : null,
+    draft: view.state.kind === "out-of-date" && view.output ? { headline: view.output.headline, lines: view.output.lines } : null,
+    contentSha256: shown ? contentSha256(shown) : null,
+    outputSha256: view.output?.contentSha256 ?? null,
+    readOnly,
+    readOnlyReason: readOnlyReasonOf(workflow),
+    staleVersion,
+    editable: view.output !== null && !readOnly,
+    revertAction: !readOnly && versions.length > 0 ? actions.revertAction : undefined,
+    updateAction: !readOnly && view.state.kind === "out-of-date" ? actions.updateAction : undefined,
   };
 }
 

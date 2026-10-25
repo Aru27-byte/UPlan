@@ -87,8 +87,8 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
                           <Link
                             href={stage.href}
                             aria-current={active ? "page" : undefined}
-                            className={`flex w-full min-w-0 flex-col gap-1.5 rounded-xl border px-3 py-2.5 ${
-                              active ? "border-accent-green bg-raised shadow-glow" : "border-line bg-page/60 hover:border-line-strong hover:bg-raised"
+                            className={`group flex w-full min-w-0 flex-col gap-1.5 rounded-xl border px-3 py-2.5 transition-[transform,border-color,background-color,box-shadow] duration-200 motion-safe:hover:-translate-y-0.5 ${
+                              active ? "border-accent-green bg-raised shadow-glow" : "border-line bg-page/60 hover:border-line-strong hover:bg-raised hover:shadow-panel"
                             }`}
                           >
                             <span
@@ -96,7 +96,7 @@ export function StageRail({ stages }: { stages: RailStage[] }) {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold text-ink ${tone.bar}`}
+                                className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold text-ink transition-transform duration-200 motion-safe:group-hover:scale-110 ${tone.bar}`}
                               >
                                 {number}
                               </span>

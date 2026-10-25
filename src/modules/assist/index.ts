@@ -6,7 +6,11 @@ export {
   ASSISTS,
   ASSIST_IDS,
   AssistIdSchema,
+  SECTION_ASSISTS,
+  SECTION_ASSIST_KINDS,
+  StoredAssistIdSchema,
   assistsByPhase,
+  isSectionAssistKind,
 } from "./kinds";
 export type {
   AssistDef,
@@ -20,6 +24,10 @@ export type {
   CompareChecklistContent,
   MetadataDraftContent,
   RuleDraftContent,
+  SectionAssistKind,
+  SectionExplainContent,
+  SectionEditContent,
+  StoredAssistId,
   SuggestionContent,
 } from "./kinds";
 
@@ -33,13 +41,23 @@ export {
   listCitySuggestions,
   listPhaseSuggestions,
   metadataBinding,
+  requestSectionSuggestion,
   requestSuggestion,
   respondToSuggestion,
 } from "./run";
-export type { SuggestionView, SuggestionRequestInput, ConfirmRuleInput } from "./run";
+export type { SuggestionView, SuggestionRequestInput, SectionRequestInput, ConfirmRuleInput } from "./run";
 
 export { MAX_DOCUMENT_CHARS, addSourceDocument, indexedTextHash, listSourceDocuments } from "./documents";
 export type { SourceDocumentSummary, NewDocument } from "./documents";
 
 export type { CheckFailure } from "./checks";
 export type { Quote } from "./kinds";
+
+export { chatMessage } from "./tables";
+export { saveChatMessage, listChatMessages } from "./chat";
+export type { ChatMessage } from "./chat";
+
+export { scanDocument } from "./scan";
+export type { ExtractedFields } from "./scan";
+
+export { answerDashboardQuestion } from "./dashboard";

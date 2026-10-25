@@ -25,7 +25,7 @@ export default function HelpPage() {
         </p>
       </Panel>
 
-      <Panel title="A project moves through six phases" description="Each phase has a drafted output. You review it, or change what it is drafted from and read the new draft.">
+      <Panel title="A project moves through six phases" description="Each phase produces a section of the final document. You change what it is drafted from, or ask the section chat for a change, and read the new draft.">
         <ol className="flex flex-col gap-3 text-sm">
           {PHASES.map(([name, text], index) => (
             <li key={name} className="flex gap-3">
@@ -38,19 +38,19 @@ export default function HelpPage() {
         </ol>
       </Panel>
 
-      <Panel title="Drafted output and your review">
+      <Panel title="Sections you can change">
         <ul className="flex max-w-prose list-disc flex-col gap-2 pl-5 text-sm text-text">
-          <li>UPlan&apos;s analysis engine drafts each phase from measurements, using fixed templates. No language model writes it, and a draft never states an opinion about the development.</li>
-          <li>A review records that you read that exact output. If an input changes and the output changes, the phase asks for a new review; an output that didn&apos;t change keeps its review.</li>
-          <li>To ask for a change, choose “Request a revision”, say what needs work, change an input, and read the new draft.</li>
-          <li>A review is your own record. It is not sign-off, and it says nothing about the development.</li>
+          <li>UPlan&apos;s analysis engine drafts each section from measurements, using fixed templates. No language model writes it, and a draft never states an opinion about the development.</li>
+          <li>A section is <span className="font-semibold">Ready</span> when its stored wording was built on the current analysis. If an input changes, its section becomes <span className="font-semibold">Out of date</span>: update it to the current analysis, or revert to an earlier version. Every version stays in the history.</li>
+          <li>The section chat can explain a section, or change its narrative. Figures, maps, tables, and quoted text stay as they are. A change stores a new version you can revert.</li>
+          <li>A section is not a sign-off, and it says nothing about the development.</li>
         </ul>
       </Panel>
 
       <Panel title="Finishing, and changing finished research">
         <ul className="flex max-w-prose list-disc flex-col gap-2 pl-5 text-sm text-text">
-          <li><span className="font-semibold">Finish research</span> is available once every phase is reviewed. UPlan generates one final document, stores it with its hash, and numbers it version 1.</li>
-          <li>A published version never changes. To update completed research, choose <span className="font-semibold">Re-research</span>: upload new data, or go to any phase and change what feeds it. UPlan then shows what your change touched and asks you to review only those phases.</li>
+          <li><span className="font-semibold">Finish research</span> is available once every section is ready and the analysis is current. UPlan generates one final document, stores it with its hash, and numbers it version 1.</li>
+          <li>A published version never changes. To update completed research, choose <span className="font-semibold">Re-research</span>: upload new data, or go to any phase and change what feeds it. UPlan then shows what your change touched; update only the sections that went out of date.</li>
           <li>Finishing a research change publishes the next version with your reason. Every version stays in the history, each with what changed and its own download.</li>
           <li><span className="font-semibold">Delete research</span> removes a project from your lists. UPlan keeps its records.</li>
         </ul>

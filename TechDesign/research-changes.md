@@ -1,14 +1,14 @@
 # TechDesign — Research Changes and Document Versions
 
 **Feature:** F22 · `workflow` + `reports` + `decisions`
-**Status:** Draft
+**Status:** Draft — revised 2026-10-22: a change is measured against versioned report sections, not phase reviews
 **Requirements:** [Requirements/research-changes.md](../Requirements/research-changes.md) (R1–R12)
 **Builds on:** [locked-report.md](locked-report.md) (F10), [research-phases.md](research-phases.md) (F21), [decisions.md](decisions.md) (F5), [decision-overview.md](decision-overview.md) (F18), [system-architecture.md](system-architecture.md) (_Concurrency and consistency_, J-table)
 **Release:** 1
 
 ## Approach
 
-A project's life is a small state machine on `decision.status`, and every transition is one compare-and-set. A completed project changes by moving back to `in_progress`; the phases then say which of their outputs differ from the last published version, by comparing fingerprints (F21) with the ones stored in that version. Finishing again inserts a new `report` row with the next version number. Nothing about an earlier version is touched.
+A project's life is a small state machine on `decision.status`, and every transition is one compare-and-set. A completed project changes by moving back to `in_progress`; the phases then say which of their sections differ from the last published version, by comparing the current section's content hash (F21) with the one stored in that version. Finishing again inserts a new `report` row with the next version number. Nothing about an earlier version is touched.
 
 ```
                  finishResearch                    job succeeds
@@ -67,11 +67,15 @@ export const ReportSnapshotSchema = z.object({
   }),
   runId: z.uuid(),
   profileVersionId: z.uuid(),
-  phases: z.array(z.object({
-    phase: z.enum(PHASE_KEYS), contentSha256: z.string(), verdict: z.literal("reviewed"),
-    note: z.string().nullable(), reviewedAt: z.iso.datetime(), reviewedByName: z.string(),
-    changed: z.boolean(),                        // differs from the previous version's fingerprint (always true for version 1)
-    summary: z.object({ templateVersion, headline: z.string(), lines: z.array(z.string()) }), // the drafted output as it was reviewed
+  sections: z.array(z.object({
+    phase: z.enum(PHASE_KEYS),
+    sectionVersionNumber: z.number().int().positive().nullable(), // null when the analysis draft was used
+    contentSha256: z.string(),                   // the section content the document prints
+    outputSha256: z.string(),                    // the engine fingerprint it was built on
+    headline: z.string(),
+    lines: z.array(z.string()),
+    tables: z.array(z.object({ key: z.string(), caption: z.string().nullable(), columnOrder: z.array(z.string()) })),
+    changed: z.boolean(),                        // differs from the previous version's content (always true for version 1)
   })).length(6),
   resolutions: z.array(z.object({ resourceType, mappedBy, notMappedBy, revision })), // the recorded reasoning that applied (F19 R12)
   previousVersion: z.number().int().positive().nullable(),
@@ -79,7 +83,7 @@ export const ReportSnapshotSchema = z.object({
 });
 ```
 
-`reviewedByName` is copied, so a later change to a person's name can't change a published record. `PHASE_KEYS` is a literal tuple in `reports`, and a unit test asserts it equals `workflow`'s `PHASES`, so `reports` needn't import `workflow` (which imports `reports`).
+The snapshot copies each section's content, so a later edit to a section version can't change a published document; no id or name is read at render time. `PHASE_KEYS` is a literal tuple in `reports`, and a unit test asserts it equals `workflow`'s `PHASES`, so `reports` needn't import `workflow` (which imports `reports`).
 
 `decision` gains `finishing` in its status check (see `decisions.md`).
 
@@ -103,7 +107,7 @@ export async function reopen(actor: Actor, decisionId: string, expectedRowVersio
 
 The enqueue is in the same transaction. The `run_analysis` job key collapses it with any pending one, and a run whose inputs are unchanged is a no-op (F7 R8).
 
-`lockEditableDecision(tx, actor, id)` is the guard every input write and every review takes. It selects the decision `for update`, requires the actor to own it and it not be deleted, and requires `status = 'in_progress'`. Otherwise it throws `ConflictError`: "This project is completed. Start a research change to edit it." for `report_released`, and "A document is being generated. Try again when it finishes." for `finishing` (R3, R8).
+`lockEditableDecision(tx, actor, id)` is the guard every input write and every section write takes. It selects the decision `for update`, requires the actor to own it and it not be deleted, and requires `status = 'in_progress'`. Otherwise it throws `ConflictError`: "This project is completed. Start a research change to edit it." for `report_released`, and "A document is being generated. Try again when it finishes." for `finishing` (R3, R8).
 
 ## What changed (R5)
 
@@ -111,20 +115,19 @@ The enqueue is in the same transaction. The `run_analysis` job key collapses it 
 // workflow/changes.ts — pure
 export type ChangeSummary = {
   baseVersion: number;
-  phases: { phase: PhaseKey; changed: boolean; reviewedAtCurrentOutput: boolean }[];
+  phases: { phase: PhaseKey; changed: boolean; ready: boolean }[];
   detailsChanged: boolean;
   hasChanges: boolean;                      // any phase changed or the details changed
 };
 export function summarizeChanges(
-  outputs: Partial<Record<PhaseKey, PhaseOutput>>,
-  reviews: Partial<Record<PhaseKey, ReviewState>>,
+  views: PhaseView[],                       // the current sections (F21)
   base: ReportSnapshot,
   baseVersion: number,
   currentDetails: ReportSnapshot["details"],
 ): ChangeSummary;
 ```
 
-A phase is `changed` when its output is absent (it is being recomputed) or its fingerprint differs from `base.phases[phase].contentSha256`. Details are compared field by field. The base is the highest released version. With no released version there is no change summary, and the project is simply being researched for the first time.
+A phase is `changed` when its current section content hash differs from the one stored in `base.sections[phase]` (or there is no current section). It is `ready` when its section state is Ready. Details are compared field by field. The base is the highest released version. With no released version there is no change summary, and the project is simply being researched for the first time. A phase whose section is unchanged keeps its version and needs no edit (R5).
 
 ## Finishing research (R1, R6, R8)
 
@@ -138,13 +141,12 @@ export async function finishResearch(actor: Actor, decisionId: string, input: {
     if (d.rowVersion !== input.expectedRowVersion) throw new ConflictError("This project changed since you loaded the page. Reload and check it again.");
     const facts = await loadPhaseFacts(tx, d);
     if (facts.status.kind !== "current" || !facts.run) throw new ValidationError("The analysis for the current inputs hasn't finished.");
-    const outputs = derivePhaseOutputs(facts);
-    const reviews = await loadLatestReviewsFor(tx, decisionId, outputs);   // newest review at each output's fingerprint
-    const unreviewed = PHASES.filter((p) => !outputs[p] || reviews[p]?.verdict !== "reviewed");
-    if (unreviewed.length > 0) throw new ValidationError(`Review ${listNames(unreviewed)} first.`);         // R1
+    const sections = await loadSectionViews(tx, d, facts);                 // newest version per phase, or the analysis draft
+    const notReady = sections.filter((v) => v.state.kind !== "ready").map((v) => v.phase);
+    if (notReady.length > 0) throw new ValidationError(`Update ${listNames(notReady)} to the current analysis first.`); // R1
 
     const base = await getLatestReleasedSnapshot(tx, decisionId);          // reports, or null
-    const changes = base ? summarizeChanges(outputs, reviews, base.snapshot, base.versionNumber, detailsOf(d)) : null;
+    const changes = base ? summarizeChanges(sections, base.snapshot, base.versionNumber, detailsOf(d)) : null;
     if (changes && !changes.hasChanges) throw new ConflictError(`Nothing has changed since version ${base.versionNumber}. Cancel the research change instead.`); // R6
     const note = input.changeNote?.trim() || null;
     if (base && note === null) throw new ValidationError("Give a short reason for this version.");             // R6
@@ -155,7 +157,7 @@ export async function finishResearch(actor: Actor, decisionId: string, input: {
 }
 ```
 
-- **One transaction, one lock.** The decision row is locked for the whole function, so an input write, a review, a second finish, and a delete all wait. The fingerprints and reviews are read inside the lock, so what is published is what was reviewed (R1, R8, R11).
+- **One transaction, one lock.** The decision row is locked for the whole function, so an input write, a section change, a second finish, and a delete all wait. The section contents and their hashes are read inside the lock, so what is published is what the planner saw (R1, R8, R11).
 - `requestFinalDocument` (in `reports`) inserts the `releasing` row with `sequence_number = max + 1` and enqueues `release_report` with `max_attempts = 3` on the queue `decision:<id>`, in the same transaction (concurrency rules). A crash between the two is impossible: they commit together.
 - The database, not the check above, is the last guard for R2: the unique index on `(decision_id, version_number)`, and the status compare-and-set that lets one finish through.
 
@@ -192,7 +194,7 @@ export async function markReportFailed(reportId: string, message: string): Promi
 
 **Pinning (R11).** `renderReportHtml(row)` reads only: the run named by `row.analysis_run_id`; the geometry revisions the run recorded (`study_area_revision`, `footprint_revision`), not "the latest"; the profile version named by the snapshot; and the snapshot. It no longer calls `getCurrentProfileForAnalysis` or `getLatestGeometryInternal`, which the first version used and which could disagree with the run after a later change (P3). The document is deterministic given the row, so a retry produces the same content.
 
-**The document (R10).** The React tree gains, in this order: a cover block (title, city, version number, published time in the city's zone, profile version, project details, the sample-data banner when `details.usesSampleData`); for a later version, a **What changed** block (the reason, the phases and details that changed); then the existing sections (study area and footprint map, evidence base, screening register, study flags, impact, what desk analysis can't see) each led by its phase's drafted summary; the recorded resolutions (F10 R14); and a closing **Review record** table (phase, verdict, reviewer, time, note, fingerprint). Version, time, and reviewer text come from the snapshot and row, never from a clock at render time.
+**The document (R10).** The React tree gains, in this order: a cover block (title, city, version number, published time in the city's zone, profile version, project details, the sample-data banner when `details.usesSampleData`, and a **Built from** line with each phase's section version number); for a later version, a **What changed** block (the reason, the phases and details that changed); then the existing sections (study area and footprint map, evidence base, screening register, study flags, impact, what desk analysis can't see), each led by its section's stored headline and narrative and, where it has one, its stored table caption and column order; and the recorded resolutions (F10 R14). There is no review record: the section version is the record. Version and time come from the snapshot and row, never from a clock at render time.
 
 ## Downloading and history (R9, R12)
 
@@ -208,24 +210,24 @@ Both call `getDecision` first, so a non-owner gets `NotFoundError` (F11). The li
 
 ## Pages
 
-- **Report (`projects/[id]/report`).** For an in-progress project: a checklist of the six phases with their review states, a change block when a version exists (R5), the reason field (required after version 1), and the **Finish research — publish version N** button, disabled with the reason when a phase is unreviewed or the analysis isn't current. For a completed project: the latest version's card with **Download**, its hash and size, and **Start a research change**. Below both, the version history table (R9). While `finishing`, a status panel with an automatic refresh (`router.refresh()` every 3 seconds while the status is `finishing`) and no actions.
-- **Overview.** For a completed project, a banner and the same **Start a research change** button; for an open change, the change summary and **Cancel research change** when nothing changed (R7). The start button opens `ConfirmDialog`: "Start a research change to version {n}? Version {n} stays available and unchanged. You will review each phase your change affects, then publish version {n+1}." It offers a starting point: _Go to Overview_, _Upload a new site boundary_, _Upload a new footprint_, or a phase, all of which start the change first, then navigate (R4).
-- **Phase pages** on a completed project show the notice "Version {n} is published. Start a research change to edit this phase." in place of the editors and the review panel.
+- **Report (`projects/[id]/report`).** For an in-progress project: a checklist of the six phases with their section states and whether each section changed, a change block when a version exists (R5), the reason field (required after version 1), and the **Finish research — publish version N** button, disabled with the reason when a phase is not Ready or the analysis isn't current. For a completed project: the latest version's card with **Download**, its hash and size, and **Start a research change**. Below both, the version history table (R9). While `finishing`, a status panel with an automatic refresh (`router.refresh()` every 3 seconds while the status is `finishing`) and no actions.
+- **Overview.** For a completed project, a banner and the same **Start a research change** button; for an open change, the change summary and **Cancel research change** when nothing changed (R7). The start button opens `ConfirmDialog`: "Start a research change to version {n}? Version {n} stays available and unchanged. You will update each phase your change affects, then publish version {n+1}." It offers a starting point: _Go to Overview_, _Upload a new site boundary_, _Upload a new footprint_, or a phase, all of which start the change first, then navigate (R4).
+- **Phase pages** on a completed project show the notice "Version {n} is published. Start a research change to edit this phase." in place of the editors and the section chat.
 
 ## Requirement coverage
 
 | Req | Satisfied by | Notes |
 | --- | --- | --- |
-| R1 | `finishResearch`, `requestFinalDocument`, `report.pdf` and `pdf_sha256` | Reviews and analysis checked inside the lock |
+| R1 | `finishResearch`, `requestFinalDocument`, `report.pdf` and `pdf_sha256` | Sections and analysis checked inside the lock |
 | R2 | `version_number` assigned at release, unique index, immutability trigger | No gaps; a failed attempt takes no number |
 | R3 | `reopen`, `lockEditableDecision` | Explicit start; every write refused otherwise |
 | R4 | The start dialog's starting points; editors work once in progress | Upload, sample, details, resolutions |
-| R5 | `summarizeChanges` | Fingerprints against the base snapshot |
+| R5 | `summarizeChanges` | Section content hashes against the base snapshot |
 | R6 | `finishResearch`'s `hasChanges` and reason checks | `ConflictError`, `ValidationError` |
 | R7 | `cancelResearchChange` | Only when `!hasChanges` |
 | R8 | `finishing` status compare-and-set, the lock, `markReportFailed` | One winner; failure recorded and shown |
 | R9 | `listDocumentVersions`, the history table | Times in the city's zone |
-| R10 | The document tree and `ReportSnapshot` | Sample banner, what changed, review record |
+| R10 | The document tree and `ReportSnapshot` | Sample banner, what changed, built-from line |
 | R11 | `renderReportHtml(row)` reads only pinned records | Replaces "current profile" and "latest geometry" reads |
 | R12 | `getDocumentFile`, the route handler | Hash verified on read |
 
@@ -238,10 +240,10 @@ Both call `getDecision` first, so a non-owner gets `NotFoundError` (F11). The li
 
 ## Verification
 
-- Vitest unit tests: `summarizeChanges` (each phase changed, unchanged, absent; details changed; no base) (R5); `ReportSnapshotSchema` accepts a valid snapshot and rejects five phases, a non-`reviewed` verdict, and an unknown phase; `PHASE_KEYS` equals `PHASES`; the document tree contains the sample banner only when set, the reason only after version 1, and no word from the F21 denylist (R10).
-- Testcontainers integration tests: finishing with an unreviewed phase, a revision-requested phase, and a stale analysis each fail with the named reason (R1); finishing enqueues exactly one `release_report` job and moves the project to `finishing`; the job stores a PDF whose SHA-256 matches, sets version 1, and moves the project to completed (R1, R2); a second research change and finish makes version 2 with the reason and the changed phases, and version 1's row is byte-identical (R2, R5, R9); finishing with nothing changed fails (R6); cancelling with nothing changed restores completed, and cancelling with changes fails (R7); updating and deleting a released `report` row fails (R2); every input write on a completed and on a `finishing` project fails with `ConflictError` (R3, R8); a failed job at its last attempt records `failed` and returns the project to in progress with no version number consumed (R8); the download function returns the stored bytes, refuses a non-owner with `NotFoundError`, and throws on a corrupted hash (R12); **race tests**: two `finishResearch` calls at once — exactly one succeeds; `finishResearch` against `saveGeometry` at once — either the published snapshot matches the fingerprints reviewed or the finish fails (R8, R11).
-- The PDF is checked by an integration test that runs the real render with Chromium: tagged, with an outline, containing the version number, the review record, and the sample banner when set (R10; `testing-and-verification.md`, released PDFs).
-- Playwright: finish research, download version 1, start a research change, upload a new boundary, review the affected phases, publish version 2, and see both versions in the history; axe at desktop and phone widths (R3–R9).
+- Vitest unit tests: `summarizeChanges` (each phase changed, unchanged, absent; details changed; no base) (R5); `ReportSnapshotSchema` accepts a valid snapshot and rejects five phases, an unknown phase, and a section with no content hash; `PHASE_KEYS` equals `PHASES`; the document tree contains the sample banner only when set, the reason only after version 1, and no word from the F21 denylist (R10).
+- Testcontainers integration tests: finishing with a To do, Updating, or Out of date section and a stale analysis each fail with the named reason (R1); finishing enqueues exactly one `release_report` job and moves the project to `finishing`; the job stores a PDF whose SHA-256 matches, sets version 1, and moves the project to completed (R1, R2); a second research change and finish makes version 2 with the reason and the changed phases, and version 1's row is byte-identical (R2, R5, R9); finishing with nothing changed fails (R6); cancelling with nothing changed restores completed, and cancelling with changes fails (R7); updating and deleting a released `report` row fails (R2); every input write on a completed and on a `finishing` project fails with `ConflictError` (R3, R8); a failed job at its last attempt records `failed` and returns the project to in progress with no version number consumed (R8); the download function returns the stored bytes, refuses a non-owner with `NotFoundError`, and throws on a corrupted hash (R12); **race tests**: two `finishResearch` calls at once — exactly one succeeds; `finishResearch` against `saveGeometry` at once — either the published snapshot matches the fingerprints its sections were built on or the finish fails (R8, R11).
+- The PDF is checked by an integration test that runs the real render with Chromium: tagged, with an outline, containing the version number, the Built-from line, and the sample banner when set (R10; `testing-and-verification.md`, released PDFs).
+- Playwright: finish research, download version 1, start a research change, upload a new boundary, update the affected sections, publish version 2, and see both versions in the history; axe at desktop and phone widths (R3–R9).
 
 ## Open questions
 

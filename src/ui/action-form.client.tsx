@@ -49,12 +49,12 @@ export function ActionForm({
     <form ref={formRef} onSubmit={onSubmit} className={className} encType={encType}>
       <div ref={messageRef} aria-live="polite">
         {state.error ? (
-          <p role="alert" className="mb-3 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm font-medium text-danger">
+          <p role="alert" className="message-in mb-3 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm font-medium text-danger">
             {state.error}
           </p>
         ) : null}
         {state.notice ? (
-          <p role="status" className="mb-3 rounded-lg border border-ok/30 bg-ok-soft px-3 py-2 text-sm font-medium text-ok">
+          <p role="status" className="message-in mb-3 rounded-lg border border-ok/30 bg-ok-soft px-3 py-2 text-sm font-medium text-ok">
             {state.notice}
           </p>
         ) : null}

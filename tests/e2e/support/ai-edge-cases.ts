@@ -610,7 +610,7 @@ export const EDGE_CASES: EdgeCase[] = [
     request: lines("EV1", ["Wetlands: 2 features.", "Streams: 2 features.", "Steep slopes: 2 features."]),
     ...base,
     verify: (c) =>
-      "paragraphs" in c && new Set(c.paragraphs.flatMap((p) => p.restates)).size >= 3
+      "paragraphs" in c && new Set(c.paragraphs.flatMap((p) => ("restates" in p ? p.restates : []))).size >= 3
         ? []
         : ["did not restate all three lines"],
   },
@@ -822,7 +822,7 @@ export const EDGE_CASES: EdgeCase[] = [
     ),
     ...base,
     verify: (c) =>
-      "paragraphs" in c && new Set(c.paragraphs.flatMap((p) => p.restates)).size >= 9
+      "paragraphs" in c && new Set(c.paragraphs.flatMap((p) => ("restates" in p ? p.restates : []))).size >= 9
         ? []
         : ["restated fewer than nine of the twelve lines"],
   },

@@ -11,8 +11,8 @@ import { expect, test } from "../support/fixtures";
 // Uses the shared, analysed sample project (read-only here). Needs the worker.
 
 const NOT_ANALYSIS =
-  "AI-assisted text reads and quotes the sources shown. It is not part of the analysis, the phase's output or fingerprint, your review, or the final document.";
-const NOT_CONFIGURED = "AI assist is not set up for this deployment.";
+  "Text from UPlan Assist reads and quotes the sources shown. It is not part of the analysis, the section's wording or fingerprint, or the final document.";
+const NOT_CONFIGURED = "UPlan Assist is not set up for this deployment.";
 
 /** Every control a planner can use on each phase, as the panel labels it (src/modules/assist/kinds.ts, non-staff). */
 const CONTROLS = {
@@ -27,15 +27,15 @@ const ASSIST_PHASES = Object.keys(CONTROLS) as AssistPhase[];
 const panelOf = (page: Page, phase: AssistPhase) => page.locator(`#assist-${phase}`);
 
 async function openPanel(page: Page, phase: AssistPhase) {
+  // The panel opens the page already, because it is the phase's strongest AI use (F24 R18).
   const panel = panelOf(page, phase);
-  await panel.locator("summary").first().click();
-  await expect(panel).toHaveJSProperty("open", true);
+  await expect(panel).toBeVisible();
   return panel;
 }
 
 test.describe("where assist appears", () => {
   for (const phase of ASSIST_PHASES) {
-    test(`F24 R18: ${PHASE_TITLE[phase]} has one assist panel, optional, beside the drafted output`, async ({
+    test(`F24 R18: ${PHASE_TITLE[phase]} opens with one UPlan Assist panel, optional, above the report section`, async ({
       page,
       sharedSampleProject,
     }) => {
@@ -43,34 +43,37 @@ test.describe("where assist appears", () => {
 
       const panel = panelOf(page, phase);
       await expect(panel).toHaveCount(1);
-      await expect(panel.locator("summary")).toContainText("AI assist (optional)");
-      await expect(panel.locator("summary")).toContainText(
+      await expect(panel.getByText("UPlan Assist", { exact: true })).toBeVisible();
+      await expect(panel).toContainText("Optional · never part of the analysis");
+      await expect(panel).toContainText(
         "Reads and quotes the text on this page. Asked for, never automatic, and never part of the analysis.",
       );
-      // It sits after the drafted output and before the planner's review (F24 R18).
-      const inOrder = await page.evaluate((id) => {
+      // It sits above the report section and everything that follows, at the top of the phase page (F24 R18).
+      const atTop = await page.evaluate((id) => {
         const heading = (text: string) =>
           [...document.querySelectorAll("h2")].find((h) => h.textContent === text);
         const drafted = heading("Drafted output");
         const review = heading("Your review");
+        const intro = document.querySelector('section[aria-label^="Report section produced by"]');
         const assist = document.getElementById(id);
-        if (!drafted || !review || !assist) return false;
+        if (!drafted || !review || !intro || !assist) return false;
         const after = (a: Node, b: Node) =>
           (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-        return after(drafted, assist) && after(assist, review);
+        return after(assist, intro) && after(assist, drafted) && after(assist, review);
       }, `assist-${phase}`);
-      expect(inOrder, "the assist panel is between the drafted output and the review").toBe(true);
+      expect(atTop, "the assist panel is the first thing on the phase page").toBe(true);
     });
   }
   for (const step of ["overview", "site", "footprint", "report"] as const) {
-    test(`F24 R18: ${STAGES.find((s) => s.step === step)?.title} has no assist panel and no AI-assisted text`, async ({
+    test(`F24 R18: ${STAGES.find((s) => s.step === step)?.title} has no assist panel and no UPlan Assist answer text`, async ({
       page,
       sharedSampleProject,
     }) => {
       await page.goto(`/projects/${sharedSampleProject.id}/${step}`);
 
-      await expect(page.getByText("AI assist (optional)")).toHaveCount(0);
-      await expect(page.getByText(/AI-assisted/)).toHaveCount(0);
+      await expect(page.getByText("Optional · never part of the analysis")).toHaveCount(0);
+      await expect(page.getByText(NOT_ANALYSIS)).toHaveCount(0);
+      await expect(page.getByText(/^UPlan Assist ·/)).toHaveCount(0);
       await expect(page.locator('[id^="assist-"]')).toHaveCount(0);
     });
   }
@@ -117,7 +120,7 @@ test.describe("what the panel says before anything is asked", () => {
       await page.goto(`/projects/${sharedSampleProject.id}/${phase}`);
       await openPanel(page, phase);
       await expect(page.getByRole("heading", { name: "Suggestions" })).toHaveCount(0);
-      await expect(page.locator("article", { hasText: "AI-assisted" })).toHaveCount(0);
+      await expect(page.locator("article", { hasText: "UPlan Assist ·" })).toHaveCount(0);
     }
   });
 
@@ -191,7 +194,7 @@ test.describe("assist never reaches the analysis or the document", () => {
     await page.goto(`/projects/${sharedSampleProject.id}/report`);
     const text = await page.locator("main").innerText();
 
-    expect(text).not.toMatch(/AI-assisted|AI assist|suggestion|model service/i);
+    expect(text).not.toMatch(/UPlan Assist|suggestion|model service/i);
   });
 });
 
@@ -228,7 +231,7 @@ test.describe("the city profile's assist panel", () => {
     await page.goto("/profile");
 
     const panel = page.locator("#assist-profile");
-    await expect(panel.locator("summary")).toContainText("AI assist for the city's rules (optional)");
+    await expect(panel.locator("summary")).toContainText("UPlan Assist for the city's rules (optional)");
     await panel.locator("summary").first().click();
     await expect(panel).toContainText(NOT_ANALYSIS);
     if ((await panel.getByRole("status").filter({ hasText: NOT_CONFIGURED }).count()) === 0) {
@@ -248,7 +251,7 @@ test.describe("the city profile's assist panel", () => {
     }
 
     const noText = panel.getByText(
-      "Staff have not added any code text yet. Add it below, and AI assist can quote it.",
+      "Staff have not added any code text yet. Add it below, and UPlan Assist can quote it.",
     );
     if ((await noText.count()) > 0) {
       await expect(panel.getByRole("button", { name: "Ask" })).toHaveCount(0);

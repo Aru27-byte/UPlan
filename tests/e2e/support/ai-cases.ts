@@ -210,7 +210,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     verify: (c) => {
       const problems = mentionsAll(c, ["1.84", "412.5"]);
       if (!("paragraphs" in c)) return ["not an explanation"];
-      const restated = new Set(c.paragraphs.flatMap((p) => p.restates));
+      const restated = new Set(c.paragraphs.flatMap((p) => ("restates" in p ? p.restates : [])));
       for (const id of ["line:0", "line:1", "line:2"])
         if (!restated.has(id)) problems.push(`never restates ${id}`);
       return problems;

@@ -112,7 +112,7 @@ export function ResourceTypePanel({
             {needle === "" ? `${items.length} resource types` : `Showing ${visible.length} of ${items.length} resource types`}
           </p>
           {visible.length > 0 ? (
-            <button type="button" onClick={toggleAll} className="rounded font-semibold text-brand underline underline-offset-2 hover:text-accent-gold">
+            <button type="button" onClick={toggleAll} className="link-underline rounded font-semibold text-brand transition-colors duration-200 hover:text-accent-gold">
               {areAllOpen ? "Collapse all" : "Expand all"}
             </button>
           ) : null}
@@ -159,16 +159,20 @@ function ResourceTypeRow({
 }) {
   const bodyId = useId();
   return (
-    <li className={`overflow-hidden rounded-2xl border bg-canvas ${isOpen ? "border-accent-green/50" : "border-line"}`}>
+    <li
+      className={`group overflow-hidden rounded-2xl border bg-canvas transition-[border-color,box-shadow] duration-200 ${
+        isOpen ? "border-accent-green/50 shadow-[0_16px_44px_rgb(0_0_0/0.3)]" : "border-line hover:border-line-strong"
+      }`}
+    >
       <h3>
         <button
           type="button"
           aria-expanded={isOpen}
           aria-controls={bodyId}
           onClick={onToggle}
-          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left hover:bg-raised"
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left transition-colors duration-150 hover:bg-raised"
         >
-          <span className={`transition-transform motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`}>
+          <span className={`text-muted transition-transform duration-300 group-hover:text-accent-gold ${isOpen ? "rotate-180 text-accent-lime" : ""}`}>
             <Icon name="chevron-down" />
           </span>
           <span className="min-w-0 flex-1 text-base font-semibold text-text">{item.label}</span>
@@ -181,7 +185,7 @@ function ResourceTypeRow({
           </span>
         </button>
       </h3>
-      <div id={bodyId} hidden={!isOpen} className="border-t border-line bg-surface px-4 py-3">
+      <div id={bodyId} hidden={!isOpen} className="message-in border-t border-line bg-surface px-4 py-3">
         {item.rules.length === 0 ? (
           // P2: an empty list is a fact about the profile, not a clearance.
           <p className="text-sm text-muted">No buffer, study-trigger, or tree rule is recorded for this resource type.</p>

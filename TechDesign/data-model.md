@@ -34,7 +34,7 @@ erDiagram
   jurisdiction ||--o{ decision : "contains"
   decision ||--o{ decision_geometry : "revisions"
   decision ||--o{ evidence_resolution : "records"
-  decision ||--o{ phase_review : "reviewed in"
+  decision ||--o{ report_section_version : "keeps versions of"
   dataset_version ||--o{ evidence_resolution : "compared in"
   decision ||--o{ analysis_run : "runs"
   profile_version |o--o{ analysis_run : "analyzed under"
@@ -300,21 +300,26 @@ create table evidence_resolution (
   check (mapped_by <> not_mapped_by)
 );
 
--- A planner's recorded response to one phase's drafted output (F21). Append-only.
-create table phase_review (
-  id             uuid primary key default gen_random_uuid(),
-  decision_id    uuid not null references decision (id),
-  phase          text not null check (phase in ('site', 'evidence', 'screening', 'studies', 'footprint', 'impact')),
-  content_sha256 text not null,                 -- the fingerprint of the output that was reviewed
-  verdict        text not null check (verdict in ('reviewed', 'revision_requested')),
-  note           text,
-  summary        jsonb not null,                -- { templateVersion, headline, lines } as it was shown
-  reviewed_by    text not null references app_user (id),
-  reviewed_at    timestamptz not null default now(),
-  check (verdict <> 'revision_requested' or (note is not null and length(btrim(note)) > 0))
+-- One stored, immutable copy of a phase's report section (F21). Append-only.
+create table report_section_version (
+  id                uuid primary key default gen_random_uuid(),
+  decision_id       uuid not null references decision (id),
+  phase             text not null check (phase in ('site', 'evidence', 'screening', 'studies', 'footprint', 'impact')),
+  version_number    integer not null check (version_number > 0),   -- per (decision, phase), no gaps
+  source            text not null check (source in ('analysis', 'ai', 'revert')),
+  content           jsonb not null,             -- SectionContent: headline, lines, table captions and column order
+  content_sha256    text not null,              -- the section the planner read, and what a change is bound to
+  output_sha256     text not null,              -- the engine fingerprint it was built on
+  instruction       text,                       -- the planner's chat message when source = 'ai'
+  suggestion_id     uuid references ai_suggestion (id),
+  source_version_id uuid references report_section_version (id),  -- for a revert
+  created_by        text not null references app_user (id),
+  created_at        timestamptz not null default now(),
+  unique (decision_id, phase, version_number),
+  check (source <> 'ai' or (instruction is not null and length(btrim(instruction)) between 1 and 2000))
 );
 
-create index phase_review_by_phase on phase_review (decision_id, phase, reviewed_at);
+create index report_section_version_by_phase on report_section_version (decision_id, phase, created_at);
 ```
 
 - Geometry revisions are never updated or deleted, so a run's revision numbers can't dangle.
@@ -337,7 +342,7 @@ create table report (
   analysis_run_id   uuid not null references analysis_run (id),     -- the run the document is built from
   template_version  integer not null,
   status            text not null check (status in ('releasing', 'released', 'failed')),
-  snapshot          jsonb not null,             -- ReportSnapshot: details, phase reviews, what changed (research-changes.md)
+  snapshot          jsonb not null,             -- ReportSnapshot: details, section contents, what changed (research-changes.md)
   change_note       text,                       -- the reason for this version; required after version 1
   pdf               bytea,                      -- the document itself, kept in the database (F22 R1)
   pdf_sha256        text,
@@ -423,7 +428,7 @@ The migrate task runs as the schema owner. Web and worker connect as `uplan_app`
 -- Append-only tables: rows are inserted, never changed.
 grant select, insert on
   profile_upload, profile_version, evidence_feature, decision_geometry, analysis_run_dataset,
-  evidence_resolution, phase_review
+  evidence_resolution, report_section_version
   to uplan_app;
 
 -- Tables with state or pointers that move.
@@ -459,7 +464,7 @@ begin
   raise exception '% rows cannot be % (append-only)', tg_table_name, lower(tg_op);
 end $$;
 
-create trigger phase_review_append_only before update or delete on phase_review
+create trigger report_section_version_append_only before update or delete on report_section_version
   for each row execute function forbid_row_change();
 create trigger evidence_resolution_append_only before update or delete on evidence_resolution
   for each row execute function forbid_row_change();

@@ -14,7 +14,7 @@ import {
   type Draft,
   type DraftContext,
 } from "./drafting";
-import { PHASES, buildPhaseViews, derivePhaseOutputs, missingReason, type PhaseFacts, type PhaseReview } from "./phases";
+import { PHASES, derivePhaseOutputs, missingReason, type PhaseFacts } from "./phases";
 
 // TechDesign/research-phases.md — pure logic, no database.
 
@@ -159,53 +159,6 @@ describe("R7: the fingerprint changes exactly when what the output states change
     expect(hashes(facts({ resolutions: [resolution()] })).evidence).not.toBe(base.evidence);
     const earlier = resolution({ mappedBy: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" });
     expect(hashes(facts({ resolutions: [earlier] })).evidence).toBe(base.evidence);
-  });
-});
-
-function review(phase: PhaseReview["phase"], contentSha256: string, verdict: PhaseReview["verdict"], at: string, note: string | null = null, lines: string[] = ["old sentence"], headline = "h"): PhaseReview {
-  return { id: `${phase}-${at}`, phase, contentSha256, verdict, note, summary: { templateVersion: 1, headline, lines }, reviewedByName: "Pat", reviewedAt: new Date(at) };
-}
-const viewOf = (views: ReturnType<typeof buildPhaseViews>, phase: string) => views.find((v) => v.phase === phase);
-
-describe("R5/R8/R10: each phase is in one review state, derived from records", () => {
-  const f = facts();
-  const siteHash = derivePhaseOutputs(f).site?.contentSha256 ?? "";
-
-  it("R5: with no reviews, every phase with output needs review", () => {
-    const views = buildPhaseViews(f, []);
-    expect(views.map((v) => v.state.kind)).toEqual(Array(6).fill("needs-review"));
-    expect(views.every((v) => v.changes === null && v.history.length === 0)).toBe(true);
-  });
-
-  it("R5: a review of this exact output makes the phase reviewed or revision-requested", () => {
-    expect(viewOf(buildPhaseViews(f, [review("site", siteHash, "reviewed", "2026-09-10T00:00:00Z")]), "site")?.state.kind).toBe("reviewed");
-    expect(viewOf(buildPhaseViews(f, [review("site", siteHash, "revision_requested", "2026-09-10T00:00:00Z", "Check")]), "site")?.state.kind).toBe("revision-requested");
-  });
-
-  it("R8: the newest review at the current output decides, and history is newest first", () => {
-    const reviews = [
-      review("site", siteHash, "revision_requested", "2026-09-10T00:00:00Z", "Check"),
-      review("site", siteHash, "reviewed", "2026-09-11T00:00:00Z"),
-    ];
-    const site = viewOf(buildPhaseViews(f, reviews), "site");
-    expect(site?.state.kind).toBe("reviewed");
-    expect(site?.history.map((r) => r.verdict)).toEqual(["reviewed", "revision_requested"]);
-  });
-
-  it("R7: a review made on a different output is never carried over: the phase needs review again", () => {
-    const old = review("site", "0".repeat(64), "reviewed", "2026-09-10T00:00:00Z", null, ["Source: Traced from sheet C2.0."], "Study area drawn: 10.0 acres (revision 1).");
-    const site = viewOf(buildPhaseViews(f, [old]), "site");
-    expect(site?.state).toMatchObject({ kind: "needs-review", changedSince: { id: old.id } });
-    // R10: what changed is the sentences added and removed
-    expect(site?.changes?.removed).toEqual(["Study area drawn: 10.0 acres (revision 1)."]);
-    expect(site?.changes?.added).toContain("Study area drawn: 18.4 acres (revision 1).");
-  });
-
-  it("R4/R5: a phase without output is 'to do' or 'updating', with the reason", () => {
-    const noFootprint = buildPhaseViews(facts({ footprint: null }), []);
-    expect(viewOf(noFootprint, "footprint")?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
-    const notCurrent = buildPhaseViews(facts({ status: { kind: "running", runId: "r" }, run: null, rules: null }), []);
-    expect(viewOf(notCurrent, "evidence")?.state).toEqual({ kind: "updating", status: { kind: "running", runId: "r" } });
   });
 });
 

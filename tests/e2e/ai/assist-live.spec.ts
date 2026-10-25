@@ -79,9 +79,9 @@ let identifying: string[] = []; // everything about the project that must never 
 const panelOf = (phase: string): Locator => page.locator(`#assist-${phase}`);
 
 async function openPanel(phase: string): Promise<Locator> {
+  // The spotlight panel at the top of each analysis phase is open by default (F24 R18).
   const panel = panelOf(phase);
-  if (!(await panel.evaluate((el: HTMLDetailsElement) => el.open)))
-    await panel.locator("summary").first().click();
+  await expect(panel).toBeVisible();
   return panel;
 }
 
@@ -116,7 +116,7 @@ async function readCard(card: Locator): Promise<Card> {
     status: status as Card["status"],
     stamp: (
       await card
-        .getByText(/^AI-assisted/)
+        .getByText(/^UPlan Assist/)
         .first()
         .innerText()
     ).trim(),
@@ -181,7 +181,7 @@ async function expectHonestCard(locator: Locator, assistLabel: string): Promise<
     "every suggestion carries its label, its model, its date, and that it is not part of the analysis",
   ).toMatch(
     new RegExp(
-      `^AI-assisted · ${GENERATE_MODEL_ID.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")} · .+ · not part of the analysis$`,
+      `^UPlan Assist · ${GENERATE_MODEL_ID.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")} · .+ · not part of the analysis$`,
     ),
   );
   await expect(locator.getByRole("button", { name: "Helpful" })).toBeVisible();
@@ -482,7 +482,7 @@ test.describe("the city profile", () => {
 
     if ((await control.getByRole("button", { name: "Ask" }).count()) === 0) {
       await expect(control).toContainText(
-        "Staff have not added any code text yet. Add it below, and AI assist can quote it.",
+        "Staff have not added any code text yet. Add it below, and UPlan Assist can quote it.",
       );
       return;
     }
@@ -572,6 +572,6 @@ test.describe("across every ask", () => {
   test("@live F24 R2: the Report step knows nothing of any suggestion", async () => {
     await page.goto(`/projects/${projectId}/report`);
     const text = await page.locator("main").innerText();
-    expect(text).not.toMatch(/AI-assisted|suggestion|model service/i);
+    expect(text).not.toMatch(/UPlan Assist|suggestion|model service/i);
   });
 });

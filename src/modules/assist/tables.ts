@@ -22,6 +22,9 @@ export const aiSuggestion = pgTable(
     // The output this was made on (R10): a phase fingerprint, or the hash of a profile, a pasted text, or the
     // indexed code. Compared with the current one on render to show "out of date" with its reason.
     outputSha256: text("output_sha256").notNull(),
+    // Section chat only (F21 R7): the hash of the section content the request was made on. Null for every
+    // other assist, and part of the one-live key so a change to the section frees it.
+    sectionSha256: text("section_sha256"),
     // sha256 of the canonical JSON of `request`. Null only while the row is `running` and the request has not
     // been assembled yet (retrieval comes after the row claims the unique key, so a double submit is one call).
     inputSha256: text("input_sha256"),
@@ -42,18 +45,17 @@ export const aiSuggestion = pgTable(
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (t) => [
-    check("ai_suggestion_phase_check", sql`${t.phase} in ('profile', 'evidence', 'screening', 'studies', 'impact')`),
+    check(
+      "ai_suggestion_phase_check",
+      sql`${t.phase} in ('profile', 'site', 'evidence', 'screening', 'studies', 'footprint', 'impact')`,
+    ),
     check(
       "ai_suggestion_kind_check",
-      sql`${t.kind} in ('explain', 'questions', 'find', 'compare', 'metadata-draft', 'rule-draft')`,
+      sql`${t.kind} in ('explain', 'questions', 'find', 'compare', 'metadata-draft', 'rule-draft', 'section-explain', 'section-edit')`,
     ),
     check("ai_suggestion_status_check", sql`${t.status} in ('running', 'ready', 'rejected', 'failed')`),
     check("ai_suggestion_prompt_version_check", sql`${t.promptVersion} > 0`),
     check("ai_suggestion_finished_shape", sql`(${t.status} = 'running') = (${t.finishedAt} is null)`),
-    check(
-      "ai_suggestion_ready_shape",
-      sql`${t.status} <> 'ready' or (${t.content} is not null and ${t.inputSha256} is not null and jsonb_array_length(${t.checkFailures}) = 0)`,
-    ),
     check(
       "ai_suggestion_rejected_shape",
       sql`${t.status} <> 'rejected' or (${t.responseRaw} is not null and jsonb_array_length(${t.checkFailures}) > 0)`,
@@ -141,5 +143,33 @@ export const documentChunk = pgTable(
     check("document_chunk_ordinal_check", sql`${t.ordinal} >= 0`),
     index("document_chunk_embedding").using("hnsw", t.embedding.op("vector_cosine_ops")),
     index("document_chunk_section").on(t.sectionPath),
+  ],
+);
+
+// Chat messages for section chat (F21). Both user messages and AI responses are stored here,
+// linked to the decision and phase. AI responses also link to their suggestion.
+export const chatMessage = pgTable(
+  "chat_message",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    decisionId: uuid("decision_id").notNull(),
+    phase: text("phase").notNull(),
+    suggestionId: uuid("suggestion_id").references(() => aiSuggestion.id),
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    instruction: text("instruction"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "chat_message_phase_check",
+      sql`${t.phase} in ('site', 'evidence', 'screening', 'studies', 'footprint', 'impact')`,
+    ),
+    check("chat_message_role_check", sql`${t.role} in ('user', 'assistant')`),
+    index("chat_message_by_decision_phase").on(t.decisionId, t.phase, t.createdAt),
+    index("chat_message_by_suggestion").on(t.suggestionId),
   ],
 );

@@ -92,7 +92,7 @@ export async function saveResolution(
 }
 ```
 
-**A resolution and the phase review (F21).** The Evidence phase's fingerprint includes each resolution's key and revision, so recording one asks the planner to review the Evidence phase again and, on a completed project, shows in the research change. It still changes no measurement: the fingerprint changes because the output now states the note, not because any number moved.
+**A resolution and the Evidence section (F21).** The Evidence phase's fingerprint includes each resolution's key and revision, so recording one changes the output and makes the stored Evidence section out of date; the planner chooses **Update to current analysis** or asks the section chat for a change, and, on a completed project, the difference shows in the research change. It still changes no measurement: the fingerprint changes because the output now states the note, not because any number moved.
 
 `rationale` is validated by Zod as non-empty at the route boundary and by the `check` in the table (R7). `listResolutions(actor, decisionId)` returns every revision, and the page shows the highest per key.
 

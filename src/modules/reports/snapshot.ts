@@ -2,8 +2,8 @@ import { z } from "zod";
 
 // TechDesign/research-changes.md — what finishing research pins into a `report` row, so the document is
 // built only from records that can no longer change (F10 R17, F22 R11): the details as they were, each
-// phase's review and the drafted summary that was reviewed, the resolutions that were shown, and what
-// changed from the previous version. The renderer reads nothing "current".
+// phase's adopted section content and the engine fingerprint it was built on, the resolutions that were
+// shown, and what changed from the previous version. The renderer reads nothing "current".
 
 // The phases, as literals here because `reports` can't import `workflow` (which imports `reports`).
 // A unit test asserts this equals workflow's PHASES, so the two can't drift.
@@ -25,28 +25,42 @@ export const ReportDetailsSchema = z.object({
 });
 export type ReportDetails = z.infer<typeof ReportDetailsSchema>;
 
-export const ReportPhaseSchema = z.object({
-  phase: PhaseKeySchema,
-  contentSha256: z.string(),
-  verdict: z.literal("reviewed"), // finishing requires every phase reviewed at its current output (F22 R1)
-  note: z.string().nullable(),
-  reviewedAt: z.iso.datetime(),
-  reviewedByName: z.string(), // copied, so a later change to a person's name can't change a published record
-  changed: z.boolean(), // differs from the previous version's fingerprint (always true for version 1)
-  summary: z.object({
-    templateVersion: z.number().int().positive(),
-    headline: z.string(),
-    lines: z.array(z.string()),
-  }),
+// The editable surface of a section (F21 R2): the narrative, plus a table's caption and column order. A
+// column order is validated as a permutation of the canonical columns before it is stored; no value or
+// provenance column lives here.
+export const SectionTableFormatSchema = z.object({
+  key: z.string(),
+  caption: z.string().nullable(),
+  columnOrder: z.array(z.string()),
 });
-export type ReportPhase = z.infer<typeof ReportPhaseSchema>;
+export type SectionTableFormat = z.infer<typeof SectionTableFormatSchema>;
+
+export const SectionContentSchema = z.object({
+  headline: z.string(),
+  lines: z.array(z.string()),
+  tables: z.array(SectionTableFormatSchema),
+});
+export type SectionContent = z.infer<typeof SectionContentSchema>;
+export type SectionContentInput = z.input<typeof SectionContentSchema>;
+
+export const ReportSectionSchema = z.object({
+  phase: PhaseKeySchema,
+  sectionVersionNumber: z.number().int().positive().nullable(), // null when the analysis draft was used
+  contentSha256: z.string(), // the section content the document prints
+  outputSha256: z.string(), // the engine fingerprint it was built on
+  headline: z.string(),
+  lines: z.array(z.string()),
+  tables: z.array(SectionTableFormatSchema),
+  changed: z.boolean(), // differs from the previous version's content (always true for version 1)
+});
+export type ReportSection = z.infer<typeof ReportSectionSchema>;
 
 export const ReportSnapshotSchema = z.object({
   templateVersion: z.number().int().positive(),
   details: ReportDetailsSchema,
   runId: z.uuid(),
   profileVersionId: z.uuid(),
-  phases: z.array(ReportPhaseSchema).length(PHASE_KEYS.length),
+  sections: z.array(ReportSectionSchema).length(PHASE_KEYS.length).optional().default([]),
   resolutions: z.array(
     z.object({
       resourceType: z.string(),

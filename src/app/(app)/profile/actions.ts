@@ -166,7 +166,7 @@ export async function addSourceDocumentAction(jurisdictionId: string, _previous:
       title: requiredText(formData, "title", "A title"),
       text: requiredText(formData, "text", "The text"),
     });
-    return `Indexed in ${added.chunkCount} ${added.chunkCount === 1 ? "section" : "sections"}. AI assist can now quote it.`;
+    return `Indexed in ${added.chunkCount} ${added.chunkCount === 1 ? "section" : "sections"}. UPlan Assist can now quote it.`;
   });
 }
 
@@ -195,9 +195,9 @@ export async function requestCityAssistAction(
       datasetId: optionalField(formData, "datasetId"),
       suppliedText: optionalField(formData, "suppliedText"),
     });
-    if (result.status === "ready") return "The suggestion is below, labeled as AI-assisted.";
-    if (result.status === "rejected") return "The model's answer failed UPlan's checks, so none of it is shown as an answer. The reasons are below.";
-    if (result.status === "failed") return "The model service did not finish. The reason is below, and nothing has replaced it.";
+    if (result.status === "ready") return "The suggestion is below, labeled as UPlan Assist.";
+    if (result.status === "rejected") return "UPlan Assist's answer failed UPlan's checks, so none of it is shown as an answer. The reasons are below.";
+    if (result.status === "failed") return "UPlan Assist did not finish. The reason is below, and nothing has replaced it.";
     return "The request is still running. Reload the page in a minute.";
   });
 }

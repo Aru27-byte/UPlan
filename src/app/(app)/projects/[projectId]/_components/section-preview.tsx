@@ -14,17 +14,26 @@ import {
   loadLiveReportContent,
   type RunContent,
 } from "@/modules/reports";
-import type { FeedbackStep, Workflow } from "@/modules/workflow";
+import type { PhaseKey, SectionContent, Workflow } from "@/app/_lib/workflow-types";
 
 // The report section a step produces, rendered from the same components the final document is stitched from
-// (research-phases.md R15; locked-report.md, "Sections"), over the project's current records. It is a preview:
-// the released document is still built only from a finished, reviewed snapshot. When the step has nothing to
-// show yet it says exactly what is missing, never a stand-in section.
+// (research-phases.md R1, R15; locked-report.md, "Sections"), over the project's current records. The narrative
+// is the shown section version (or the analysis draft when none is stored); the tables, maps, and figures are
+// rendered from the run. It is a preview: the released document is still built only from a finished snapshot.
+// When the step has nothing to show yet it says exactly what is missing, never a stand-in section.
 function NotYet({ children }: { children: ReactNode }) {
   return <p className="note">{children}</p>;
 }
 
-export async function SectionPreview({ workflow: w, step }: { workflow: Workflow; step: FeedbackStep }) {
+export async function SectionPreview({
+  workflow: w,
+  step,
+  content,
+}: {
+  workflow: Workflow;
+  step: "overview" | PhaseKey;
+  content: SectionContent | null;
+}) {
   const d = w.decision;
   const live = await loadLiveReportContent({
     decisionId: d.id,
@@ -56,30 +65,27 @@ export async function SectionPreview({ workflow: w, step }: { workflow: Workflow
       );
     }
 
-    const view = w.phases.find((p) => p.phase === step);
-    if (!view) throw new Error(`the workflow has no ${step} phase`);
-    if (!view.output) return <NotYet>This section appears once the {view.phase} output exists. See the drafted output below for what is missing.</NotYet>;
-    const summary = { headline: view.output.headline, lines: view.output.lines };
+    if (!content) return <NotYet>This section appears once the {step} phase has a current output.</NotYet>;
     const needsRun = (render: (run: RunContent) => ReactNode): ReactNode =>
       live.run ? render(live.run) : <NotYet>This section appears once an analysis of the current inputs has finished.</NotYet>;
 
     switch (step) {
       case "site":
-        return live.studyAreaSvg ? <SiteSection summary={summary} studyAreaSvg={live.studyAreaSvg} /> : <NotYet>Add a study area to see this section.</NotYet>;
+        return live.studyAreaSvg ? <SiteSection content={content} studyAreaSvg={live.studyAreaSvg} /> : <NotYet>Add a study area to see this section.</NotYet>;
       case "footprint":
         return live.studyAreaSvg ? (
-          <FootprintSection summary={summary} studyAreaSvg={live.studyAreaSvg} footprintSvg={live.footprintSvg} />
+          <FootprintSection content={content} studyAreaSvg={live.studyAreaSvg} footprintSvg={live.footprintSvg} />
         ) : (
           <NotYet>Add a study area to see this section.</NotYet>
         );
       case "evidence":
-        return needsRun((run) => <EvidenceSection summary={summary} run={run} />);
+        return needsRun((run) => <EvidenceSection content={content} run={run} />);
       case "screening":
-        return needsRun((run) => <ScreeningSection summary={summary} run={run} />);
+        return needsRun((run) => <ScreeningSection content={content} run={run} />);
       case "studies":
-        return needsRun((run) => <StudiesSection summary={summary} run={run} />);
+        return needsRun((run) => <StudiesSection content={content} run={run} />);
       case "impact":
-        return needsRun((run) => <ImpactSection summary={summary} run={run} />);
+        return needsRun((run) => <ImpactSection content={content} run={run} />);
     }
   };
 

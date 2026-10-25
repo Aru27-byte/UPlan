@@ -29,7 +29,7 @@ Hard constraints. If a task seems to need one of these broken, stop and ask inst
 
 ## Data and concurrency
 
-- Don't update or delete profile versions, uploads, evidence features, geometry revisions, finished analysis runs, ready dataset versions, released reports, indexed code documents and their chunks, or finished drafts.
+- Don't update or delete profile versions, uploads, evidence features, geometry revisions, finished analysis runs, ready dataset versions, released reports, report section versions, indexed code documents and their chunks, or finished drafts.
 - Don't check and then write outside one transaction, and don't enforce a one-at-a-time rule in code alone.
 - Don't coordinate work through in-memory state, locks, queues, or timers.
 - Don't call the model service from anywhere except the `assist` and `code-tracking` modules, and don't hold a database lock or an open transaction across a model call.
@@ -40,9 +40,9 @@ Hard constraints. If a task seems to need one of these broken, stop and ask inst
 ## Product
 
 - Don't compute an area, length, or buffer in JavaScript. PostGIS computes every number UPlan shows.
-- Don't write text that recommends approving, denying, conditioning, or clearing land. Don't use a language model to draft findings, recommendations, or conditions, to compute or round a number, to set a flag or a study need, or to write any sentence of a phase's drafted output or the released document.
+- Don't write text that recommends approving, denying, conditioning, or clearing land. Don't use a language model to draft findings, recommendations, or conditions, to compute or round a number, or to set a flag or a study need. Don't let a model write a phase's analysis draft. The only model-written section text is a change the planner asked for in the section chat, and it is stored as a new section version; it never edits the analysis draft or an earlier version.
 - Don't show or store a model's output that failed a check, repaired it, retried it with hints, or replaced it with another model's or an earlier answer. A failure is shown as a failure.
-- Don't show an AI suggestion without its label, model, date, and quotes, and don't let one change a phase's output, fingerprint, review state, or a released document.
+- Don't show an AI suggestion without its label, model, date, and quotes, and don't let one change a phase's analysis output, its fingerprint, or a released document. A section change creates a section version only when the planner asked for it in the section chat, and the section is not labeled AI-assisted.
 - Don't apply an AI draft to a profile or a dataset without a staff member other than the requester confirming it.
 - Don't request an AI suggestion automatically: not on page load, on save, in a loop, or in the background.
 - Don't count significant trees, and don't assume a field-rated attribute such as a wetland rating.

@@ -25,7 +25,8 @@ export type IconName =
   | "spreadsheet"
   | "pencil"
   | "trash"
-  | "refresh";
+  | "refresh"
+  | "sparkles";
 
 const PATHS: Record<IconName, ReactNode> = {
   circle: <circle cx="8" cy="8" r="5.25" />,
@@ -123,6 +124,12 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M13 8a5 5 0 0 1-8.75 3.3M3 8a5 5 0 0 1 8.75-3.3" />
       <path d="M11.75 2.5v2.25h-2.25M4.25 13.5v-2.25h2.25" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M6.5 2.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2Z" />
+      <path d="M11.25 8.75l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6.6-1.5Z" />
     </>
   ),
 };

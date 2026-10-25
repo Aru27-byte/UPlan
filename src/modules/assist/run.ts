@@ -16,7 +16,15 @@ import {
   type ProfileDocument,
 } from "@/modules/profiles";
 import { formatTimestamp } from "@/modules/provenance";
-import { getWorkflow } from "@/modules/workflow";
+import {
+  PHASES,
+  commitSectionChange,
+  contentSha256,
+  getWorkflow,
+  type PhaseKey,
+  type PhaseView,
+  type SectionContent,
+} from "@/modules/workflow";
 import { db, type DbOrTx } from "@/platform/db";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError, isUniqueViolation } from "@/platform/errors";
 import { GENERATE_MODEL_ID, ModelServiceError, chat, isModelConfigured } from "@/platform/model-client";
@@ -24,16 +32,23 @@ import { GENERATE_MODEL_ID, ModelServiceError, chat, isModelConfigured } from "@
 import { checkOutput, type CheckFailure } from "./checks";
 import { loadDatasetMeta } from "./dataset-meta";
 import { indexedTextHash, listSourceDocuments, retrieveCodePassages } from "./documents";
-import { buildRequest, type BuildContext, type CodePassage } from "./inputs";
+import { attachSection, buildRequest, buildSectionInput, type BuildContext, type CodePassage } from "./inputs";
 import {
   ASSISTS,
+  ASSIST_KINDS,
+  ASSIST_PHASES,
   AssistIdSchema,
   MetadataDraftSchema,
   RuleDraftSchema,
+  SECTION_ASSISTS,
+  SectionEditSchema,
+  StoredAssistIdSchema,
+  isSectionAssistKind,
   type AssistDef,
   type AssistId,
   type AssistKind,
   type AssistPhase,
+  type StoredAssistId,
   type SuggestionContent,
 } from "./kinds";
 import { buildMessages } from "./prompts";
@@ -53,15 +68,16 @@ export const PER_CITY_DAILY_CAP = 400;
 const STALE_RUNNING_SECONDS = 120;
 const MAX_ANSWER_TOKENS = 1_200;
 
-export const NOT_CONFIGURED_MESSAGE = "AI assist is not set up for this deployment.";
+export const NOT_CONFIGURED_MESSAGE = "UPlan Assist is not set up for this deployment.";
 
 export type SuggestionView = {
   id: string;
-  assistId: AssistId;
+  assistId: StoredAssistId;
   phase: AssistPhase;
   kind: AssistKind;
   subjectKey: string;
   outputSha256: string;
+  sectionSha256: string | null;
   status: "running" | "ready" | "rejected" | "failed";
   modelId: string;
   promptVersion: number;
@@ -93,19 +109,21 @@ const FailureListSchema = z.array(z.object({ check: z.string(), message: z.strin
 type Row = typeof aiSuggestion.$inferSelect;
 
 function toView(row: Row, responses: SuggestionView["responses"]): SuggestionView {
-  const assistId = AssistIdSchema.parse(row.assistId);
-  const def = ASSISTS[assistId];
+  const assistId = StoredAssistIdSchema.parse(row.assistId);
+  const kind = z.enum(ASSIST_KINDS).parse(row.kind);
+  const def = isSectionAssistKind(kind) ? SECTION_ASSISTS[kind] : ASSISTS[AssistIdSchema.parse(row.assistId)];
   const failures = FailureListSchema.parse(row.checkFailures).map((f) => ({
-    check: z.enum(["K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8"]).parse(f.check),
+    check: z.enum(["K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8", "K9"]).parse(f.check),
     message: f.message,
   }));
   return {
     id: row.id,
     assistId,
-    phase: def.phase,
-    kind: def.kind,
+    phase: z.enum(ASSIST_PHASES).parse(row.phase),
+    kind,
     subjectKey: row.subjectKey,
     outputSha256: row.outputSha256,
+    sectionSha256: row.sectionSha256,
     status: z.enum(["running", "ready", "rejected", "failed"]).parse(row.status),
     modelId: row.modelId,
     promptVersion: row.promptVersion,
@@ -180,6 +198,7 @@ type Prepared = {
   decisionId: string | null;
   ctx: BuildContext;
   outputSha256: string;
+  sectionSha256?: string | null;
   baseDocument: ProfileDocument | null;
   documentId: string | null;
 };
@@ -213,9 +232,9 @@ async function documentText(jurisdictionId: string, documentId: string, kind: "c
 
 const STUB_CODE: CodePassage = { id: "chunk:0", sectionPath: "stub", body: "stub" };
 
-async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof RequestInputSchema>): Promise<Prepared> {
+async function prepare(actor: Actor, assistId: AssistId, input: z.infer<typeof RequestInputSchema>): Promise<Prepared> {
   const empty: BuildContext = { workflow: null, codePassages: [], question: input.question, datasetMeta: [], suppliedText: null, boundTo: null, profile: null };
-  const cityLevel = def.id === "PR1" || def.id === "PR2" || def.id === "EV3" || def.id === "ST3";
+  const cityLevel = assistId === "PR1" || assistId === "PR2" || assistId === "EV3" || assistId === "ST3";
 
   if (!cityLevel) {
     if (input.decisionId === null) throw new ValidationError("Open a project to ask about its phase.");
@@ -224,10 +243,10 @@ async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof Reque
     const ctx: BuildContext = { ...empty, workflow: { facts: workflow.facts, phases: workflow.phases } };
     // EV2 compares two datasets' own metadata. With no finished run there is nothing to load, and the builder
     // below says so plainly.
-    if (def.id === "EV2" && workflow.facts.run) ctx.datasetMeta = await loadDatasetMeta(workflow.facts.run.datasetVersionIds);
+    if (assistId === "EV2" && workflow.facts.run) ctx.datasetMeta = await loadDatasetMeta(workflow.facts.run.datasetVersionIds);
     // Validates the subject and the phase's output now, with a stand-in for the code text, so a request that
     // can't be built is refused before it claims a row or spends a call.
-    const probe = buildRequest(def.id, input.subjectKey, { ...ctx, codePassages: [STUB_CODE] });
+    const probe = buildRequest(assistId, input.subjectKey, { ...ctx, codePassages: [STUB_CODE] });
     return { jurisdictionId, decisionId: input.decisionId, ctx, outputSha256: probe.outputSha256, baseDocument: null, documentId: null };
   }
 
@@ -236,7 +255,7 @@ async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof Reque
   if (jurisdictionId === null) throw new ValidationError("Choose the city.");
   await getJurisdiction(jurisdictionId); // NotFoundError for a city that doesn't exist
 
-  if (def.id === "PR2") {
+  if (assistId === "PR2") {
     const bound = await indexedTextHash(jurisdictionId);
     if (bound === null) throw new ValidationError("No code text has been added for this city yet. Staff add it on the profile page.");
     const ctx = { ...empty, boundTo: bound };
@@ -244,7 +263,7 @@ async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof Reque
     return { jurisdictionId, decisionId: null, ctx, outputSha256: bound, baseDocument: null, documentId: null };
   }
 
-  if (def.id === "EV3") {
+  if (assistId === "EV3") {
     if (input.datasetId === null || input.suppliedText === null) throw new ValidationError("Choose a dataset and paste its publisher's metadata.");
     const dataset = await getDataset(input.datasetId);
     if (!dataset) throw new NotFoundError("dataset");
@@ -262,9 +281,9 @@ async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof Reque
   if (!version) throw new ValidationError("This city has no profile yet, so there are no rules to draft against.");
   const doc = ProfileDocumentSchema.parse(version.document);
   const profile = { rules: currentRules(doc), ruleValues: ruleValuesOf(doc), documentSha256: version.documentSha256 };
-  if (input.documentId === null) throw new ValidationError(def.id === "PR1" ? "Choose the code text to draft from." : "Choose the checklist to compare with.");
+  if (input.documentId === null) throw new ValidationError(assistId === "PR1" ? "Choose the code text to draft from." : "Choose the checklist to compare with.");
 
-  if (def.id === "PR1") {
+  if (assistId === "PR1") {
     await documentText(jurisdictionId, input.documentId, "code"); // the document exists, is the city's, and is code text
     const ctx = { ...empty, profile };
     buildRequest("PR1", input.documentId, { ...ctx, codePassages: [STUB_CODE] });
@@ -275,15 +294,15 @@ async function prepare(actor: Actor, def: AssistDef, input: z.infer<typeof Reque
   return { jurisdictionId, decisionId: null, ctx, outputSha256: version.documentSha256, baseDocument: null, documentId: input.documentId };
 }
 
-function retrievalPlan(def: AssistDef, input: z.infer<typeof RequestInputSchema>, p: Prepared): { queries: string[]; perQuery: number; limit: number } | null {
+function retrievalPlan(assistId: AssistId, input: z.infer<typeof RequestInputSchema>, p: Prepared): { queries: string[]; perQuery: number; limit: number } | null {
   const rules = p.ctx.workflow?.facts.rules ?? null;
   const labelOf = (key: string) => rules?.resourceTypes.find((r) => r.key === key)?.label ?? key;
-  switch (def.id) {
+  switch (assistId) {
     case "PR2":
       return input.question === null ? null : { queries: [input.question], perQuery: 6, limit: 6 };
     case "SC3":
     case "IM3": {
-      const resourceType = input.subjectKey.split(":")[def.id === "SC3" ? 1 : 0];
+      const resourceType = input.subjectKey.split(":")[assistId === "SC3" ? 1 : 0];
       if (!resourceType || !rules) return null;
       const sections = [...rules.bufferRules, ...rules.studyTriggers]
         .filter((r) => r.resourceType === resourceType)
@@ -326,7 +345,14 @@ async function lockKey(tx: DbOrTx, key: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
 }
 
-async function selectLive(tx: DbOrTx, scopeId: string, assistId: AssistId, subjectKey: string, outputSha256: string) {
+async function selectLive(
+  tx: DbOrTx,
+  scopeId: string,
+  assistId: StoredAssistId,
+  subjectKey: string,
+  outputSha256: string,
+  sectionSha256: string | null,
+) {
   const [row] = await tx
     .select({
       row: aiSuggestion,
@@ -339,6 +365,7 @@ async function selectLive(tx: DbOrTx, scopeId: string, assistId: AssistId, subje
         eq(aiSuggestion.assistId, assistId),
         eq(aiSuggestion.subjectKey, subjectKey),
         eq(aiSuggestion.outputSha256, outputSha256),
+        sectionSha256 === null ? isNull(aiSuggestion.sectionSha256) : eq(aiSuggestion.sectionSha256, sectionSha256),
         sql`${aiSuggestion.status} <> 'failed'`,
       ),
     );
@@ -352,8 +379,8 @@ async function capMessage(tx: DbOrTx, who: "person" | "city", windowFilter: Retu
     .where(sql`${windowFilter} and ${aiSuggestion.startedAt} > now() - interval '24 hours'`);
   const resets = oldest?.at ? formatTimestamp(new Date(new Date(oldest.at).getTime() + 24 * 3_600_000), timeZone) : "within 24 hours";
   return who === "person"
-    ? `You have used ${limit} of ${limit} AI requests in the last 24 hours. The next one is available at ${resets}.`
-    : `This city has used ${limit} of ${limit} AI requests in the last 24 hours. The next one is available at ${resets}.`;
+    ? `You have used ${limit} of ${limit} UPlan Assist requests in the last 24 hours. The next one is available at ${resets}.`
+    : `This city has used ${limit} of ${limit} UPlan Assist requests in the last 24 hours. The next one is available at ${resets}.`;
 }
 
 // R12 and R13 in one transaction. The advisory locks serialize the count and the insert for one person and one
@@ -372,7 +399,7 @@ async function claim(
     await lockKey(tx, `ai-user:${actor.userId}`);
     await lockKey(tx, `ai-city:${p.jurisdictionId}`);
 
-    const live = await selectLive(tx, scopeId, def.id, subjectKey, p.outputSha256);
+    const live = await selectLive(tx, scopeId, def.id, subjectKey, p.outputSha256, p.sectionSha256 ?? null);
     if (live && !live.isStale) return { row: live.row, created: false };
     if (live?.isStale) {
       // R13, "Interrupted": nobody is running it any more. Compare-and-set it to failed so the key is free.
@@ -413,6 +440,7 @@ async function claim(
         kind: def.kind,
         subjectKey,
         outputSha256: p.outputSha256,
+        sectionSha256: p.sectionSha256 ?? null,
         modelId: GENERATE_MODEL_ID,
         promptVersion: def.promptVersion,
         status: "running",
@@ -421,7 +449,7 @@ async function claim(
       .onConflictDoNothing()
       .returning();
     if (inserted) return { row: inserted, created: true };
-    const raced = await selectLive(tx, scopeId, def.id, subjectKey, p.outputSha256);
+    const raced = await selectLive(tx, scopeId, def.id, subjectKey, p.outputSha256, p.sectionSha256 ?? null);
     if (!raced) throw new Error("a suggestion key conflicted but no live row holds it");
     return { row: raced.row, created: false };
   });
@@ -429,6 +457,7 @@ async function claim(
 
 /** Moves a running suggestion to its final state. Exactly one row must change, or someone else finished it first. */
 async function finish(
+  dbOrTx: DbOrTx,
   id: string,
   patch: {
     status: "ready" | "rejected" | "failed";
@@ -440,7 +469,7 @@ async function finish(
     tokensOut?: number | null;
   },
 ): Promise<void> {
-  const updated = await db
+  const updated = await dbOrTx
     .update(aiSuggestion)
     .set({
       status: patch.status,
@@ -470,15 +499,15 @@ export async function requestSuggestion(actor: Actor, raw: SuggestionRequestInpu
   // Nothing is written for an unconfigured deployment: it is a state to show, not a failed request (ai-assist.md).
   if (!isModelConfigured()) throw new ValidationError(NOT_CONFIGURED_MESSAGE);
 
-  const p = await prepare(actor, def, input);
+  const p = await prepare(actor, input.assistId, input);
   // The subject is part of the one-live-suggestion key (R13), so it must tell two different asks apart: the
   // document a draft is made from, the dataset a metadata draft is for, or the question a Find answers.
   const subjectKey =
-    def.id === "PR1" || def.id === "ST3"
+    input.assistId === "PR1" || input.assistId === "ST3"
       ? (p.documentId ?? "")
-      : def.id === "EV3"
+      : input.assistId === "EV3"
         ? (input.datasetId ?? "")
-        : def.id === "PR2"
+        : input.assistId === "PR2"
           ? createHash("sha256").update((input.question ?? "").toLowerCase()).digest("hex")
           : input.subjectKey;
   const timeZone = (await getJurisdiction(p.jurisdictionId)).timeZone;
@@ -491,16 +520,16 @@ export async function requestSuggestion(actor: Actor, raw: SuggestionRequestInpu
   }
 
   try {
-    const plan = retrievalPlan(def, input, p);
+    const plan = retrievalPlan(input.assistId, input, p);
     let codePassages: CodePassage[] = [];
     if (plan) {
       codePassages = await retrieveCodePassages(p.jurisdictionId, plan.queries, {
         perQuery: plan.perQuery,
         limit: plan.limit,
-        documentId: def.id === "PR1" ? p.documentId : null,
+        documentId: input.assistId === "PR1" ? p.documentId : null,
       });
     }
-    const built = buildRequest(def.id, subjectKey, { ...p.ctx, codePassages });
+    const built = buildRequest(input.assistId, subjectKey, { ...p.ctx, codePassages });
     if (built.outputSha256 !== p.outputSha256) {
       throw new ConflictError("The output changed while the request was being prepared. Try again.");
     }
@@ -515,18 +544,18 @@ export async function requestSuggestion(actor: Actor, raw: SuggestionRequestInpu
     const answer = await chat(buildMessages(built.request), MAX_ANSWER_TOKENS);
     const checked = checkOutput({ assist: def, rawText: answer.content, request: built.request, baseDocument: p.baseDocument });
     if (checked.ok) {
-      await finish(row.id, { status: "ready", content: checked.content, responseRaw: answer.content, tokensIn: answer.tokensIn, tokensOut: answer.tokensOut });
+      await finish(db, row.id, { status: "ready", content: checked.content, responseRaw: answer.content, tokensIn: answer.tokensIn, tokensOut: answer.tokensOut });
     } else {
       // R4–R6: the raw answer is kept for staff and the evaluation set; nothing from it is shown as an answer.
-      await finish(row.id, { status: "rejected", responseRaw: answer.content, checkFailures: checked.failures, tokensIn: answer.tokensIn, tokensOut: answer.tokensOut });
+      await finish(db, row.id, { status: "rejected", responseRaw: answer.content, checkFailures: checked.failures, tokensIn: answer.tokensIn, tokensOut: answer.tokensOut });
     }
   } catch (err) {
     if (err instanceof ModelServiceError) {
       // R11: shown with its reason; nothing replaces it, and no other model is tried.
-      await finish(row.id, { status: "failed", errorDetail: err.reason === "rate-limited" ? "rate-limited" : `${err.reason}: ${err.message}` });
+      await finish(db, row.id, { status: "failed", errorDetail: err.reason === "rate-limited" ? "rate-limited" : `${err.reason}: ${err.message}` });
     } else {
       // Not an expected outcome: record that the request did not finish, then let the defect reach the logs.
-      await finish(row.id, { status: "failed", errorDetail: `internal error: ${err instanceof Error ? err.message : String(err)}` }).catch(() => undefined);
+      await finish(db, row.id, { status: "failed", errorDetail: `internal error: ${err instanceof Error ? err.message : String(err)}` }).catch(() => undefined);
       throw err;
     }
   }
@@ -536,6 +565,209 @@ export async function requestSuggestion(actor: Actor, raw: SuggestionRequestInpu
   const [view] = await viewsOf([done]);
   if (!view) throw new Error("a finished suggestion has no view");
   return view;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The section chat (F21 R6, R7; F24 R19).
+// ---------------------------------------------------------------------------------------------------------
+
+const SectionRequestInputSchema = z
+  .object({
+    assistId: StoredAssistIdSchema,
+    decisionId: z.uuid(),
+    phase: z.enum(PHASES),
+    instruction: z
+      .string()
+      .trim()
+      .min(1, "Type a question or a change.")
+      .max(2000, "Keep the message under 2,000 characters."),
+    expectedContentSha256: z.string().regex(/^[0-9a-f]{64}$/, "Reload the page and try again."),
+    expectedOutputSha256: z.string().regex(/^[0-9a-f]{64}$/, "Reload the page and try again."),
+  })
+  .strict();
+export type SectionRequestInput = z.input<typeof SectionRequestInputSchema>;
+
+/** The section the page shows: the stored version, or the analysis draft when none is stored. */
+function shownSection(view: PhaseView): SectionContent {
+  if (view.state.kind === "ready") return view.state.content;
+  if (view.state.kind === "out-of-date") return view.state.version.content;
+  throw new ValidationError(`The ${view.phase} section has no output yet, so there is nothing to ask about.`);
+}
+
+function sectionDefFor(assistId: StoredAssistId, phase: PhaseKey): AssistDef {
+  if (isSectionAssistKind(assistId)) {
+    const def = SECTION_ASSISTS[assistId];
+    return {
+      id: assistId,
+      phase,
+      kind: assistId,
+      wave: 1,
+      label: "",
+      staff: false,
+      subject: "phase",
+      promptVersion: def.promptVersion,
+      task: def.task,
+      maxWords: def.maxWords,
+      schema: def.schema,
+    };
+  }
+  return ASSISTS[assistId];
+}
+
+/**
+ * The section chat's one entry point. Explain changes nothing; a Change stores its section version in the same
+ * transaction that finishes the suggestion, so a hash that moved rolls the version back and marks the
+ * suggestion failed with the conflict's message (F21 R7).
+ */
+export async function requestSectionSuggestion(actor: Actor, raw: SectionRequestInput): Promise<SuggestionView> {
+  const parsed = SectionRequestInputSchema.safeParse(raw);
+  if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join(" "));
+  const input = parsed.data;
+  if (!isModelConfigured()) throw new ValidationError(NOT_CONFIGURED_MESSAGE);
+
+  const workflow = await getWorkflow(actor, input.decisionId); // ownership: someone else's project is NotFound
+  const view = workflow.phases.find((p) => p.phase === input.phase);
+  if (!view) throw new ValidationError(`There is no ${input.phase} phase.`);
+  if (!view.output) throw new ValidationError(`The ${input.phase} phase has no output yet, so there is nothing to ask about.`);
+  const section = shownSection(view);
+  if (contentSha256(section) !== input.expectedContentSha256) {
+    throw new ConflictError("This section changed while you were reading it. Reload the page and try again.");
+  }
+  if (view.output.contentSha256 !== input.expectedOutputSha256) {
+    throw new ConflictError("The analysis changed while you were reading it. Reload the page and try again.");
+  }
+
+  if (!isSectionAssistKind(input.assistId)) {
+    const filler = ASSISTS[input.assistId];
+    if (filler.staff || filler.subject !== "phase" || filler.phase !== input.phase) {
+      throw new ValidationError("That prompt does not belong to this section.");
+    }
+  }
+  const def = sectionDefFor(input.assistId, input.phase);
+
+  const ctx: BuildContext = {
+    workflow: { facts: workflow.facts, phases: workflow.phases },
+    codePassages: [],
+    question: null,
+    datasetMeta: [],
+    suppliedText: null,
+    boundTo: null,
+    profile: null,
+  };
+  const built = isSectionAssistKind(input.assistId)
+    ? buildSectionInput(
+        input.assistId,
+        {
+          phase: input.phase,
+          section,
+          instruction: input.instruction,
+          sampleData: workflow.usesSampleData,
+          identity: {
+            title: workflow.decision.title,
+            parcelOrAddress: workflow.decision.parcelOrAddress,
+            applicant: workflow.decision.applicant,
+            projectManager: workflow.decision.projectManager,
+          },
+        },
+        ctx,
+      )
+    : attachSection(buildRequest(input.assistId, "", ctx), {
+        phase: input.phase,
+        section,
+        instruction: input.instruction,
+      });
+
+  // R13: the same instruction on the same section is one request; the section hash is in the key too.
+  const subjectKey = createHash("sha256").update(input.instruction.toLowerCase()).digest("hex");
+  const p: Prepared = {
+    jurisdictionId: workflow.decision.jurisdictionId,
+    decisionId: input.decisionId,
+    ctx,
+    outputSha256: built.outputSha256,
+    sectionSha256: built.sectionSha256 ?? null,
+    baseDocument: null,
+    documentId: null,
+  };
+
+  const { row, created } = await claim(actor, def, p, subjectKey, workflow.timeZone);
+  if (!created) {
+    const [existing] = await viewsOf([row]);
+    if (!existing) throw new Error("a claimed suggestion has no view");
+    return existing;
+  }
+
+  try {
+    const stored = await db
+      .update(aiSuggestion)
+      .set({ request: built.request, inputSha256: createHash("sha256").update(JSON.stringify(built.request)).digest("hex") })
+      .where(and(eq(aiSuggestion.id, row.id), eq(aiSuggestion.status, "running")))
+      .returning({ id: aiSuggestion.id });
+    if (stored.length !== 1) throw new ConflictError("This suggestion was already finished.");
+
+    const answer = await chat(buildMessages(built.request), MAX_ANSWER_TOKENS);
+    const checked = checkOutput({ assist: def, rawText: answer.content, request: built.request, baseDocument: null });
+    if (!checked.ok) {
+      await finish(db, row.id, {
+        status: "rejected",
+        responseRaw: answer.content,
+        checkFailures: checked.failures,
+        tokensIn: answer.tokensIn,
+        tokensOut: answer.tokensOut,
+      });
+    } else if (def.kind === "section-edit") {
+      const edit = SectionEditSchema.parse(checked.content);
+      const content: SectionContent = {
+        headline: edit.headline,
+        lines: edit.lines,
+        tables: (edit.tables ?? []).map((t) => ({ key: t.key, caption: t.caption ?? null, columnOrder: t.columnOrder })),
+      };
+      try {
+        await db.transaction(async (tx) => {
+          await finish(tx, row.id, {
+            status: "ready",
+            content: checked.content,
+            responseRaw: answer.content,
+            tokensIn: answer.tokensIn,
+            tokensOut: answer.tokensOut,
+          });
+          await commitSectionChange(actor, input.decisionId, {
+            phase: input.phase,
+            content,
+            instruction: input.instruction,
+            suggestionId: row.id,
+            expectedContentSha256: input.expectedContentSha256,
+            expectedOutputSha256: input.expectedOutputSha256,
+          });
+        });
+      } catch (err) {
+        // The transaction rolled back, so no version exists and the suggestion is still running. Mark it failed
+        // with the conflict's own message; the chat shows it and nothing was stored.
+        if (!(err instanceof ConflictError)) throw err;
+        await finish(db, row.id, { status: "failed", errorDetail: err.message }).catch(() => undefined);
+      }
+    } else {
+      await finish(db, row.id, {
+        status: "ready",
+        content: checked.content,
+        responseRaw: answer.content,
+        tokensIn: answer.tokensIn,
+        tokensOut: answer.tokensOut,
+      });
+    }
+  } catch (err) {
+    if (err instanceof ModelServiceError) {
+      await finish(db, row.id, { status: "failed", errorDetail: err.reason === "rate-limited" ? "rate-limited" : `${err.reason}: ${err.message}` });
+    } else {
+      await finish(db, row.id, { status: "failed", errorDetail: `internal error: ${err instanceof Error ? err.message : String(err)}` }).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  const [done] = await db.select().from(aiSuggestion).where(eq(aiSuggestion.id, row.id));
+  if (!done) throw new Error("a finished suggestion disappeared");
+  const [doneView] = await viewsOf([done]);
+  if (!doneView) throw new Error("a finished suggestion has no view");
+  return doneView;
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -604,7 +836,7 @@ export async function confirmRuleDraft(actor: Actor, suggestionId: string, raw: 
         jurisdictionId: row.jurisdictionId,
         baseVersionId: current.id,
         proposedBy: row.requestedBy,
-        reason: `AI-drafted rule change from code text, confirmed by staff: ${input.data.ordinance}`,
+        reason: `UPlan Assist-drafted rule change from code text, confirmed by staff: ${input.data.ordinance}`,
         build: (doc) =>
           applyRuleChanges(
             doc,

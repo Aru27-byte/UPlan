@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import {
   MEASURE_LABEL,
@@ -25,7 +25,7 @@ import {
   type EvidenceProvenance,
 } from "@/modules/provenance";
 
-import type { ReportDetails } from "./snapshot";
+import type { ReportDetails, SectionContent } from "./snapshot";
 
 // TechDesign/locked-report.md, "Sections" — the report is stitched from one section per research step. Each
 // section is a Server Component over already-resolved data and nothing else: the final document (document.tsx)
@@ -44,9 +44,6 @@ export type ReportResolution = {
   createdByName: string;
   createdAt: Date;
 };
-
-/** A phase's drafted summary: the headline and the sentences the planner reviewed. */
-export type SectionSummary = { headline: string; lines: string[] };
 
 /** Everything the sections that read an analysis run need, resolved. */
 export type RunContent = {
@@ -113,20 +110,38 @@ function labelOf(profile: ProfileDocument, resourceType: string): string {
   return profile.resourceTypes.find((r) => r.key === resourceType)?.label ?? resourceType;
 }
 
-function Summary({ summary }: { summary: SectionSummary }): ReactNode {
+function Narrative({ content }: { content: SectionContent }): ReactNode {
   return (
     <>
       <p>
-        <strong>{summary.headline}</strong>
+        <strong>{content.headline}</strong>
       </p>
       <ul>
-        {summary.lines.map((line, i) => (
+        {content.lines.map((line, i) => (
           <li key={`${i}:${line}`}>{line}</li>
         ))}
       </ul>
-      <p className="note">Drafted by UPlan&apos;s analysis engine from measurements. No language model wrote this.</p>
     </>
   );
+}
+
+/**
+ * A section's table formatting: the caption and column order a planner's change may set, or the canonical
+ * ones. Values always come from the run, never from the section version (F21 R2).
+ */
+function tableFormat(
+  content: SectionContent,
+  key: string,
+  fallback: { caption: string | null; columns: readonly string[] },
+): { caption: string | null; columnOrder: readonly string[] } {
+  const format = content.tables.find((t) => t.key === key);
+  return { caption: format ? format.caption : fallback.caption, columnOrder: format ? format.columnOrder : fallback.columns };
+}
+
+function columnLabel(labels: Record<string, string>, key: string): string {
+  const label = labels[key];
+  if (label === undefined) throw new Error(`unknown table column ${key}`);
+  return label;
 }
 
 /** Overview: the project's details as the document opens with them. */
@@ -258,11 +273,11 @@ function MapSvg({
 }
 
 /** Site: the study area, drawn to scale. */
-export function SiteSection({ summary, studyAreaSvg }: { summary: SectionSummary; studyAreaSvg: GeometrySvg }) {
+export function SiteSection({ content, studyAreaSvg }: { content: SectionContent; studyAreaSvg: GeometrySvg }) {
   return (
     <>
       <h2>Site</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       <MapSvg
         idPrefix="site-map"
         title="Study area"
@@ -276,18 +291,18 @@ export function SiteSection({ summary, studyAreaSvg }: { summary: SectionSummary
 
 /** Footprint: the traced proposal footprint over the study area. */
 export function FootprintSection({
-  summary,
+  content,
   studyAreaSvg,
   footprintSvg,
 }: {
-  summary: SectionSummary;
+  content: SectionContent;
   studyAreaSvg: GeometrySvg;
   footprintSvg: GeometrySvg | null;
 }) {
   return (
     <>
       <h2>Footprint</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       <MapSvg
         idPrefix="footprint-map"
         title="Study area and footprint"
@@ -299,14 +314,49 @@ export function FootprintSection({
   );
 }
 
+const RESOLUTION_LABELS: Record<string, string> = {
+  resourceType: "Resource type",
+  sources: "Sources compared",
+  reliedOn: "Relied on",
+  reason: "Reason, in the planner's words",
+  recordedBy: "Recorded by",
+};
+const RESOLUTION_COLUMNS = ["resourceType", "sources", "reliedOn", "reason", "recordedBy"] as const;
+
+function resolutionCell(key: string, r: ReportResolution, run: RunContent, profileDocument: ProfileDocument): ReactNode {
+  switch (key) {
+    case "resourceType":
+      return <th scope="row">{labelOf(profileDocument, r.resourceType)}</th>;
+    case "sources":
+      return (
+        <td>
+          {r.mappedByTitle} and {r.notMappedByTitle}
+        </td>
+      );
+    case "reliedOn":
+      return <td>{RELIED_ON_TEXT[r.reliedOn]}</td>;
+    case "reason":
+      return <td>{r.rationale}</td>;
+    case "recordedBy":
+      return (
+        <td>
+          {r.createdByName}, {formatTimestamp(r.createdAt, run.timeZone)} (revision {r.revision})
+        </td>
+      );
+    default:
+      throw new Error(`unknown resolutions column ${key}`);
+  }
+}
+
 /** Evidence: what the public record shows, where sources disagree, and the planner's reasoning. */
-export function EvidenceSection({ summary, run }: { summary: SectionSummary; run: RunContent }) {
+export function EvidenceSection({ content, run }: { content: SectionContent; run: RunContent }) {
   const { results, profileDocument } = run;
   const titleOf = (versionId: string): string => run.datasetTitles.get(versionId) ?? versionId;
+  const format = tableFormat(content, "resolutions", { caption: "Sources the planner relies on", columns: RESOLUTION_COLUMNS });
   return (
     <>
       <h2>Evidence base</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       <p>
         What the public record shows for this study area, and what it doesn&apos;t. A resource type with nothing
         mapped is a statement about the mapped data, not about the land.
@@ -335,30 +385,24 @@ export function EvidenceSection({ summary, run }: { summary: SectionSummary; run
       ) : null}
       {run.resolutions.length > 0 ? (
         <>
-          <h3>Sources the planner relies on</h3>
           <p className="note">A recorded reason never changes a measurement; both sources stay shown above.</p>
           <table>
+            {format.caption === null ? null : <caption className="note">{format.caption}</caption>}
             <thead>
               <tr>
-                <th scope="col">Resource type</th>
-                <th scope="col">Sources compared</th>
-                <th scope="col">Relied on</th>
-                <th scope="col">Reason, in the planner&apos;s words</th>
-                <th scope="col">Recorded by</th>
+                {format.columnOrder.map((key) => (
+                  <th scope="col" key={key}>
+                    {columnLabel(RESOLUTION_LABELS, key)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {run.resolutions.map((r) => (
                 <tr key={`${r.resourceType}:${r.mappedByTitle}:${r.notMappedByTitle}:${r.revision}`}>
-                  <th scope="row">{labelOf(profileDocument, r.resourceType)}</th>
-                  <td>
-                    {r.mappedByTitle} and {r.notMappedByTitle}
-                  </td>
-                  <td>{RELIED_ON_TEXT[r.reliedOn]}</td>
-                  <td>{r.rationale}</td>
-                  <td>
-                    {r.createdByName}, {formatTimestamp(r.createdAt, run.timeZone)} (revision {r.revision})
-                  </td>
+                  {format.columnOrder.map((key) => (
+                    <Fragment key={key}>{resolutionCell(key, r, run, profileDocument)}</Fragment>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -369,47 +413,86 @@ export function EvidenceSection({ summary, run }: { summary: SectionSummary; run
   );
 }
 
+const SCREENING_LABELS: Record<string, string> = {
+  resourceType: "Resource type",
+  finding: "Finding",
+  source: "Source",
+  confidence: "Confidence",
+};
+const SCREENING_COLUMNS = ["resourceType", "finding", "source", "confidence"] as const;
+
+type ScreeningTableRow = {
+  key: string;
+  resourceType: string;
+  finding: string;
+  source: string;
+  confidence: string;
+};
+
+function screeningCell(key: string, row: ScreeningTableRow, profileDocument: ProfileDocument): ReactNode {
+  switch (key) {
+    case "resourceType":
+      return <th scope="row">{labelOf(profileDocument, row.resourceType)}</th>;
+    case "finding":
+      return <td>{row.finding}</td>;
+    case "source":
+      return <td>{row.source}</td>;
+    case "confidence":
+      return <td>{row.confidence}</td>;
+    default:
+      throw new Error(`unknown screening column ${key}`);
+  }
+}
+
 /** Screening: what mapped data shows in and near the study area, and where it has none. */
-export function ScreeningSection({ summary, run }: { summary: SectionSummary; run: RunContent }) {
+export function ScreeningSection({ content, run }: { content: SectionContent; run: RunContent }) {
   const { results, profileDocument } = run;
   const titleOf = (versionId: string): string => run.datasetTitles.get(versionId) ?? versionId;
-  const gapsByResource = new Map(results.evidenceBase.gaps.map((g) => [g.resourceType, g.reason] as const));
+  const rows: ScreeningTableRow[] = results.screening.map((row) => {
+    const found = run.datasetProvenance.get(row.datasetVersionId);
+    if (!found) throw new Error(`no provenance was loaded for dataset version ${row.datasetVersionId}`);
+    const provenance = formatEvidenceProvenance(found);
+    return {
+      key: `${row.resourceType}:${row.datasetVersionId}`,
+      resourceType: row.resourceType,
+      finding: describeScreeningRow(row),
+      source: `${titleOf(row.datasetVersionId)}. ${provenance.sourceLine}. ${provenance.retrievedLine}`,
+      confidence: provenance.confidenceLine ?? CONFIDENCE_NOT_APPLICABLE,
+    };
+  });
+  for (const gap of results.evidenceBase.gaps) {
+    rows.push({
+      key: `gap:${gap.resourceType}`,
+      resourceType: gap.resourceType,
+      finding: describeScreeningGap(gap.reason),
+      source: "—",
+      confidence: "Not applicable — no data.",
+    });
+  }
+  const format = tableFormat(content, "screening", { caption: null, columns: SCREENING_COLUMNS });
+
   return (
     <>
       <h2>Screening register</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       <p>{SCREENING_CANNOT_SEE}</p>
       <table>
+        {format.caption === null ? null : <caption className="note">{format.caption}</caption>}
         <thead>
           <tr>
-            <th scope="col">Resource type</th>
-            <th scope="col">Finding</th>
-            <th scope="col">Source</th>
-            <th scope="col">Confidence</th>
+            {format.columnOrder.map((key) => (
+              <th scope="col" key={key}>
+                {columnLabel(SCREENING_LABELS, key)}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {results.screening.map((row) => {
-            const found = run.datasetProvenance.get(row.datasetVersionId);
-            if (!found) throw new Error(`no provenance was loaded for dataset version ${row.datasetVersionId}`);
-            const provenance = formatEvidenceProvenance(found);
-            return (
-              <tr key={`${row.resourceType}:${row.datasetVersionId}`}>
-                <th scope="row">{labelOf(profileDocument, row.resourceType)}</th>
-                <td>{describeScreeningRow(row)}</td>
-                <td>
-                  {titleOf(row.datasetVersionId)}. {provenance.sourceLine}. {provenance.retrievedLine}
-                </td>
-                <td>{provenance.confidenceLine}</td>
-              </tr>
-            );
-          })}
-          {[...gapsByResource.entries()].map(([resourceType, reason]) => (
-            <tr key={`gap:${resourceType}`}>
-              <th scope="row">{labelOf(profileDocument, resourceType)}</th>
-              <td>{describeScreeningGap(reason)}</td>
-              <td>—</td>
-              <td>Not applicable — no data.</td>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              {format.columnOrder.map((key) => (
+                <Fragment key={key}>{screeningCell(key, row, profileDocument)}</Fragment>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -419,14 +502,14 @@ export function ScreeningSection({ summary, run }: { summary: SectionSummary; ru
 }
 
 /** Studies: each study the profile names, and whether mapped data flags it (F14 R6). */
-export function StudiesSection({ summary, run }: { summary: SectionSummary; run: RunContent }) {
+export function StudiesSection({ content, run }: { content: SectionContent; run: RunContent }) {
   const { results, profileDocument } = run;
   const namedStudies = [...new Set(profileDocument.studyTriggers.map((t) => t.study))];
   const flagsByStudy = (study: string) => results.studyFlags.filter((f) => f.study === study);
   return (
     <>
       <h2>Studies</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       <ul>
         {namedStudies.map((study) => {
           const flags = flagsByStudy(study);
@@ -450,59 +533,76 @@ export function StudiesSection({ summary, run }: { summary: SectionSummary; run:
   );
 }
 
-function ImpactRow({
-  impact,
-  provenance,
-  resourceLabel,
-}: {
-  impact: Impact;
-  provenance: DerivedProvenance | undefined;
-  resourceLabel: string;
-}) {
+const IMPACT_LABELS: Record<string, string> = {
+  resourceType: "Resource type",
+  measure: "Measure",
+  quantity: "Quantity",
+  source: "Source",
+  confidence: "Confidence",
+  citation: "Rule citation",
+};
+const IMPACT_COLUMNS = ["resourceType", "measure", "quantity", "source", "confidence", "citation"] as const;
+
+function impactCell(
+  key: string,
+  impact: Impact,
+  provenance: DerivedProvenance | undefined,
+  resourceLabel: string,
+): ReactNode {
   const formatted = provenance ? formatDerivedProvenance(provenance) : null;
-  return (
-    <tr>
-      <th scope="row">{resourceLabel}</th>
-      <td>{MEASURE_LABEL[impact.measure]}</td>
-      <td>
-        {formatImpactQuantity(impact)}
-        {impact.dependsOn ? ` (depends on ${impact.dependsOn})` : ""}
-        {impact.approximate ? " (approximate boundary)" : ""}
-      </td>
-      <td>{formatted?.sourceLine ?? "—"}</td>
-      <td>{formatted?.confidenceLine ?? CONFIDENCE_NOT_APPLICABLE}</td>
-      <td>{formatted?.citations.join("; ") ?? "—"}</td>
-    </tr>
-  );
+  switch (key) {
+    case "resourceType":
+      return <th scope="row">{resourceLabel}</th>;
+    case "measure":
+      return <td>{MEASURE_LABEL[impact.measure]}</td>;
+    case "quantity":
+      return (
+        <td>
+          {formatImpactQuantity(impact)}
+          {impact.dependsOn ? ` (depends on ${impact.dependsOn})` : ""}
+          {impact.approximate ? " (approximate boundary)" : ""}
+        </td>
+      );
+    case "source":
+      return <td>{formatted?.sourceLine ?? "—"}</td>;
+    case "confidence":
+      return <td>{formatted?.confidenceLine ?? CONFIDENCE_NOT_APPLICABLE}</td>;
+    case "citation":
+      return <td>{formatted?.citations.join("; ") ?? "—"}</td>;
+    default:
+      throw new Error(`unknown impact column ${key}`);
+  }
 }
 
 /** Impact: what the footprint would remove or disturb, and the limits that apply to every figure. */
-export function ImpactSection({ summary, run }: { summary: SectionSummary; run: RunContent }) {
+export function ImpactSection({ content, run }: { content: SectionContent; run: RunContent }) {
   const { results, profileDocument } = run;
+  const format = tableFormat(content, "impact", { caption: null, columns: IMPACT_COLUMNS });
   return (
     <>
       <h2>Impact</h2>
-      <Summary summary={summary} />
+      <Narrative content={content} />
       {results.impacts.length > 0 ? (
         <table>
+          {format.caption === null ? null : <caption className="note">{format.caption}</caption>}
           <thead>
             <tr>
-              <th scope="col">Resource type</th>
-              <th scope="col">Measure</th>
-              <th scope="col">Quantity</th>
-              <th scope="col">Source</th>
-              <th scope="col">Confidence</th>
-              <th scope="col">Rule citation</th>
+              {format.columnOrder.map((key) => (
+                <th scope="col" key={key}>
+                  {columnLabel(IMPACT_LABELS, key)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {results.impacts.map((impact) => (
-              <ImpactRow
-                key={impact.impactKey}
-                impact={impact}
-                resourceLabel={labelOf(profileDocument, impact.resourceType)}
-                provenance={run.impactProvenance.get(impact.impactKey)}
-              />
+              <tr key={impact.impactKey}>
+                {format.columnOrder.map((key) => (
+                  <Fragment key={key}>
+                    {impactCell(key, impact, run.impactProvenance.get(impact.impactKey), labelOf(profileDocument, impact.resourceType))}
+                  </Fragment>
+                ))}
+              </tr>
             ))}
           </tbody>
         </table>

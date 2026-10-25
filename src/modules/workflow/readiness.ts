@@ -9,7 +9,7 @@ import { getWorkflow } from "./workflow";
 
 export type FinishReadiness = {
   blocking: {
-    key: "phase-not-reviewed" | "analysis-not-current" | "analysis-failed" | "filing-date-missing" | "nothing-changed";
+    key: "section-not-ready" | "analysis-not-current" | "analysis-failed" | "filing-date-missing" | "nothing-changed";
     phase?: PhaseKey;
   }[];
   stated: {
@@ -38,7 +38,7 @@ export async function getFinishReadiness(actor: Actor, decisionId: string): Prom
       break;
   }
   for (const view of w.phases) {
-    if (view.state.kind !== "reviewed") blocking.push({ key: "phase-not-reviewed", phase: view.phase });
+    if (view.state.kind !== "ready") blocking.push({ key: "section-not-ready", phase: view.phase });
   }
   if (w.change && !w.change.hasChanges) blocking.push({ key: "nothing-changed" });
 

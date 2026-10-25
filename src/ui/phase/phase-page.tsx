@@ -1,45 +1,30 @@
 import type { ReactNode } from "react";
 
-import type { ActionState } from "../action-state";
-
-import { DraftedOutput } from "./drafted-output";
 import { InputsBlock } from "./inputs-block";
-import { ReviewHistory } from "./review-history";
-import { ReviewPanel } from "./review-panel.client";
 import type { PhaseViewModel } from "./types";
 
-// A phase page (research-phases.md R1, R15, R16): the report section this step feeds with its feedback box
-// (`intro`), then what the output is drafted from, the output, the review, and the history. Everything below
-// the intro that is data is a closed accordion; the review form is a control and stays open. `editor` is the
-// phase's own input control (the map, an upload), an exception that stays open and sits right after the
-// inputs it changes; `children` is the page's detail (the cards, the register, the tables) and sits between
-// the drafted output and the review, so a planner reads the evidence before deciding.
+// A phase page (research-phases.md R1, R15, R16): the report section this step feeds and its chat (`intro`), then
+// what the section is drafted from, then the page's own detail. Everything below the intro that is data is a
+// closed accordion; the chat and the section are controls, not data, and stay open. `editor` is the phase's own
+// input control (the map, an upload), an exception that stays open and sits after the inputs it changes;
+// `children` is the page's detail (the cards, the register, the tables), in accordions after the inputs.
 export function PhasePage({
   model,
-  reviewAction,
   intro,
   editor,
-  assist,
   children,
 }: {
   model: PhaseViewModel;
-  reviewAction: (previous: ActionState, formData: FormData) => Promise<ActionState>;
   intro: ReactNode;
   editor?: ReactNode;
-  /** The AI assist panel (F24): beside the drafted output, never part of it. Site and Footprint have none. */
-  assist?: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-5">
       {intro}
-      {editor}
       <InputsBlock model={model} />
-      <DraftedOutput model={model} />
-      {assist}
+      {editor}
       {children}
-      <ReviewPanel model={model} action={reviewAction} />
-      <ReviewHistory model={model} />
     </div>
   );
 }

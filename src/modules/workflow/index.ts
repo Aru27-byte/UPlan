@@ -1,24 +1,29 @@
 export { getWorkflow, detailsOf } from "./workflow";
 export type { Workflow } from "./workflow";
 
-export { PHASES, missingReason, buildPhaseViews } from "./phases";
+export { PHASES, missingReason } from "./phases";
+export type { PhaseKey, PhaseFacts, PhaseOutput, MissingReason } from "./phases";
+
+export {
+  buildSectionViews,
+  getSection,
+  commitSectionChange,
+  revertSection,
+  updateSectionToCurrent,
+  sectionDiff,
+  contentSha256,
+} from "./sections";
 export type {
-  PhaseKey,
-  PhaseFacts,
-  PhaseOutput,
-  PhaseReview,
+  SectionVersion,
+  SectionState,
   PhaseView,
-  ReviewState,
-  MissingReason,
-} from "./phases";
+  CommitSectionChangeInput,
+  RevertSectionInput,
+  UpdateSectionToCurrentInput,
+} from "./sections";
+export type { SectionContent, SectionTableFormat } from "@/modules/reports";
 
-export { recordReview, listReviews } from "./reviews";
-export type { RecordReviewInput } from "./reviews";
-
-export { recordSectionFeedback, listSectionFeedback, listSectionFeedbackInternal, FEEDBACK_STEPS } from "./feedback";
-export type { FeedbackStep, SectionFeedback, RecordFeedbackInput } from "./feedback";
-
-export { finishResearch,cancelResearchChange } from "./finish";
+export { finishResearch, cancelResearchChange } from "./finish";
 export type { FinishInput } from "./finish";
 
 export { getFinishReadiness } from "./readiness";

@@ -443,7 +443,7 @@ function LayersPanel({
                 <tr
                   key={l.datasetVersionId}
                   id={`layer-${l.datasetVersionId}`}
-                  className="border-b border-line"
+                  className="border-b border-line transition-colors duration-150 hover:bg-raised/60"
                 >
                   <th scope="row" className="py-2.5 pr-3 font-medium">
                     <span className="flex items-center gap-2">

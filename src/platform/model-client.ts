@@ -53,7 +53,7 @@ const EmbeddingResponseSchema = z.object({
 
 async function post(path: string, body: unknown): Promise<unknown> {
   const key = env.NVIDIA_API_KEY;
-  if (key === undefined) throw new ModelServiceError("not-configured", "AI assist is not set up for this deployment.");
+  if (key === undefined) throw new ModelServiceError("not-configured", "UPlan Assist is not set up for this deployment.");
 
   let res: Response;
   try {
@@ -65,21 +65,21 @@ async function post(path: string, body: unknown): Promise<unknown> {
     });
   } catch (err) {
     if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
-      throw new ModelServiceError("timeout", `The model service did not answer within ${CALL_TIMEOUT_MS / 1000} seconds.`);
+      throw new ModelServiceError("timeout", `UPlan Assist did not answer within ${CALL_TIMEOUT_MS / 1000} seconds.`);
     }
-    throw new ModelServiceError("unreachable", `The model service could not be reached: ${err instanceof Error ? err.message : String(err)}`);
+    throw new ModelServiceError("unreachable", `UPlan Assist could not be reached: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  if (res.status === 429) throw new ModelServiceError("rate-limited", "The free model service is at its limit.", 429);
+  if (res.status === 429) throw new ModelServiceError("rate-limited", "UPlan Assist is at its limit.", 429);
   if (!res.ok) {
     // The body names the reason (a retired model id, a malformed request) and holds no secret.
     const detail = (await res.text()).slice(0, 300);
-    throw new ModelServiceError("http-error", `The model service answered HTTP ${res.status}: ${detail}`, res.status);
+    throw new ModelServiceError("http-error", `UPlan Assist answered HTTP ${res.status}: ${detail}`, res.status);
   }
   try {
     return await res.json();
   } catch {
-    throw new ModelServiceError("bad-response", "The model service's answer was not JSON.", res.status);
+    throw new ModelServiceError("bad-response", "UPlan Assist's answer was not JSON.", res.status);
   }
 }
 
@@ -106,7 +106,7 @@ export async function chat(messages: { role: "system" | "user"; content: string 
   });
   const parsed = ChatResponseSchema.safeParse(raw);
   const first = parsed.success ? parsed.data.choices[0] : undefined;
-  if (!parsed.success || !first) throw new ModelServiceError("bad-response", "The model service's answer had an unexpected shape.");
+  if (!parsed.success || !first) throw new ModelServiceError("bad-response", "UPlan Assist's answer had an unexpected shape.");
   return {
     content: first.message.content,
     tokensIn: parsed.data.usage?.prompt_tokens ?? null,

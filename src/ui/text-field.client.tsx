@@ -47,7 +47,7 @@ export function TextField({
           {hint}
         </Text>
       ) : null}
-      <FieldError className="text-sm font-medium text-danger" />
+      <FieldError className="message-in text-sm font-medium text-danger" />
     </AriaTextField>
   );
 }

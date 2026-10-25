@@ -25,8 +25,8 @@ export function CodeTextPanel({
 }) {
   return (
     <Panel
-      title="Code text for AI assist"
-      description="Published code, ordinances, and checklists that AI assist can quote. Public text only: never an applicant's document."
+      title="Code text for UPlan Assist"
+      description="Published code, ordinances, and checklists that UPlan Assist can quote. Public text only: never an applicant's document."
     >
       {documents.length === 0 ? (
         <p className="mb-4 text-sm text-muted">No text has been added yet.</p>

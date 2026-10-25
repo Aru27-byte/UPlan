@@ -7,7 +7,7 @@ import type { ProfileDocument } from "@/modules/profiles";
 
 import { ReportDocument, type ReportDocumentProps } from "./document";
 import { FootprintSection, mapViewBox, SiteSection } from "./sections";
-import { PHASE_KEYS, type ReportPhase, type ReportSnapshot } from "./snapshot";
+import { PHASE_KEYS, type ReportSection, type ReportSnapshot } from "./snapshot";
 
 // TechDesign/locked-report.md — R6/R7: a direct, automatable check that no rendered document ever
 // contains verdict-shaped language, and that gaps and unflagged studies read as facts about the mapped
@@ -93,15 +93,15 @@ const results: AnalysisResults = {
   limits: [{ key: "significant-trees-not-countable", resourceType: "forest-canopy", datasetVersionId: null }],
 };
 
-const phase = (key: ReportPhase["phase"], changed: boolean): ReportPhase => ({
+const section = (key: ReportSection["phase"], changed: boolean): ReportSection => ({
   phase: key,
+  sectionVersionNumber: key === "site" ? 1 : null,
   contentSha256: `${key}`.padEnd(64, "0"),
-  verdict: "reviewed",
-  note: key === "site" ? "Boundary matches the plan." : null,
-  reviewedAt: "2026-09-27T20:00:00.000Z",
-  reviewedByName: "Pat Planner",
+  outputSha256: `${key}`.padEnd(64, "1"),
+  headline: `The ${key} headline.`,
+  lines: [`The ${key} sentence.`],
+  tables: [],
   changed,
-  summary: { templateVersion: 1, headline: `The ${key} headline.`, lines: [`The ${key} sentence.`] },
 });
 
 function snapshot(overrides: Partial<ReportSnapshot> = {}, usesSampleData = false, previous: number | null = null): ReportSnapshot {
@@ -120,7 +120,7 @@ function snapshot(overrides: Partial<ReportSnapshot> = {}, usesSampleData = fals
     },
     runId: "22222222-2222-4222-8222-222222222222",
     profileVersionId: "33333333-3333-4333-8333-333333333333",
-    phases: PHASE_KEYS.map((k) => phase(k, previous === null || k === "impact")),
+    sections: PHASE_KEYS.map((k) => section(k, previous === null || k === "impact")),
     resolutions: [],
     previousVersion: previous,
     detailsChanged: false,
@@ -195,12 +195,12 @@ describe("R15/R16: the cover, the review record, and the sample label", () => {
     expect(html).toContain("Version 3</td>"); // the profile version row
   });
 
-  it("R16: the review record lists every phase with its reviewer, time, and the reviewer's own note", () => {
+  it("F21 R5: the document states which section version or analysis draft each phase printed", () => {
     const html = render(props());
-    for (const key of ["Site", "Evidence", "Screening", "Studies", "Footprint", "Impact"]) expect(html).toContain(`<th scope="row">${key}</th>`);
-    expect(html).toContain("Pat Planner");
-    expect(html).toContain("Boundary matches the plan.");
-    expect(html).toContain("not a sign-off by anyone else");
+    expect(html).toContain("Built from:");
+    expect(html).toContain("Site section version 1");
+    expect(html).toContain("Evidence analysis draft");
+    expect(html).not.toContain("Review record");
   });
 
   it("F23 R6: a document built with sample data says so on its first page, and only then", () => {
@@ -215,8 +215,8 @@ describe("R15/R16: the cover, the review record, and the sample label", () => {
     );
     expect(second).toContain("What changed since version 1");
     expect(second).toContain("New footprint after the applicant revised the plan");
-    expect(second).toContain("The Impact phase&#x27;s output changed and was reviewed again.");
-    expect(second).not.toContain("The Site phase&#x27;s output changed");
+    expect(second).toContain("The Impact section changed.");
+    expect(second).not.toContain("The Site section changed.");
   });
 
   it("R14: every dataset version and rule a figure cites is in the source register", () => {
@@ -261,7 +261,7 @@ describe("R8: the maps are drawn to scale with a title and a description", () =>
 
   it("R8: the document is stitched from one section per step, in order", () => {
     const html = render(props());
-    const order = ["<h2>Rules and boundaries", "<h2>Site</h2>", "<h2>Footprint</h2>", "<h2>Evidence base</h2>", "<h2>Screening register</h2>", "<h2>Studies</h2>", "<h2>Impact</h2>", "<h2>Source register</h2>", "<h2>Review record</h2>"];
+    const order = ["<h2>Rules and boundaries", "<h2>Site</h2>", "<h2>Footprint</h2>", "<h2>Evidence base</h2>", "<h2>Screening register</h2>", "<h2>Studies</h2>", "<h2>Impact</h2>", "<h2>Source register</h2>"];
     const positions = order.map((heading) => html.indexOf(heading));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -286,20 +286,20 @@ describe("R8: the maps are drawn to scale with a title and a description", () =>
 
 describe("R18: a step's section renders on its own, as a step page shows it", () => {
   const svg = { path: "M0 0 L10 -10", xmin: 0, ymin: 0, xmax: 10, ymax: 10 };
-  const summary = { headline: "A headline.", lines: ["A sentence."] };
+  const content = { headline: "A headline.", lines: ["A sentence."], tables: [] };
 
-  it("R18: the site section is its own heading, summary, and map, with no document around it", () => {
-    const html = renderToStaticMarkup(createElement(SiteSection, { summary, studyAreaSvg: svg }));
+  it("R18: the site section is its own heading, narrative, and map, with no document around it", () => {
+    const html = renderToStaticMarkup(createElement(SiteSection, { content, studyAreaSvg: svg }));
     expect(html).toContain("<h2>Site</h2>");
     expect(html).toContain("A headline.");
     expect(html).toContain('<title id="site-map-title">Study area</title>');
     expect(html).not.toContain("<html");
-    expect(html).not.toContain("Review record");
+    expect(html).not.toContain("Source register");
   });
 
   it("R18: the footprint section draws the footprint only when one is saved", () => {
-    const without = renderToStaticMarkup(createElement(FootprintSection, { summary, studyAreaSvg: svg, footprintSvg: null }));
-    const withFootprint = renderToStaticMarkup(createElement(FootprintSection, { summary, studyAreaSvg: svg, footprintSvg: svg }));
+    const without = renderToStaticMarkup(createElement(FootprintSection, { content, studyAreaSvg: svg, footprintSvg: null }));
+    const withFootprint = renderToStaticMarkup(createElement(FootprintSection, { content, studyAreaSvg: svg, footprintSvg: svg }));
     expect(without).not.toContain('stroke="red"');
     expect(withFootprint).toContain('stroke="red"');
   });

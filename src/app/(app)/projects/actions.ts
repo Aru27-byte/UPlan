@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { requireActor } from "@/app/_lib/actor";
-import { optionalText, requiredInt, requiredText, requiredUuid, runAction } from "@/app/_lib/action-state";
+import { optionalText, requiredInt, requiredText, requiredUuid, runAction, runChatAction } from "@/app/_lib/action-state";
 import {
   ApplicationTypeSchema,
   SAMPLE_STUDY_AREA,
@@ -75,5 +75,53 @@ export async function startResearchChangeAction(_previous: ActionState, formData
     if (!(STEPS as readonly string[]).includes(next)) throw new ValidationError("That isn't a step of the research.");
     await reopen(actor, projectId, requiredInt(formData, "rowVersion"));
     redirect(`/projects/${projectId}/${next}`);
+  });
+}
+
+export async function scanDocumentAction(_previous: ActionState, formData: FormData): Promise<ActionState & { fields?: { title?: string; parcelOrAddress?: string; applicant?: string; projectManager?: string; applicationFiledOn?: string; targetDecisionOn?: string; applicationType?: string } }> {
+  return runChatAction(async () => {
+    const { actor } = await requireActor();
+    const file = formData.get("document");
+    if (!(file instanceof File) || file.size === 0) {
+      return { notice: "No file uploaded.", data: undefined };
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new ValidationError("File too large. Maximum 5 MB.");
+    }
+    const allowedTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+    if (!allowedTypes.includes(file.type)) {
+      throw new ValidationError("Unsupported file type. Use PDF, DOCX, or TXT.");
+    }
+    const text = await file.text();
+    if (!text.trim()) {
+      return { notice: "Could not extract text from the document.", data: undefined };
+    }
+    // Use AI to extract structured fields
+    const { scanDocument } = await import("@/modules/assist/scan");
+    const extracted = await scanDocument(actor, text);
+    return { notice: "Document scanned. Review the extracted fields below.", data: extracted };
+  });
+}
+
+export async function askDashboardQuestionAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const { actor } = await requireActor();
+    const question = formData.get("question");
+    if (!question || typeof question !== "string" || !question.trim()) {
+      throw new ValidationError("Please enter a question.");
+    }
+    const cityId = formData.get("cityId");
+    if (!cityId || typeof cityId !== "string") {
+      throw new ValidationError("Missing city context.");
+    }
+    const actorId = formData.get("actorId");
+    if (!actorId || typeof actorId !== "string") {
+      throw new ValidationError("Missing actor context.");
+    }
+
+    // Use AI to answer the dashboard question
+    const { answerDashboardQuestion } = await import("@/modules/assist/dashboard");
+    const answer = await answerDashboardQuestion(actor, cityId, question.trim());
+    return answer;
   });
 }

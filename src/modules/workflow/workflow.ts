@@ -6,14 +6,14 @@ import { db } from "@/platform/db";
 import { summarizeChanges, type ChangeSummary } from "./changes";
 import { loadPhaseFacts } from "./facts";
 import { deriveNextActions, type NextAction } from "./next-actions";
-import { buildPhaseViews, countUnresolvedDisagreements, type PhaseFacts, type PhaseView } from "./phases";
-import { listReviewsInternal } from "./reviews";
+import { countUnresolvedDisagreements, type PhaseFacts } from "./phases";
+import { loadSectionViews, type PhaseView } from "./sections";
 import { deriveSteps, type StepState } from "./steps";
 
 // TechDesign/decision-overview.md and research-phases.md: the one read behind the stage rail, the
-// Overview, every phase page, and the dashboard. It combines decisions, analysis, profiles, and reports,
-// which is why it lives in its own module (a route calling four functions would put domain rules in
-// src/app/, and a place inside any of the four would make an import cycle).
+// Overview, every phase page, and the dashboard. It combines decisions, analysis, profiles, reports, and
+// the project's section versions, which is why it lives in its own module (a route calling five functions
+// would put domain rules in src/app/, and a place inside any of the four would make an import cycle).
 
 export type Workflow = {
   decision: Decision;
@@ -49,15 +49,14 @@ export function detailsOf(decision: Decision, usesSampleData: boolean): ReportDe
 export async function getWorkflow(actor: Actor, decisionId: string): Promise<Workflow> {
   const decision = await getDecision(actor, decisionId);
   const decisionStatus = DecisionStatusSchema.parse(decision.status);
-  // The three reads touch different tables and none needs another's result, so they overlap: this runs on
-  // every project page, and each sequential read costs a full database round trip. The decision above is
-  // read first and alone because it is the ownership check.
-  const [{ facts, usesSampleData, cityName, timeZone }, reviews, versions] = await Promise.all([
+  // The reads touch different tables and none needs another's result, so they overlap: this runs on every
+  // project page, and each sequential read costs a full database round trip. The decision above is read
+  // first and alone because it is the ownership check.
+  const [{ facts, usesSampleData, cityName, timeZone }, versions] = await Promise.all([
     loadPhaseFacts(decision),
-    listReviewsInternal(decision.id),
     listDocumentVersionsInternal(decision.id),
   ]);
-  const phases = buildPhaseViews(facts, reviews);
+  const phases = await loadSectionViews(decision.id, facts);
   const latestVersion = versions[0]?.versionNumber ?? null;
   const unresolvedDisagreements = countUnresolvedDisagreements(facts);
 
@@ -67,7 +66,7 @@ export async function getWorkflow(actor: Actor, decisionId: string): Promise<Wor
   let change: ChangeSummary | null = null;
   if (latestVersion !== null && decisionStatus !== "report_released") {
     const base = await getLatestReleasedSnapshot(db, decision.id);
-    if (base) change = summarizeChanges(phases, base, detailsOf(decision, usesSampleData));
+    if (base) change = summarizeChanges(phases, base.snapshot, base.versionNumber, detailsOf(decision, usesSampleData));
   }
 
   return {

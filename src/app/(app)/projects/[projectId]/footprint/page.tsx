@@ -9,7 +9,6 @@ import { boundsFromFirst } from "@/ui/geo-bounds";
 import { Panel } from "@/ui/panel";
 import { PhasePage } from "@/ui/phase/phase-page";
 
-import { recordReviewAction } from "../actions";
 import { BoundaryPanel } from "../_components/boundary-panel";
 import { StepIntro } from "../_components/step-intro";
 
@@ -29,7 +28,6 @@ export default async function FootprintPage({ params }: { params: Promise<{ proj
   return (
     <PhasePage
       model={phaseModel(w, projectId, "footprint")}
-      reviewAction={recordReviewAction.bind(null, projectId)}
       intro={<StepIntro projectId={projectId} step="footprint" />}
       editor={
         studyAreaGeom ? (

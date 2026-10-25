@@ -1,7 +1,9 @@
 import type { ProfileDocument } from "@/modules/profiles";
+import { isPermutation, sectionTableDefs } from "@/modules/reports";
 import { ValidationError } from "@/platform/errors";
+import { verdictWordIn } from "@/platform/verdict-words";
 
-import { QuoteSchema, RuleDraftSchema, type AssistDef, type Quote, type SuggestionContent } from "./kinds";
+import { QuoteSchema, RuleDraftSchema, SectionEditSchema, type AssistDef, type Quote, type SuggestionContent } from "./kinds";
 import { digitRuns, numbersInRequest, type AssistRequest } from "./request";
 import { applyRuleChanges, parseRulePath, ruleValuesOf } from "./rule-changes";
 
@@ -9,36 +11,14 @@ import { applyRuleChanges, parseRulePath, ruleValuesOf } from "./rule-changes";
 // rule behind all of them is check, never repair: a failed output is recorded as rejected and shown as
 // rejected. It is never trimmed, retried with hints, or sent to another model (F24 R4–R6, R11).
 
-export type CheckId = "K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K7" | "K8";
+export type CheckId = "K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K7" | "K8" | "K9";
 export type CheckFailure = { check: CheckId; message: string };
 export type CheckResult = { ok: true; content: SuggestionContent } | { ok: false; failures: CheckFailure[] };
 
 // K4. Applied to what the MODEL wrote, never to a quote: a quote is the city's own sentence, and the code is
-// full of "shall" and "condition". The words are the design's denylist plus rank and score (F24 R6).
-const VERDICT_DENYLIST: RegExp[] = [
-  /\bapprov(?:e|es|ed|al|ing)\b/i,
-  /\bden(?:y|ies|ied|ial)\b/i,
-  /\brecommend\w*/i,
-  /\bclear(?:s|ed|ance)?\b/i, // "clearing" (what a proposal does to land) is not a verdict
-  /\bsafe(?:ly|ty)?\b/i,
-  /\bacceptable\b/i,
-  /\bno stud(?:y|ies)\b/i,
-  /\bnot needed\b/i,
-  /\bshould\b/i,
-  /\bmust\b/i,
-  /\bshall\b/i,
-  /\bconditions?\b/i,
-  /\brank(?:s|ed|ing)?\b/i,
-  /\bscor(?:e|es|ed|ing)\b/i,
-];
-
-export function verdictWordIn(text: string): string | null {
-  for (const pattern of VERDICT_DENYLIST) {
-    const m = pattern.exec(text);
-    if (m) return m[0];
-  }
-  return null;
-}
+// full of "shall" and "condition". The list is shared with the workflow's section-version check, because a
+// section change must pass the same rule before it is stored (F24 R6; platform/verdict-words.ts).
+export { verdictWordIn } from "@/platform/verdict-words";
 
 // K6. A question is interrogative and about information, never a requirement.
 const INTERROGATIVES = new Set([
@@ -87,8 +67,8 @@ type Harvest = {
   questions: string[];
 };
 
-const PROSE_KEYS = new Set(["text", "gloss", "value"]);
-const PROSE_LIST_KEYS = new Set(["notStated"]);
+const PROSE_KEYS = new Set(["text", "gloss", "value", "headline", "caption"]);
+const PROSE_LIST_KEYS = new Set(["notStated", "lines"]);
 
 // Reads a validated content object for the strings a check cares about. The shapes are fixed, so which key
 // holds prose, a quote, or a reference is known; anything else (enums, numbers, booleans, section paths) is
@@ -208,7 +188,7 @@ export function checkOutput(args: {
   // K7 — size.
   const words = found.prose.reduce((sum, s) => sum + wordCount(s), 0);
   if (words > assist.maxWords) return fail("K7", `The answer is ${words} words; the limit for this assist is ${assist.maxWords}.`);
-  if (assist.kind === "explain" && "paragraphs" in content) {
+  if ((assist.kind === "explain" || assist.kind === "section-explain") && "paragraphs" in content) {
     const long = content.paragraphs.find((p) => wordCount(p.text) > 150);
     if (long) return fail("K7", "A paragraph is longer than 150 words.");
   }
@@ -240,6 +220,24 @@ export function checkOutput(args: {
       }
     }
     if (problems.length > 0) return fail("K8", ...problems);
+  }
+
+  // K9 — a section change may set a caption and reorder columns, never drop one or invent a table.
+  if (assist.kind === "section-edit") {
+    if (assist.phase === "profile") return fail("K9", "A section change belongs to a research phase.");
+    const draft = SectionEditSchema.safeParse(content);
+    if (!draft.success) return fail("K1", ...draft.error.issues.slice(0, 5).map((i) => `${i.path.join(".") || "(answer)"}: ${i.message}`));
+    const defs = new Map(sectionTableDefs(assist.phase).map((d) => [d.key, d]));
+    const problems: string[] = [];
+    for (const table of draft.data.tables ?? []) {
+      const def = defs.get(table.key);
+      if (!def) {
+        problems.push(`There is no "${table.key}" table in this section.`);
+      } else if (!isPermutation(table.columnOrder, def.columns)) {
+        problems.push(`The "${table.key}" table must keep every column; only the order may change.`);
+      }
+    }
+    if (problems.length > 0) return fail("K9", ...problems);
   }
 
   return { ok: true, content };

@@ -33,7 +33,7 @@ export default async function SignInPage({
       <p className="mt-2 mb-8 text-muted">Use the email and password you registered with.</p>
 
       {noticeText === undefined ? null : (
-        <p role="status" className="mb-6 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm font-medium text-text">
+        <p role="status" className="message-in mb-6 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm font-medium text-text">
           {noticeText}
         </p>
       )}

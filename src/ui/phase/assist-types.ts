@@ -22,6 +22,8 @@ export type AssistCardModel = {
   subject: string | null;
   status: "ready" | "rejected" | "failed" | "running";
   statusText: string;
+  /** When the suggestion finished (or started, while running), as an ISO instant, so chat history keeps its order. */
+  createdAt: string;
   /** R3: states that it is AI-assisted, the model, when, and that it is not part of the analysis. */
   stamp: string;
   /** R10: the reason this was made on an output that has since changed, or null when it is current. */
@@ -60,6 +62,10 @@ export type AssistControlModel = {
 export type AssistPanelModel = {
   title: string;
   summary: string;
+  /** The phase's strongest assist, shown as the spotlight heading at the top of the page. */
+  featureTitle: string;
+  /** One sentence on what that featured assist is good for, and what it never does. */
+  featureDescription: string;
   /** False when no key is set: the panel says so and offers no button (a true state, not a fallback). */
   configured: boolean;
   notConfigured: string;

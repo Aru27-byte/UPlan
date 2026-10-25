@@ -12,18 +12,18 @@ export function PageSkeleton({ header = false, body = true }: { header?: boolean
     <div role={body ? "status" : undefined} aria-busy="true" className="flex flex-col gap-5">
       {body ? <span className="sr-only">Loading</span> : null}
       {header ? (
-        <div aria-hidden="true" className="flex flex-col gap-3 motion-safe:animate-pulse">
-          <div className="h-9 w-64 max-w-full rounded-lg bg-cream/[0.12]" />
-          <div className="h-4 w-96 max-w-full rounded bg-cream/[0.08]" />
+        <div aria-hidden="true" className="flex flex-col gap-3">
+          <div className="skeleton-block h-9 w-64 max-w-full rounded-lg" />
+          <div className="skeleton-block h-4 w-96 max-w-full rounded" />
         </div>
       ) : null}
       {body ? (
         <Panel>
-          <div aria-hidden="true" className="flex flex-col gap-3 motion-safe:animate-pulse">
-            <div className="h-5 w-48 max-w-full rounded bg-line" />
-            <div className="h-4 w-full rounded bg-line" />
-            <div className="h-4 w-5/6 rounded bg-line" />
-            <div className="h-4 w-2/3 rounded bg-line" />
+          <div aria-hidden="true" className="flex flex-col gap-3">
+            <div className="skeleton-block h-5 w-48 max-w-full rounded" />
+            <div className="skeleton-block h-4 w-full rounded" />
+            <div className="skeleton-block h-4 w-5/6 rounded" />
+            <div className="skeleton-block h-4 w-2/3 rounded" />
           </div>
         </Panel>
       ) : null}

@@ -19,8 +19,8 @@ import { ConflictError, NotFoundError, ValidationError } from "@/platform/errors
 import { expectDbError } from "../../../tests/support/db-errors";
 import { createAnalyzedSampleProject, createPerson, createReadyCity, type City, type Person } from "../../../tests/support/factories";
 
-import { PHASES } from "./phases";
-import { recordReview } from "./reviews";
+import { PHASES, type PhaseKey } from "./phases";
+import { contentSha256, updateSectionToCurrent } from "./sections";
 import { cancelResearchChange, finishResearch } from "./finish";
 import { getFinishReadiness } from "./readiness";
 import { getWorkflow } from "./workflow";
@@ -40,32 +40,31 @@ async function sampleProject(planner?: Person) {
   return { owner, project };
 }
 
-async function reviewAll(owner: Person, decisionId: string) {
-  const w = await getWorkflow(owner.actor, decisionId);
-  for (const view of w.phases) {
-    if (view.state.kind === "reviewed" || !view.output) continue;
-    await recordReview(owner.actor, decisionId, {
-      phase: view.phase,
-      verdict: "reviewed",
-      note: null,
-      expectedContentSha256: view.output.contentSha256,
-    });
-  }
-}
-
 async function finish(owner: Person, decisionId: string, changeNote: string | null = null) {
   const decision = await getDecision(owner.actor, decisionId);
   return finishResearch(owner.actor, decisionId, { changeNote, expectedRowVersion: decision.rowVersion });
 }
 
-describe("F21 R1–R5: every phase has a drafted output and a derived review state", () => {
-  it("R4/R5: with a study area, a footprint, and a current analysis, all six phases have output and need review", async () => {
+/** Store the analysis draft as a section version, the way "Update to current analysis" does. */
+async function storeSection(owner: Person, decisionId: string, phase: PhaseKey) {
+  const view = (await getWorkflow(owner.actor, decisionId)).phases.find((p) => p.phase === phase);
+  if (!view?.output || view.state.kind !== "ready") throw new Error(`the ${phase} section is not ready`);
+  return updateSectionToCurrent(owner.actor, decisionId, {
+    phase,
+    expectedContentSha256: contentSha256(view.state.content),
+    expectedOutputSha256: view.output.contentSha256,
+  });
+}
+
+describe("F21 R1–R5: every phase has a drafted output and a derived section state", () => {
+  it("R4/R5: with a study area, a footprint, and a current analysis, all six phases have output and are Ready", async () => {
     const { owner, project } = await sampleProject();
     const w = await getWorkflow(owner.actor, project.id);
     expect(w.phases.map((p) => p.phase)).toEqual([...PHASES]);
     for (const view of w.phases) {
       expect(view.output, view.phase).not.toBeNull();
-      expect(view.state.kind, view.phase).toBe("needs-review");
+      expect(view.state.kind, view.phase).toBe("ready");
+      expect(view.state.kind === "ready" && view.state.version, view.phase).toBeNull();
     }
     expect(w.usesSampleData).toBe(true);
   });
@@ -77,8 +76,8 @@ describe("F21 R1–R5: every phase has a drafted output and a derived review sta
     await runAnalysis(bare.id, "current");
     const w = await getWorkflow(owner.actor, bare.id);
     const byPhase = Object.fromEntries(w.phases.map((p) => [p.phase, p]));
-    expect(byPhase.footprint?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
-    expect(byPhase.impact?.state).toEqual({ kind: "to-do", reason: "no-footprint" });
+    expect(byPhase.footprint?.state).toEqual({ kind: "to-do", reason: "no-footprint", version: null });
+    expect(byPhase.impact?.state).toEqual({ kind: "to-do", reason: "no-footprint", version: null });
     expect(byPhase.screening?.output).not.toBeNull(); // F14 R11: screening needs no footprint
     expect(byPhase.studies?.output).not.toBeNull();
   });
@@ -96,49 +95,38 @@ describe("F21 R1–R5: every phase has a drafted output and a derived review sta
   });
 });
 
-describe("F21 R6–R8, R12: reviews", () => {
-  it("R6/R5: a review makes the phase 'reviewed'; a revision request needs a note and makes it 'revision-requested'", async () => {
+describe("F21 R6–R10, R12: section versions", () => {
+  it("R5: a stored version whose engine fingerprint matches is Ready and is what the page shows", async () => {
     const { owner, project } = await sampleProject();
-    const w = await getWorkflow(owner.actor, project.id);
-    const site = w.phases.find((p) => p.phase === "site");
-    const evidence = w.phases.find((p) => p.phase === "evidence");
-    if (!site?.output || !evidence?.output) throw new Error("expected outputs");
-
-    await recordReview(owner.actor, project.id, { phase: "site", verdict: "reviewed", note: "Boundary matches the plan.", expectedContentSha256: site.output.contentSha256 });
-    await expect(
-      recordReview(owner.actor, project.id, { phase: "evidence", verdict: "revision_requested", note: "  ", expectedContentSha256: evidence.output.contentSha256 }),
-    ).rejects.toThrow(/Say what needs work/);
-    await recordReview(owner.actor, project.id, { phase: "evidence", verdict: "revision_requested", note: "Check the alternate wetlands source.", expectedContentSha256: evidence.output.contentSha256 });
-
-    const after = await getWorkflow(owner.actor, project.id);
-    expect(after.phases.find((p) => p.phase === "site")?.state.kind).toBe("reviewed");
-    expect(after.phases.find((p) => p.phase === "evidence")?.state.kind).toBe("revision-requested");
-    expect(after.phases.find((p) => p.phase === "screening")?.state.kind).toBe("needs-review");
+    const stored = await storeSection(owner, project.id, "site");
+    const site = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site");
+    expect(site?.state).toMatchObject({ kind: "ready", version: { id: stored.id, versionNumber: 1 } });
+    expect(site?.versions).toHaveLength(1);
   });
 
-  it("R7: a review made on an output that has since changed is refused, and nothing is recorded", async () => {
+  it("R7: a section change made on an output that has since changed is refused, and nothing is stored", async () => {
     const { owner, project } = await sampleProject();
     const before = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site");
-    if (!before?.output) throw new Error("expected output");
+    if (!before?.output || before.state.kind !== "ready") throw new Error("expected a ready site section");
+    const contentHash = contentSha256(before.state.content);
     await saveGeometry(owner.actor, project.id, "study_area", { type: "MultiPolygon", coordinates: [[[[-122.05, 47.59], [-122.02, 47.59], [-122.02, 47.62], [-122.05, 47.62], [-122.05, 47.59]]]] }, "Redrawn", 2);
     await expect(
-      recordReview(owner.actor, project.id, { phase: "site", verdict: "reviewed", note: null, expectedContentSha256: before.output.contentSha256 }),
+      updateSectionToCurrent(owner.actor, project.id, { phase: "site", expectedContentSha256: contentHash, expectedOutputSha256: before.output.contentSha256 }),
     ).rejects.toBeInstanceOf(ConflictError);
-    expect((await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site")?.history).toHaveLength(0);
+    expect((await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site")?.versions).toHaveLength(0);
   });
 
-  it("R5/R10: after an input changes, a reviewed phase asks again and shows the sentences added and removed", async () => {
+  it("R5/R10: after an input changes, a stored section is Out of date and shows the sentences added and removed", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
-    expect((await getWorkflow(owner.actor, project.id)).phases.every((p) => p.state.kind === "reviewed")).toBe(true);
+    await storeSection(owner, project.id, "site");
+    expect((await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site")?.state.kind).toBe("ready");
 
     await saveGeometry(owner.actor, project.id, "study_area", { type: "MultiPolygon", coordinates: [[[[-122.05, 47.59], [-122.0, 47.59], [-122.0, 47.62], [-122.05, 47.62], [-122.05, 47.59]]]] }, "Redrawn wider", 2);
     const site = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site");
-    expect(site?.state.kind).toBe("needs-review");
-    expect(site?.state.kind === "needs-review" && site.state.changedSince?.verdict).toBe("reviewed");
+    expect(site?.state.kind).toBe("out-of-date");
     expect(site?.changes?.added.some((l) => l.startsWith("Study area drawn:") || l.includes("Source:"))).toBe(true);
     expect(site?.changes?.removed.length).toBeGreaterThan(0);
-    expect(site?.history).toHaveLength(1);
+    expect(site?.versions).toHaveLength(1);
 
     // The analysis phases are 'updating' until the new run finishes, never showing the old output as current (R4).
     const evidence = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "evidence");
@@ -146,63 +134,71 @@ describe("F21 R6–R8, R12: reviews", () => {
     expect(evidence?.output).toBeNull();
   });
 
-  it("R8: reviews are append-only, even by SQL", async () => {
+  it("R8: section versions are append-only, even by SQL", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
-    await expectDbError(db.execute(sql`update phase_review set note = 'x' where decision_id = ${project.id}`), /append-only/);
-    await expectDbError(db.execute(sql`delete from phase_review where decision_id = ${project.id}`), /append-only/);
+    await storeSection(owner, project.id, "site");
+    await expectDbError(db.execute(sql`update report_section_version set instruction = 'x' where decision_id = ${project.id}`), /append-only/);
+    await expectDbError(db.execute(sql`delete from report_section_version where decision_id = ${project.id}`), /append-only/);
   });
 
-  it("R6: the database refuses a revision request with no note, whatever the application does", async () => {
+  it("R8: the database refuses an AI section version with no instruction, whatever the application does", async () => {
     const { owner, project } = await sampleProject();
     await expectDbError(
-      db.execute(sql`insert into phase_review (decision_id, phase, content_sha256, verdict, summary, reviewed_by) values (${project.id}, 'site', 'abc', 'revision_requested', '{}'::jsonb, ${owner.userId})`),
-      /phase_review_note_shape/,
+      db.execute(sql`insert into report_section_version (decision_id, phase, version_number, source, content, content_sha256, output_sha256, created_by) values (${project.id}, 'site', 1, 'ai', '{}'::jsonb, 'abc', 'def', ${owner.userId})`),
+      /report_section_version_instruction_shape/,
     );
   });
 
-  it("R12: a completed project can't be reviewed, and someone else's project can't be seen", async () => {
+  it("R12: a completed project can't store a section version, and someone else's project can't be seen", async () => {
     const { owner, project } = await sampleProject();
     const view = (await getWorkflow(owner.actor, project.id)).phases[0];
+    if (!view?.output || view.state.kind !== "ready") throw new Error("expected a ready site section");
     await db.execute(sql`update decision set status = 'report_released' where id = ${project.id}`);
     await expect(
-      recordReview(owner.actor, project.id, { phase: "site", verdict: "reviewed", note: null, expectedContentSha256: view?.output?.contentSha256 ?? "x".repeat(64) }),
+      updateSectionToCurrent(owner.actor, project.id, {
+        phase: "site",
+        expectedContentSha256: contentSha256(view.state.content),
+        expectedOutputSha256: view.output.contentSha256,
+      }),
     ).rejects.toThrow(/Start a research change/);
     const stranger = await createPerson();
     await expect(getWorkflow(stranger.actor, project.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it("R7 race test: a review and a boundary save at once — the review is of the output it saw, or it is refused", async () => {
+  it("R7 race test: a section change and a boundary save at once — the version is of the output it saw, or it is refused", async () => {
     const { owner, project } = await sampleProject();
     const site = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site");
-    if (!site?.output) throw new Error("expected output");
+    if (!site?.output || site.state.kind !== "ready") throw new Error("expected a ready site section");
     const oldHash = site.output.contentSha256;
+    const contentHash = contentSha256(site.state.content);
 
     const results = await Promise.allSettled([
-      recordReview(owner.actor, project.id, { phase: "site", verdict: "reviewed", note: null, expectedContentSha256: oldHash }),
+      updateSectionToCurrent(owner.actor, project.id, { phase: "site", expectedContentSha256: contentHash, expectedOutputSha256: oldHash }),
       saveGeometry(owner.actor, project.id, "study_area", { type: "MultiPolygon", coordinates: [[[[-122.05, 47.59], [-122.0, 47.59], [-122.0, 47.62], [-122.05, 47.62], [-122.05, 47.59]]]] }, "Concurrent redraw", 2),
     ]);
     expect(results[1].status).toBe("fulfilled"); // the boundary save always lands
     const after = (await getWorkflow(owner.actor, project.id)).phases.find((p) => p.phase === "site");
-    // Whatever the order, no review is bound to an output other than the one the reviewer saw.
-    expect(after?.history.every((r) => r.contentSha256 === oldHash)).toBe(true);
+    // Whatever the order, no version is bound to an output other than the one the planner saw.
+    expect(after?.versions.every((v) => v.outputSha256 === oldHash)).toBe(true);
     if (results[0].status === "rejected") expect(results[0].reason).toBeInstanceOf(ConflictError);
-    expect(after?.state.kind).toBe("needs-review"); // the new boundary is a new output either way
+    expect(after?.state.kind).toBe("out-of-date"); // the new boundary is a new output either way
   });
 });
 
 describe("F22: finishing research, versions, and research changes (with a real PDF)", () => {
-  it("R1: finishing needs every phase reviewed, and says which are not", async () => {
-    const { owner, project } = await sampleProject();
-    await expect(finish(owner, project.id)).rejects.toThrow(/Review Site, Evidence, Screening, Studies, Footprint and Impact first/);
-    const readiness = await getFinishReadiness(owner.actor, project.id);
-    expect(readiness.blocking.filter((b) => b.key === "phase-not-reviewed")).toHaveLength(6);
+  it("R1: finishing needs every section Ready, and says which are not", async () => {
+    const owner = await createPerson();
+    const bare = await createDecision(owner.actor, { jurisdictionId: city.id, title: "No footprint", applicationType: "subdivision" });
+    await saveGeometry(owner.actor, bare.id, "study_area", SAMPLE_STUDY_AREA, "Study area only", 1);
+    await runAnalysis(bare.id, "current");
+    await expect(finish(owner, bare.id)).rejects.toThrow(/Update Footprint and Impact to the current analysis first/);
+    const readiness = await getFinishReadiness(owner.actor, bare.id);
+    expect(readiness.blocking.filter((b) => b.key === "section-not-ready").map((b) => b.phase)).toEqual(["footprint", "impact"]);
     expect(readiness.stated.map((s) => s.key)).toEqual(["evidence-gaps", "source-disagreements", "approximate-boundaries", "desk-analysis-limits"]);
   });
 
   it("R1/R2/R5/R6/R7/R8/R9/R10: version 1, a research change, version 2, and both versions kept", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
     const readyReadiness = await getFinishReadiness(owner.actor, project.id);
     expect(readyReadiness.blocking).toEqual([]);
 
@@ -219,7 +215,7 @@ describe("F22: finishing research, versions, and research changes (with a real P
     expect(html).toContain("Version 1");
     expect(html).toContain("Sample data (illustrative) —"); // provenance carries the sample label
     expect(html).toContain("Sample data."); // and the first page says so (F23 R6)
-    expect(html).toContain("Review record");
+    expect(html).toContain("Built from:");
     expect(html).not.toMatch(/\b(recommend\w*|clear to develop|should be approved|acceptable impact)\b/i);
     await renderAndStoreReport(reportId);
     await renderAndStoreReport(reportId); // a retry after success does nothing
@@ -262,15 +258,13 @@ describe("F22: finishing research, versions, and research changes (with a real P
     await runAnalysis(project.id, "current");
     const changed = await getWorkflow(owner.actor, project.id);
     expect(changed.change?.phases.filter((p) => p.changed).map((p) => p.phase).sort()).toEqual(["footprint", "impact"]);
-    expect(changed.change?.phases.filter((p) => !p.changed).every((p) => p.reviewedAtCurrentOutput)).toBe(true); // unchanged phases keep their review
-    await expect(finish(owner, project.id, "New footprint")).rejects.toThrow(/Review Footprint and Impact first/);
+    expect(changed.change?.phases.filter((p) => !p.changed).every((p) => p.ready)).toBe(true); // unchanged phases keep their section
 
     // A cancel is refused once something changed.
     const withChange = await getDecision(owner.actor, project.id);
     await expect(cancelResearchChange(owner.actor, project.id, withChange.rowVersion)).rejects.toThrow(/has changes in it/);
 
-    // --- Review the two changed phases, then finishing needs a reason (R6), and publishes version 2.
-    await reviewAll(owner, project.id);
+    // --- Finishing a changed research needs a reason (R6), and publishes version 2.
     await expect(finish(owner, project.id, null)).rejects.toThrow(/Give a short reason/);
     const second = await finish(owner, project.id, "New footprint after the applicant revised the plan");
     const html2 = await renderReportHtml(second.reportId);
@@ -298,7 +292,6 @@ describe("F22: finishing research, versions, and research changes (with a real P
 
   it("R8: a document that fails after its last retry is recorded, the project returns to in progress, and no version number is used", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
     const { reportId } = await finish(owner, project.id);
 
     await markReportFailed(reportId, "Chromium could not start");
@@ -318,7 +311,6 @@ describe("F22: finishing research, versions, and research changes (with a real P
 
   it("R8 race test: two finishes of one project at once — exactly one succeeds", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
     const decision = await getDecision(owner.actor, project.id);
     const attempt = () => finishResearch(owner.actor, project.id, { changeNote: null, expectedRowVersion: decision.rowVersion });
     const results = await Promise.allSettled([attempt(), attempt()]);
@@ -329,9 +321,8 @@ describe("F22: finishing research, versions, and research changes (with a real P
     expect(reports.rows[0]?.n).toBe(1);
   });
 
-  it("R8/R11 race test: finishing and a boundary save at once — the document is of what was reviewed, or the finish fails", async () => {
+  it("R8/R11 race test: finishing and a boundary save at once — the document is of what the planner saw, or the finish fails", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
     const decision = await getDecision(owner.actor, project.id);
     const results = await Promise.allSettled([
       finishResearch(owner.actor, project.id, { changeNote: null, expectedRowVersion: decision.rowVersion }),
@@ -340,7 +331,7 @@ describe("F22: finishing research, versions, and research changes (with a real P
     const finished = results[0].status === "fulfilled";
     const saved = results[1].status === "fulfilled";
     // One lock serializes them: the finish came first (and the save was refused as the project is
-    // finishing), or the save came first (and the finish saw the unreviewed new output and refused).
+    // finishing), or the save came first (and the finish saw an out-of-date section and refused).
     expect(finished !== saved).toBe(true);
     const status = (await getDecision(owner.actor, project.id)).status;
     expect(status).toBe(finished ? "finishing" : "in_progress");
@@ -348,7 +339,6 @@ describe("F22: finishing research, versions, and research changes (with a real P
 
   it("R6: a finish with a stale page (the row version moved) is refused", async () => {
     const { owner, project } = await sampleProject();
-    await reviewAll(owner, project.id);
     await expect(finishResearch(owner.actor, project.id, { changeNote: null, expectedRowVersion: 9999 })).rejects.toBeInstanceOf(ConflictError);
     await expect(finishResearch(owner.actor, project.id, { changeNote: "x".repeat(2000), expectedRowVersion: 1 })).rejects.toBeInstanceOf(ValidationError);
   });

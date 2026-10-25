@@ -1,6 +1,6 @@
 # UPlan — Feature List
 
-**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27; AI assist (F24) added 2026-10-10
+**Status:** Reviewed in round 9; planner-maintained profiles added 2026-09-12, with round 10 open; study scoping moved into release 1 and F18–F19 added 2026-09-26; the dashboard, research phases, research changes, and sample data (F20–F23) added and jurisdiction membership removed 2026-09-27; AI assist (F24) added 2026-10-10; F21 revised 2026-10-22: versioned report sections and a section chat replace phase reviews
 **Last updated:** 2026-10-10
 **Derived from:** [charter.md](charter.md), [intents.md](intents.md), review rounds 1–9
 **Next:** Requirements and TechDesign pairs, starting with release 1
@@ -22,7 +22,7 @@ v1 ships in stages *(round 8)*. Release 1 proves the pilot's edge: a planner tak
 | **Release 1** | I1, I2, I3, I4, I6, I9 | F1–F10, F11 for planners, F14, F16–F24 |
 | **Later in v1** — order not set | I5, I8, phone look-up | F11 reviewer role, F12, F13, F15 |
 
-Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well. On 2026-09-27 it grew again, by request: a dashboard that opens on sign-in (F20), phases whose drafted output a planner reviews and iterates on (F21), research changes that produce new document versions (F22), and sample data for every phase (F23). Jurisdiction membership was removed at the same time (F11).
+Release 1 is bigger than its intents suggest. F7–F10 and F14 deliver them; the other features are foundations a real application can't run without: the rules and the way planners maintain them, provenance, accounts, and public records retention. This size was accepted on 2026-09-12. On 2026-09-26 it grew: F14 (study scoping) moved up from later in v1, and F18 (the decision overview and stage rail) and F19 (evidence review) were added, so a planner can see where a decision stands and what the evidence's confidence is made of. Release 1 now delivers I1 and I4 as well. On 2026-09-27 it grew again, by request: a dashboard that opens on sign-in (F20), phases whose report sections a planner reads and iterates on (F21), research changes that produce new document versions (F22), and sample data for every phase (F23). Jurisdiction membership was removed at the same time (F11).
 
 ## At a glance
 
@@ -234,27 +234,28 @@ The page a planner lands on after signing in. It shows their current research an
 - Shows the city's profile — its name, current version, and when it last changed — with a link to the full profile, which is also in the navigation on every page.
 - A professional, quiet visual style across the whole signed-in app. Counts and lists only: no completeness percentage, risk rating, or ranking (F18).
 
-### F21. Research phases and review — `research-phases`
+### F21. Research phases and report sections — `research-phases`
 
-**Serves:** I1, I2, I3, I6 · **Release:** 1 *(added 2026-09-27)*
+**Serves:** I1, I2, I3, I6 · **Release:** 1 *(added 2026-09-27; revised 2026-10-22)*
 
-Each project's research moves through phases. In each, UPlan drafts an output from the phase's inputs, the planner reviews it, and if it needs work the planner changes the inputs and reviews the new output.
+Each project's research moves through phases. In each, UPlan builds the part of the final document that phase produces, and the planner reads it, asks what it means, and changes its wording when it isn't clear. Every change is kept as a version.
 
 - The phases are the stage rail's (F18): Site, Evidence, Screening, Studies, Footprint, Impact. Overview and Report frame them.
-- **The drafting is UPlan's analysis engine, not a language model** *(decided 2026-09-26, and unchanged by F24)*. Measurements come from PostGIS. Each phase's summary is written from fixed sentence templates over those measurements. AI assist (F24) sits beside the drafted output and never changes it.
-- A review is the planner's own record: reviewed, or revision requested with a note. It is not sign-off (F12) and says nothing about the development.
-- A review is tied to the exact output it was made on. When inputs change and the output changes, the phase asks for review again and shows what changed since the last review.
+- **The drafting is UPlan's analysis engine, not a language model** *(decided 2026-09-26, and unchanged by F24)*. Measurements come from PostGIS. Each section's summary is written from fixed sentence templates over those measurements. The figures, maps, tables, quoted source text, lists, and notices are locked.
+- A section version is the planner's own record. There is no review verdict, no "needs review", and no sign-off (F12): the planner reads, changes, or reverts the section, and each change is a version.
+- A change is tied to the exact section and output it was made on. When inputs change, the stored section becomes out of date, and the planner chooses **Update to current analysis** or asks for a change. UPlan never silently rebases it.
+- The section chat (F24) sits beside the section: **Explain** answers a question and changes nothing; **Change** rewrites the narrative and stores a new version.
 - A planner can upload a boundary file for the site or the footprint, or load sample data (F23), in place of drawing.
 
 ### F22. Research changes and document versions — `research-changes`
 
 **Serves:** I6 · **Release:** 1 *(added 2026-09-27)*
 
-A completed project can still change. New data, a corrected boundary, or a changed requirement starts a research change; the planner reviews what it affected and publishes a new version of the final document.
+A completed project can still change. New data, a corrected boundary, or a changed requirement starts a research change; the planner updates the sections it affected and publishes a new version of the final document.
 
 - Finishing research produces one final document, stored by UPlan and downloadable (F10). Every later research change produces a new version. Earlier versions are never altered.
 - Starting a research change is explicit, and says which document version it changes.
-- After the change, UPlan lists the phases whose output differs from the last version and asks for their review. Phases whose output is the same stay reviewed.
+- After the change, UPlan lists the phases whose section differs from the last version and whether each is ready. A phase whose section is unchanged keeps its version and needs no edit.
 - A version history lists every version with when it was published, the reason given, and which phases changed.
 
 ### F23. Sample data — `sample-data`
@@ -276,8 +277,9 @@ A language model that helps a planner read, and helps staff keep the profile cur
 - **Wave 1: explain and find.** Plain-language explanations of the evidence, a screening row, and the impact table, each restating only what is already drafted. A finder that returns the exact passage of the code behind a rule, a flag, a study, or a buffer width.
 - **Wave 2: questions and comparison.** Questions for a site visit that follow from the gaps and limits UPlan recorded; questions for the pre-application conference tied to each flagged study; why two sources may differ, from their metadata; what would narrow a range.
 - **Wave 3: staff drafts.** A profile rule change drafted from a changed code document; a dataset's limitations drafted from its published metadata; a comparison of the engine's study list with the city's checklist. Staff confirm each, and never the requester.
-- Every suggestion is labeled, quotes its source, shows the model and date, is bound to the output it was made on, and is stored beside the analysis, never inside it or the final document.
-- A planner asks for it; nothing runs unasked, and no phase needs it. Site and Footprint have none, because a boundary is the planner's own act.
+- Every suggestion is labeled, quotes its source, shows the model and date, and is bound to the section and output it was made on. An explanation is stored beside the analysis. A change is stored as a section version the planner asked for, and the section itself is not labeled AI-assisted.
+- **The section chat is the phase's assist surface** *(2026-10-22)*. It sits beside the report section on every phase page, with an **Explain** mode that changes nothing and a **Change** mode that rewrites the narrative and stores a version. On Evidence, Screening, Studies, and Impact, the phase's strongest assists are prompt fillers that fill the message box and never send.
+- A planner asks for it; nothing runs unasked, and no phase needs it. Site and Footprint have only the chat, because a boundary is the planner's own act and there is no public text to read.
 - Only public text and measured results with names removed are sent. Runs on NVIDIA's free hosted inference service, within per-person and per-city daily caps.
 
 **Open for TechDesign:** the model chosen, the caps, and where the code text comes from on the new hosting (see `TechDesign/ai-assist.md`).

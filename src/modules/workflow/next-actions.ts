@@ -1,4 +1,4 @@
-import { isReviewed, type StepKey, type WorkflowFacts } from "./steps";
+import { allReady, type StepKey, type WorkflowFacts } from "./steps";
 import type { PhaseKey } from "./phases";
 
 // TechDesign/decision-overview.md, "Next actions" (F18 R6). A fixed, ordered rule table over the
@@ -12,26 +12,17 @@ export type NextActionKey =
   | "record-filing-date"
   | "review-failed-analysis"
   | "wait-for-analysis"
-  | "review-site"
-  | "review-evidence"
-  | "review-disagreements"
-  | "review-screening"
-  | "review-studies"
+  | "update-section"
+  | "resolve-disagreements"
   | "trace-footprint"
-  | "review-footprint"
-  | "review-impact"
   | "finish-research"
   | "start-research-change";
 
 export type NextAction = { step: StepKey; key: NextActionKey; count?: number };
 
-const viewOf = (f: WorkflowFacts, phase: PhaseKey) => f.phases.find((p) => p.phase === phase);
-const stateOf = (f: WorkflowFacts, phase: PhaseKey) => viewOf(f, phase)?.state.kind;
-// A phase needs work while its state is needs-review or revision-requested (research-phases.md R5).
-const needsReview = (f: WorkflowFacts, phase: PhaseKey) => {
-  const kind = stateOf(f, phase);
-  return kind === "needs-review" || kind === "revision-requested";
-};
+const stateOf = (f: WorkflowFacts, phase: PhaseKey) => f.phases.find((p) => p.phase === phase)?.state.kind;
+// A phase needs an update while its stored section is out of date (research-phases.md R5).
+const outOfDate = (f: WorkflowFacts, phase: PhaseKey) => stateOf(f, phase) === "out-of-date";
 
 const RULES: { key: NextActionKey; step: StepKey; when: (f: WorkflowFacts) => number | boolean }[] = [
   { key: "finish-generating", step: "report", when: (f) => f.decisionStatus === "finishing" },
@@ -44,22 +35,22 @@ const RULES: { key: NextActionKey; step: StepKey; when: (f: WorkflowFacts) => nu
     step: "overview",
     when: (f) => f.status.kind === "running" || f.status.kind === "out-of-date",
   },
-  { key: "review-site", step: "site", when: (f) => needsReview(f, "site") },
-  { key: "review-evidence", step: "evidence", when: (f) => needsReview(f, "evidence") },
-  { key: "review-disagreements", step: "evidence", when: (f) => f.unresolvedDisagreements },
-  { key: "review-screening", step: "screening", when: (f) => needsReview(f, "screening") },
-  { key: "review-studies", step: "studies", when: (f) => needsReview(f, "studies") },
+  { key: "update-section", step: "site", when: (f) => outOfDate(f, "site") },
+  { key: "update-section", step: "evidence", when: (f) => outOfDate(f, "evidence") },
+  { key: "resolve-disagreements", step: "evidence", when: (f) => f.unresolvedDisagreements },
+  { key: "update-section", step: "screening", when: (f) => outOfDate(f, "screening") },
+  { key: "update-section", step: "studies", when: (f) => outOfDate(f, "studies") },
   {
     key: "trace-footprint",
     step: "footprint",
     when: (f) => stateOf(f, "site") !== "to-do" && stateOf(f, "footprint") === "to-do",
   },
-  { key: "review-footprint", step: "footprint", when: (f) => needsReview(f, "footprint") },
-  { key: "review-impact", step: "impact", when: (f) => needsReview(f, "impact") },
+  { key: "update-section", step: "footprint", when: (f) => outOfDate(f, "footprint") },
+  { key: "update-section", step: "impact", when: (f) => outOfDate(f, "impact") },
   {
     key: "finish-research",
     step: "report",
-    when: (f) => f.decisionStatus === "in_progress" && f.phases.every(isReviewed) && f.status.kind === "current",
+    when: (f) => f.decisionStatus === "in_progress" && allReady(f),
   },
 ];
 

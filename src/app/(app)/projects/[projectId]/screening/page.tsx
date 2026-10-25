@@ -6,8 +6,6 @@ import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
-import { recordReviewAction } from "../actions";
-import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
 
 // A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
@@ -20,14 +18,12 @@ export const maxDuration = 60;
 // and a resource type with no usable dataset is a gap that says nothing can be said (P2).
 export default async function ScreeningPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { actor, workflow: w } = await loadProject(projectId);
+  const { workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "screening");
   const { run, rules } = w.facts;
-  const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="screening" />;
-  const assist = <PhaseAssist projectId={projectId} phase="screening" actor={actor} workflow={w} group={model.group} />;
 
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
+  if (!run || !rules) return <PhasePage model={model} intro={intro} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -65,7 +61,7 @@ export default async function ScreeningPage({ params }: { params: Promise<{ proj
   ];
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
+    <PhasePage model={model} intro={intro}>
       <Accordion
         group={model.group}
         title="Screening register"

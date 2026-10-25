@@ -36,9 +36,9 @@ The decision is the spine's core object: everything else (evidence, footprint, i
 
 **R12. Changing the filing date makes the decision's analysis run again, in the same transaction as the change,** so the analysis never quietly lags the date that selects its rules (F1 R3).
 
-**R13. Only an in-progress decision can be changed.** Saving a boundary, editing project details, recording a resolution note, recording a phase review, and finishing research all fail with a clear message when the decision is completed ("start a research change first") or generating its document ("wait for it to finish"). Each of those functions takes one lock on the decision row and checks the status under it, so a change and a finish can't interleave (F21 R12, F22 R3, R8).
+**R13. Only an in-progress decision can be changed.** Saving a boundary, editing project details, recording a resolution note, changing or reverting a report section, and finishing research all fail with a clear message when the decision is completed ("start a research change first") or generating its document ("wait for it to finish"). Each of those functions takes one lock on the decision row and checks the status under it, so a change and a finish can't interleave (F21 R13, F22 R3, R8).
 
-**R14. A decision can be deleted from view, and deleting keeps every record.** A deleted decision disappears from every list and read and is never shown again, but nothing in its history is removed: its geometry revisions, analysis runs, reviews, and documents stay, because working data may be public record (F16). Deleting is one compare-and-set on the row version, it records who deleted it and when, and it is refused while a document is being generated.
+**R14. A decision can be deleted from view, and deleting keeps every record.** A deleted decision disappears from every list and read and is never shown again, but nothing in its history is removed: its geometry revisions, analysis runs, report sections, and documents stay, because working data may be public record (F16). Deleting is one compare-and-set on the row version, it records who deleted it and when, and it is refused while a document is being generated.
 
 **R15. A decision can be created with its optional details filled in,** and with sample data (F23), in one step. Creating with sample data either completes fully or leaves nothing behind.
 

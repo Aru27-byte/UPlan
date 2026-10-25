@@ -9,7 +9,7 @@ export default tseslint.config(
   {
     // public/maplibre: vendor files copied from node_modules by scripts/copy-maplibre-worker.ts,
     // never hand-edited (see that script's comment).
-    ignores: [".next/**", "dist/**", "node_modules/**", "deploy/**", "coverage/**", "public/maplibre/**"],
+    ignores: [".next/**", "dist/**", "node_modules/**", "deploy/**", "coverage/**", "public/maplibre/**", ".claude/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

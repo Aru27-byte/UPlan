@@ -1,25 +1,26 @@
 import { Accordion } from "../accordion";
 import { ActionForm } from "../action-form.client";
 import { inputClassName } from "../action-styles";
+import { Icon } from "../icons";
 import { StatusLabel } from "../status-label";
 import { SubmitButton } from "../submit-button.client";
 
 import type { AssistCardModel, AssistControlModel, AssistPanelModel } from "./assist-types";
 
-// The AI assist panel (TechDesign/ai-assist.md, F24 R3, R9, R10, R11, R15). It sits beside a phase's drafted
-// output and is never part of it. It renders exactly what it is given: every suggestion carries its label,
+// The AI assist panel (TechDesign/ai-assist.md, F24 R3, R9, R10, R11, R15). It sits beside the city profile's
+// rules and is never part of them. It renders exactly what it is given: every suggestion carries its label,
 // its model and date, its quotes, and the fixed sentence that it is not part of the analysis, and a failure or
 // rejection is shown as one, in words and a shape. Nothing here runs unasked: each control is a button.
 
 const NOT_ANALYSIS =
-  "AI-assisted text reads and quotes the sources shown. It is not part of the analysis, the phase's output or fingerprint, your review, or the final document.";
+  "Text from UPlan Assist reads and quotes the sources shown. It is not part of the analysis, the section's wording or fingerprint, or the final document.";
 
 const STATUS_TONE = { ready: "info", rejected: "warn", failed: "danger", running: "neutral" } as const;
 
 function Control({ control }: { control: AssistControlModel }) {
   const subjectId = `assist-${control.id}-subject`;
   return (
-    <li className="rounded-lg border border-line bg-canvas/40 p-3">
+    <li className="rounded-lg border border-line bg-canvas/40 p-3 transition-[border-color,background-color] duration-200 hover:border-line-strong hover:bg-canvas/70">
       <ActionForm action={control.action} className="flex flex-col gap-2.5">
         <div>
           <p className="text-sm font-semibold text-text">{control.label}</p>
@@ -101,7 +102,7 @@ function Control({ control }: { control: AssistControlModel }) {
 
 function Card({ card }: { card: AssistCardModel }) {
   return (
-    <article aria-labelledby={`assist-card-${card.id}`} className="rounded-lg border border-line bg-surface p-4">
+    <article aria-labelledby={`assist-card-${card.id}`} className="rounded-lg border border-line bg-surface p-4 transition-[border-color,box-shadow] duration-200 hover:border-line-strong hover:shadow-panel">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 id={`assist-card-${card.id}`} className="text-sm font-semibold text-text">
@@ -148,7 +149,7 @@ function Card({ card }: { card: AssistCardModel }) {
 
       {card.sent ? (
         <details className="mt-3 text-sm">
-          <summary className="cursor-pointer font-medium text-brand">What was sent to the model service</summary>
+          <summary className="cursor-pointer font-medium text-brand">What was sent to UPlan Assist</summary>
           <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-canvas p-3 text-xs whitespace-pre-wrap text-text">{card.sent}</pre>
         </details>
       ) : null}
@@ -225,9 +226,18 @@ function Card({ card }: { card: AssistCardModel }) {
   );
 }
 
-export function AssistPanel({ model, id }: { model: AssistPanelModel; id?: string }) {
-  return (
-    <Accordion id={id} group={model.group} title={model.title} summary={model.summary}>
+export function AssistPanel({
+  model,
+  id,
+  layout = "accordion",
+}: {
+  model: AssistPanelModel;
+  id?: string;
+  /** `spotlight` puts the phase's strongest AI use at the top of its page, always visible and labeled. */
+  layout?: "accordion" | "spotlight";
+}) {
+  const body = (
+    <>
       <p className="mb-4 rounded-lg border border-info/25 bg-info-soft px-4 py-3 text-sm text-text">{NOT_ANALYSIS}</p>
       {model.configured ? (
         model.controls.length > 0 ? (
@@ -252,6 +262,34 @@ export function AssistPanel({ model, id }: { model: AssistPanelModel; id?: strin
           ))}
         </div>
       ) : null}
+    </>
+  );
+
+  if (layout === "spotlight") {
+    const headingId = id ? `${id}-heading` : undefined;
+    return (
+      <section id={id} aria-labelledby={headingId} className="frame-glow overflow-hidden">
+        <header className="border-b border-line px-5 py-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <p className="eyebrow flex items-center gap-1.5 font-bold text-accent-gold">
+              <Icon name="sparkles" />
+              UPlan Assist
+            </p>
+            <span className="text-xs text-muted">Optional · never part of the analysis</span>
+          </div>
+          <h2 id={headingId} className="mt-2 font-display text-xl font-bold tracking-tight text-heading">
+            {model.featureTitle}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm text-text">{model.featureDescription}</p>
+        </header>
+        <div className="px-5 py-4">{body}</div>
+      </section>
+    );
+  }
+
+  return (
+    <Accordion id={id} group={model.group} title={model.title} summary={model.summary}>
+      {body}
     </Accordion>
   );
 }

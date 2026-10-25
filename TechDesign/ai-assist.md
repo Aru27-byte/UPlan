@@ -1,9 +1,9 @@
 # TechDesign — AI Assist
 
-**Feature:** F24 · new module `assist` · `src/platform/model-client.ts` · the assist panel in `src/ui/phase/`
-**Status:** Draft
-**Requirements:** [Requirements/ai-assist.md](../Requirements/ai-assist.md) (R1–R18)
-**Builds on:** [research-phases.md](research-phases.md) (F21), [evidence-layers.md](evidence-layers.md) (F3), [evidence-review.md](evidence-review.md) (F19), [study-scoping.md](study-scoping.md) (F14), [jurisdiction-profile.md](jurisdiction-profile.md) (F1), [profile-upload-edit.md](profile-upload-edit.md) (F17), [provenance.md](provenance.md) (F4)
+**Feature:** F24 · new module `assist` · `src/platform/model-client.ts` · the section chat in `src/ui/phase/` · the profile panel
+**Status:** Draft — revised 2026-10-22: the phase assist panel becomes the section chat with Explain and Change modes; a change stores a versioned report section
+**Requirements:** [Requirements/ai-assist.md](../Requirements/ai-assist.md) (R1–R19)
+**Builds on:** [research-phases.md](research-phases.md) (F21), [evidence-layers.md](evidence-layers.md) (F3), [evidence-review.md](evidence-review.md) (F19), [study-scoping.md](study-scoping.md) (F14), [jurisdiction-profile.md](jurisdiction-profile.md) (F1), [profile-upload-edit.md](profile-upload-edit.md) (F17), [provenance.md](provenance.md) (F4), [locked-report.md](locked-report.md) (F10)
 **Decisions:** D27 (hosted inference and the assist boundary), D28 (hosting on Vercel and Supabase) in [alternatives-and-tradeoffs.md](alternatives-and-tradeoffs.md)
 **Release:** 1, in three waves
 
@@ -11,21 +11,21 @@
 
 The model reads and quotes. The engine measures and decides nothing, and the model never touches what the engine produced. That is one rule, and everything below follows from it.
 
-- **Beside, not inside.** A suggestion is stored in its own table, keyed to the phase output it was made on. It is never an input to the analysis, the fingerprint, a review, or the document (R1, R2). Deleting every suggestion changes nothing UPlan has computed.
-- **Fixed shapes.** The model never writes free prose into the page. It fills a Zod-checked shape for one of six kinds, and each shape has a place to put a quote. A model asked to "recommend" has nowhere to put it (R6).
+- **Beside, not inside.** A suggestion is stored in its own table, keyed to the phase output and the section content it was made on. It is never an input to the analysis or the engine fingerprint (R1). A section change is different: when the planner asks for one, UPlan stores its validated text as a new `report_section_version`; the engine output and every earlier version stay (R7, F21 R6). Deleting every suggestion changes nothing UPlan has computed.
+- **Fixed shapes.** The model never writes free prose into the page. It fills a Zod-checked shape for one of eight kinds, and each shape has a place to put a quote. A model asked to "recommend" has nowhere to put it (R6).
 - **Check, never repair.** Every output passes deterministic checks: exact quotes, numbers copied from the input, no verdict words, the shape. A failed output is recorded as rejected and shown as rejected. It is never trimmed, retried with hints, or sent to another model (R4–R6, R11).
-- **Ask for it.** Nothing runs on load or save. A planner presses a button on one phase for one subject (R9).
+- **Ask for it.** Nothing runs on load or save. A planner presses a button or sends a chat message on one phase for one subject (R9). A prompt filler fills the message box; it never sends.
 - **Send little.** A typed builder assembles the request from allow-listed fields only, and the request as sent is stored (R8).
 - **Serverless-shaped.** One request is one model call inside one function invocation. There is no queue, no worker, no in-memory state, so the feature works on Vercel with Supabase as the only state (D28).
 
-**Rejected:** a conversational assistant over the whole project. It would need the project's details in context, it has no fixed shape to check, and it invites exactly the recommendation the charter forbids. **Rejected:** letting the model write the phase summaries. D26 stands: those are fixed templates over measurements, and the model's value is in reading around them.
+**Rejected:** a conversational assistant over the whole project. It would need the project's details in context, it has no fixed shape to check, and it invites exactly the recommendation the charter forbids. **Rejected:** letting the model write the analysis draft. D26 stands: those are fixed templates over measurements. The section chat may rewrite the narrative **only when the planner asks for a change**, and the result is a version the planner adopted, never the draft (F21 R6, R2).
 
 ## Where it runs
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 360}}}%%
 flowchart LR
-  U["Planner or staff<br/>browser"] -->|"1 · press Ask"| SA["Server Action<br/>Vercel function<br/>maxDuration set"]
+  U["Planner or staff<br/>browser"] -->|"1 · press Ask or<br/>send a chat message"| SA["Server Action<br/>Vercel function<br/>maxDuration set"]
   SA -->|"2 · authorize, build<br/>allow-listed input"| AS["assist module"]
   AS -->|"3 · caps + insert running<br/>(unique key)"| DB[("Supabase Postgres<br/>ai_suggestion<br/>document_chunk · pgvector")]
   AS -->|"4 · one HTTPS call<br/>key from env"| MC["platform/model-client"]
@@ -35,7 +35,7 @@ flowchart LR
   AS -->|"8 · check quotes, numbers,<br/>verdict words, shape"| AS
   AS -->|"9 · compare-and-set to<br/>ready or rejected"| DB
   AS -->|"10 · result"| SA
-  SA -->|"11 · panel re-renders"| U
+  SA -->|"11 · panel or chat re-renders"| U
 ```
 
 The browser never sees the key, and never calls NVIDIA. Retrieval for Find runs in Supabase: the question is embedded once through NVIDIA (step 5), and the ranking is one SQL query over `document_chunk`, as D21 designed.
@@ -54,7 +54,7 @@ The browser never sees the key, and never calls NVIDIA. Retrieval for Find runs 
 
 ## What may be sent
 
-The single rule behind R8, in a table. Only the first four classes ever leave UPlan, and the builder is the only code that assembles a request.
+The single rule behind R8, in a table. Only C1–C4, plus C5–C6 for the section chat, ever leave UPlan, and the builder is the only code that assembles a request.
 
 | Class | Examples | Source in UPlan | Sent? |
 | --- | --- | --- | --- |
@@ -62,19 +62,22 @@ The single rule behind R8, in a table. Only the first four classes ever leave UP
 | C2 Dataset metadata | Title, publisher, publication date, abstract, lineage, use limitations, coverage name, license | `dataset`, `dataset_version` text fields | Yes |
 | C3 Profile rules | Resource type labels, rule text, buffer widths, study names, citations | The pinned profile version | Yes |
 | C4 De-identified results | Resource type, count, area in acres, distance in feet, ranges, gap reasons, limit sentences, dataset titles and vintages | `AnalysisResults` and a phase's drafted lines | Yes |
+| C5 Section text (section chat only) | The section's headline, narrative lines, table captions, and fixed notices; maps reduced to title and description | The current section version or the analysis draft | Yes |
+| C6 Instruction (section chat only) | The planner's chat message | The chat textarea, after the identity and email check | Yes |
 | Project identity | Title, parcel or address, applicant, project manager, filing and decision dates | `decision` | **No** |
-| Free text by a person | Review notes, resolution notes, revision-request notes | `phase_review`, `evidence_resolution` | **No** |
+| Free text by a person | Resolution notes, profile change notes, change notes | `evidence_resolution`, `profile_change`, `report` | **No** |
 | Geometry | Study area and footprint coordinates | `decision_geometry` | **No** |
 | Files and people | Uploaded files, names, emails | Object storage, `app_user` | **No** |
 
 How it is enforced:
 
 - `assist/inputs.ts` has one builder per kind. Each returns a `.strict()` Zod object, so a field not in the schema is a compile error, and an extra key at runtime is a parse error.
-- A test builds a project whose title, applicant, address, notes, and coordinates hold unique sentinel strings, runs every builder, and fails if any sentinel appears anywhere in the serialized request.
+- The section chat's instruction is free text, so `buildSectionInput` checks it before it is sent: it is refused if it contains the project's title, parcel or address, applicant, project manager, or any email address. The refusal names the reason and makes no model call.
+- A test builds a project whose title, applicant, address, notes, and coordinates hold unique sentinel strings, runs every builder, and fails if any sentinel appears anywhere in the serialized request. A second test sends each of those sentinels in a chat instruction and asserts the builder refuses it.
 - The stored `request` column is the proof: a reviewer sees exactly what was sent.
 - NVIDIA is a third party that may log requests. Even the allowed classes are therefore public text or numbers with no identity attached.
 
-## The six kinds
+## The eight kinds
 
 | Kind | Shape (Zod, abridged) | Purpose | Effect |
 | --- | --- | --- | --- |
@@ -84,6 +87,8 @@ How it is enforced:
 | Compare | `{ reasons: [{ reason, text, quotes }], notStated }` | Why two sources may differ, from their metadata alone | None |
 | Metadata draft | `{ fields: [{ key, value, quote }] }` | Proposed dataset limitations and attributes | Staff confirm |
 | Rule draft | `{ changes: [{ path, from, to, sectionPath, quote }] }` | Proposed profile rule changes | Staff confirm |
+| Section explain | `{ paragraphs: [{ text, quotes: Quote[] }] }` | Answer a planner's question about one report section, quoting only what the section and its facts say | None |
+| Section edit | `{ headline: string, lines: string[], tables: [{ key, caption, columnOrder }] }` | Rewrite the section's narrative on the planner's instruction | A new `report_section_version` |
 
 `Quote` is `{ sourceId, text }`, where `sourceId` is one of the passage ids supplied in the request.
 
@@ -101,6 +106,7 @@ Order matters: a cheap check that fails stops the rest, and the first failure is
 | K6 | Questions are questions | Each `questions[].text` ends in `?` and begins with an interrogative word, never `should`, `must`, `ensure`, or `require` | R6 |
 | K7 | Size | A length cap per kind, in words | — |
 | K8 | Profile validity (Rule draft only) | Apply `changes` to the base document; the result passes `ProfileDocumentSchema`, changes only paths a rule owns (never a planner-chosen setting), and each `to` value's numbers appear in its quote | R7 |
+| K9 | Table formats (Section edit only) | Every `tables[].key` is a table the section prints, and `columnOrder` is a permutation of that table's canonical columns, so a provenance column can never be dropped; a caption passes K3 and K4 | F21 R2, R6 |
 
 ## Data model
 
@@ -112,11 +118,13 @@ create table ai_suggestion (
   jurisdiction_id  uuid not null references jurisdiction (id),
   decision_id      uuid references decision (id),        -- null for city-level kinds
   phase            text not null check (phase in
-                     ('profile','evidence','screening','studies','impact')),
+                     ('profile','site','evidence','screening','studies','footprint','impact')),
   kind             text not null check (kind in
-                     ('explain','questions','find','compare','metadata-draft','rule-draft')),
+                     ('explain','questions','find','compare','metadata-draft','rule-draft',
+                      'section-explain','section-edit')),
   subject_key      text not null,                        -- row id, study key, dataset version id, or '' for the whole phase
   output_sha256    text not null,                        -- the phase output (or profile or dataset version) this was made on
+  section_sha256   text,                                 -- section chat: the section content hash it was made on (F21 R7)
   input_sha256     text not null,                        -- sha256 of canonical JSON of `request`
   model_id         text not null,
   prompt_version   integer not null check (prompt_version > 0),
@@ -137,9 +145,10 @@ create table ai_suggestion (
   check (status <> 'failed'   or error_detail is not null)
 );
 
--- R13: one live suggestion per output, kind, and subject. A failed one frees the key.
+-- R13: one live suggestion per output, kind, subject, and section. A failed one frees the key.
 create unique index ai_suggestion_one_live
-  on ai_suggestion (coalesce(decision_id, jurisdiction_id), phase, kind, subject_key, output_sha256)
+  on ai_suggestion (coalesce(decision_id, jurisdiction_id), phase, kind, subject_key, output_sha256,
+                    coalesce(section_sha256, ''))
   where status <> 'failed';
 
 create index ai_suggestion_usage on ai_suggestion (requested_by, started_at);
@@ -174,7 +183,7 @@ create trigger ai_suggestion_final before update on ai_suggestion
 3. **Cap.** One statement counts the actor's and the city's rows started in the last 24 hours. At or above a cap, the call returns a `ConflictError` naming the cap. The count and the insert are one transaction, so two requests at once cannot both pass a cap of one.
 4. **Claim.** `insert … on conflict do nothing returning *` takes the unique key. No row returned means a live suggestion exists: return it, and make no call (R13).
 5. **Call.** One HTTPS call, with an `AbortSignal` shorter than the function's `maxDuration`. The transaction is closed before the call: the database holds no lock during network time.
-6. **Check and finish.** Run K1–K8. `update … set status = 'ready' | 'rejected' | 'failed' … where id = $1 and status = 'running'` must affect one row, else `ConflictError`.
+6. **Check and finish.** Run K1–K9. `update … set status = 'ready' | 'rejected' | 'failed' … where id = $1 and status = 'running'` must affect one row, else `ConflictError`. For a Section edit, the same transaction calls `workflow.commitSectionChange`, which re-checks the section and output hashes and inserts the version; a `ConflictError` rolls the transaction back, and a separate update then marks the suggestion `failed` with that message, so no version exists without its suggestion and no suggestion claims a version that was not stored.
 7. **Interrupted.** A function killed mid-call leaves a `running` row. There is no worker to sweep it. When a person requests the same key again and the row has been `running` for longer than the timeout plus a margin, the module marks it `failed` with `error_detail = 'interrupted'` by compare-and-set, which frees the unique key, and claims a new one.
 
 | Failure | Recorded as | Shown to the person |
@@ -207,7 +216,18 @@ Caps, as starting constants to tune from NVIDIA's live limit and the first month
 
 ## Assist by phase
 
-Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **Wave 2:** questions and comparison. **Wave 3:** staff-facing drafts. Every row is labeled AI-assisted where shown (R3). "Never" lists what the checks and shape make impossible, not just what the prompt asks.
+Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **Wave 2:** questions and comparison. **Wave 3:** staff-facing drafts. Every chat answer and suggestion is labeled AI-assisted where shown (R3); the report section is not (F21 R2). "Never" lists what the checks and shape make impossible, not just what the prompt asks.
+
+### The section chat — all six phases
+
+Every phase page has the chat beside its report section (F21 R16). It has two modes and two kinds; the phase-specific assists below are its **prompt fillers**, strongest first.
+
+| Mode | Kind | Sent | Output | Gate | Effect |
+| --- | --- | --- | --- | --- | --- |
+| Explain | `section-explain`, or the kind of the filler the planner chose | C3/C4, C5, and C6 when the planner typed | A plain-language answer with quotes, or the filler's shape | K1–K7 | None; display only |
+| Change | `section-edit` | C3/C4, C5, and C6 | `{ headline, lines, tables? }` | K1–K7, K9; then `commitSectionChange`'s hash check | A new `report_section_version` |
+
+A filler fills the message box and sets the hidden `assistId`; it never sends. In Explain mode the filler's kind runs, and a free-typed question runs `section-explain`. In Change mode the filler text is an instruction and `section-edit` runs. Site and Footprint have no filler, only the two modes. The tables below list each phase's fillers; the chat itself is the same on every phase and is not repeated in each table.
 
 ### City profile (F1, F2, F17) — staff
 
@@ -225,11 +245,11 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 
 | ID | Assist | Kind | Trigger | Sent | Model's task | Output | Gate | Wave |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| — | **No model use** | — | — | — | — | — | — | — |
+| — | Section chat | Section explain, Section edit | Planner types a question or a change | C4: the study area's revision, area, source note, and sample flag. C5: the section text. C6: the instruction | Answer a question about the section, or rewrite its narrative | An answer, or a new section version | K1–K7, K9; the commit's hash check | 1 |
 
-| Why none | What serves the planner instead (not a model) |
+| Why no other assist | What serves the planner instead (not a model) |
 | --- | --- |
-| The boundary is the planner's own act, and its only inputs are a map and a site plan the model cannot be given: coordinates are not sent (R8) and the plan is an applicant document. There is no public text to read. | Drawing, GeoJSON upload with a stated rejection reason, and sample data (F21 R11, F23). A parcel or address lookup from public records is a data feature, not a model. |
+| The boundary is the planner's own act, and its only inputs are a map and a site plan the model cannot be given: coordinates are not sent (R8) and the plan is an applicant document. There is no public text to read. | Drawing, GeoJSON upload with a stated rejection reason, and sample data (F21 R12, F23). A parcel or address lookup from public records is a data feature, not a model. The chat can explain the section's wording and rewrite its narrative on request. |
 
 ### 2 · Evidence
 
@@ -277,11 +297,11 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 
 | ID | Assist | Kind | Trigger | Sent | Model's task | Output | Gate | Wave |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| — | **No model use** | — | — | — | — | — | — | — |
+| — | Section chat | Section explain, Section edit | Planner types a question or a change | C4: the footprint's revision, area, source note, and sample flag. C5: the section text. C6: the instruction | Answer a question about the section, or rewrite its narrative | An answer, or a new section version | K1–K7, K9; the commit's hash check | 1 |
 
-| Why none | What serves the planner instead (not a model) |
+| Why no other assist | What serves the planner instead (not a model) |
 | --- | --- |
-| The footprint is the proposal under evaluation, traced from an applicant's site plan. Reading the plan would send an applicant document to a third party (R8), and a model's trace has no accuracy the planner could rely on. A footprint produced by a model would also make the impact numbers a function of a guess, which the charter's pilot edge cannot carry. | Drawing, GeoJSON upload with a stated rejection reason, and sample data. The area is PostGIS's, immediately. |
+| The footprint is the proposal under evaluation, traced from an applicant's site plan. Reading the plan would send an applicant document to a third party (R8), and a model's trace has no accuracy the planner could rely on. A footprint produced by a model would also make the impact numbers a function of a guess, which the charter's pilot edge cannot carry. | Drawing, GeoJSON upload with a stated rejection reason, and sample data. The area is PostGIS's, immediately. The chat can explain the section's wording and rewrite its narrative on request. |
 
 ### 6 · Impact
 
@@ -302,7 +322,7 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 | Page | Model use | Why none | What serves the planner instead (not a model) |
 | --- | --- | --- | --- |
 | Overview | None | It states where the research stands. A summary written by a model could be wrong about state, and the state is already derived from records (F18). | Next actions, counts, and the stage rail, all derived |
-| Report | None in the document | P3: the document is built from pinned records and is locked, hashed, and quotable out of context. No model sentence is allowed to enter it (R2). The planner's own note may include text they copied from a suggestion, as theirs | The finish checklist, version history, and download, unchanged |
+| Report | None in the document | P3: the document is built from pinned records and is locked, hashed, and quotable out of context. A model sentence enters it only as a section version the planner asked for and adopted (F21 R6); the document does not label it AI-assisted, because it is the planner's adopted text | The finish checklist, version history, and download, unchanged |
 
 ## Considered and not selected
 
@@ -315,22 +335,23 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 | Chat over the whole project | No fixed shape to check; needs project identity in context (R8); invites a recommendation |
 | Automatically apply a confirmed rule draft | Staff confirmation is the control (R7); F17's approval and preview are the path |
 | Another model as a fallback when the first fails | A fallback mechanism; best-practices forbids it. A failure is shown |
-| Rewriting or "polishing" the drafted summaries | D26: the summaries are templates over measurements, and rewriting would put the model between the number and the reader |
+| A model rewriting a section without the planner asking | The section is the planner's adopted text, and an automatic rewrite would change the report between versions. Change mode runs only on the planner's instruction and stores a version (F21 R6) |
+| A model rewriting a figure, table value, quote, list, or notice while rewriting narrative | Those are locked by the shape, K3, and K9; the section's numbers come from the analysis, and the model's output has no field for them |
 
 ## Requirement coverage
 
 | Req | Satisfied by | Notes |
 | --- | --- | --- |
-| R1 | `ai_suggestion` is a separate table; no analysis, fingerprint, or review code reads it | A test deletes every suggestion and asserts byte-identical phase outputs |
-| R2 | `reports` builds only from the snapshot; no import of `assist` | Lint boundary: `reports` cannot import `assist` |
-| R3 | The assist panel renders the label from the row's `model_id` and `finished_at`; exports include it | One component, so no suggestion renders without it |
+| R1 | `ai_suggestion` is a separate table; no analysis or fingerprint code reads it. A section version is separate from the output and its fingerprint | A test deletes every suggestion and asserts byte-identical analysis drafts; `commitSectionChange` writes no analysis row |
+| R2 | `reports` builds only from the snapshot; a change enters only as a version the planner asked for | Lint boundary: `reports` cannot import `assist` or `workflow` |
+| R3 | The chat renders the label from the row's `model_id` and `finished_at`; exports include it; the section itself is unlabeled | One component, so no suggestion renders without its label |
 | R4 | K2, K5 | Substring match after normalization; reject, never repair |
 | R5 | K3 | |
 | R6 | Shapes, K1, K4, K6 | The denylist test is shared with the drafting templates |
-| R7 | `ai_suggestion_response.confirmed` creates an F17 change; approver is not proposer | Display kinds have no write path |
-| R8 | `assist/inputs.ts` builders; the sentinel test; stored `request` | |
-| R9 | Server Action only, on a button; no page-load call and no cron | |
-| R10 | `output_sha256` compared with the current output on render | "Out of date" label with the reason |
+| R7 | `ai_suggestion_response.confirmed` creates an F17 change; a Section edit stores a version through `commitSectionChange` | Display kinds have no write path; a version never changes the output |
+| R8 | `assist/inputs.ts` builders; the sentinel test; the instruction check; stored `request` | |
+| R9 | Server Action only, on a button or a chat send; fillers never send; no page-load call and no cron | |
+| R10 | `output_sha256` and `section_sha256` compared with the current records on render and at commit | "Out of date" label with the reason |
 | R11 | The failure table; no fallback code path | Failure tests for each row of it |
 | R12 | Cap query and insert in one transaction | Race test: two requests at the cap |
 | R13 | `ai_suggestion_one_live` partial unique index; `insert … on conflict` | Race test: two identical requests, one call |
@@ -338,7 +359,8 @@ Legend. **Wave 1:** retrieval and explanation, planner-facing, display only. **W
 | R15 | Panel built from React Aria; `aria-live` for status; text and shape for states | axe in the phase-page specs |
 | R16 | `eval:assist` evaluation suite, defined when the feature is built | Includes planted invented numbers, verdict-bearing outputs, and missing quotes |
 | R17 | F16 retention covers both tables | Export includes `request`, `model_id`, `prompt_version` |
-| R18 | The phase tables above | Site and Footprint have no assist code at all |
+| R18 | The phase tables above | Site and Footprint have the section chat only |
+| R19 | `SectionChat` inside `ReportSectionPanel`; `PHASE_PROMPTS` fillers | Visible beside the section; fillers never send |
 
 ## Risks and tradeoffs
 
@@ -380,6 +402,8 @@ Everything above was built, in all three waves. These are the places the code di
 | ST3 and EV3 inputs | Not specified | ST3 compares the profile's named studies with a `checklist` document staff added. EV3 takes the publisher's metadata text staff paste (12,000 characters) | No source for either exists on this target |
 | Records export (R17) | Both tables in F16's export | A project's suggestions are exported with its `decision` records and the city-level ones with `profile-change` records, each row carrying `request`, `model_id`, and `prompt_version` | F16's record types are a closed list in every profile's settings, so a new type would change every profile document |
 | Evaluation set (R16) | Defined when built | `npm run eval:assist`: planted failures run offline and must each be rejected; golden questions run against the real service when a key is set | |
+| Panel placement (R19) | The panel sat beside the drafted output | Before 2026-10-22 the panel was the first block, a `spotlight` with the strongest assist. From 2026-10-22 the **section chat** is inside the section panel, beside the section, and the spotlight is removed. The /profile panel keeps the accordion | The section and its chat are one block, and a change is stored as a section version |
+| Section chat (2026-10-22) | Not in the first build | New kinds `section-explain` and `section-edit`, a `section_sha256` binding, and `commitSectionChange` called in the suggestion's finalize transaction; `PHASE_PROMPTS` fillers; the phase spotlight and the old feedback box removed | F21's refactor replaced reviews and feedback with versioned sections |
 
 ## Open items
 

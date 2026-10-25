@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ASSIST_KINDS, AssistIdSchema, REF_KINDS } from "./kinds";
+import { ASSIST_KINDS, REF_KINDS, StoredAssistIdSchema } from "./kinds";
 
 // TechDesign/ai-assist.md, "What may be sent" (F24 R8). The request is the only thing that leaves UPlan, and
 // this schema is its whole shape. It is `.strict()`: a field not named here is a parse error, so a builder
@@ -16,13 +16,39 @@ export type Ref = z.infer<typeof RefSchema>;
 export const RuleValueSchema = z.object({ path: z.string().min(1), value: z.number() }).strict();
 export type RuleValue = z.infer<typeof RuleValueSchema>;
 
+/**
+ * C5: the section as the planner sees it. Only the editable surface is named — the headline, the narrative
+ * lines, and each printed table's key, caption, and column order. Table values, maps, notices, and quotes are
+ * rendered by the report from its own records and have no field here.
+ */
+export const SectionTextSchema = z
+  .object({
+    headline: z.string(),
+    lines: z.array(z.string()),
+    tables: z.array(
+      z
+        .object({
+          key: z.string().min(1),
+          caption: z.string().nullable(),
+          columnOrder: z.array(z.string()),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type SectionText = z.infer<typeof SectionTextSchema>;
+
+/** The tables a section prints and the columns each must keep: what K9 checks and a rewrite may only reorder. */
+export const TableFormatSchema = z.object({ key: z.string().min(1), columns: z.array(z.string().min(1)) }).strict();
+export type TableFormat = z.infer<typeof TableFormatSchema>;
+
 export const AssistRequestSchema = z
   .object({
-    assistId: AssistIdSchema,
+    assistId: StoredAssistIdSchema,
     kind: z.enum(ASSIST_KINDS),
     promptVersion: z.number().int().positive(),
     task: z.string().min(1),
-    /** Find's question, or null. A planner's own words, so it is the one free-text field that leaves UPlan. */
+    /** Find's question, or null. A planner's own words, so it is one of the free-text fields that leave UPlan. */
     question: z.string().nullable(),
     /** Everything the model may quote. Each has an id a quote must name. */
     passages: z.array(PassageSchema),
@@ -30,6 +56,12 @@ export const AssistRequestSchema = z
     refs: z.array(RefSchema),
     /** Rule drafts only: the current value at each rule-owned path, so `from` can be checked. */
     ruleValues: z.array(RuleValueSchema),
+    /** Section chat only (C5). Null for every other assist. */
+    section: SectionTextSchema.nullable().default(null),
+    /** Section chat only (C6): the planner's chat message, after the identity check. */
+    instruction: z.string().nullable().default(null),
+    /** Section chat only: the canonical tables and columns a rewrite may reorder, never drop. */
+    tableFormats: z.array(TableFormatSchema).default([]),
   })
   .strict();
 export type AssistRequest = z.infer<typeof AssistRequestSchema>;
@@ -52,6 +84,12 @@ export function numbersInRequest(request: AssistRequest): Set<string> {
     add(p.label);
   }
   if (request.question !== null) add(request.question);
+  if (request.instruction !== null) add(request.instruction);
+  if (request.section !== null) {
+    add(request.section.headline);
+    for (const line of request.section.lines) add(line);
+    for (const table of request.section.tables) if (table.caption !== null) add(table.caption);
+  }
   for (const r of request.ruleValues) {
     add(r.path);
     add(String(r.value));

@@ -27,7 +27,7 @@ export function DataTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key} className="border-b border-line align-top last:border-b-0">
+            <tr key={row.key} className="border-b border-line align-top transition-colors duration-150 last:border-b-0 hover:bg-raised/60">
               {row.cells.map((cell, index) =>
                 index === 0 ? (
                   <th key={index} scope="row" className="py-3 pr-3 font-medium text-text">

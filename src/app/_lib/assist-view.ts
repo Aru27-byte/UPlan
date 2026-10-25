@@ -1,23 +1,12 @@
-import { MEASURE_LABEL, STUDY_LABEL } from "@/modules/analysis";
-import {
-  NOT_CONFIGURED_MESSAGE,
-  assistAvailability,
-  assistsByPhase,
-  indexedTextHash,
-  listCitySuggestions,
-  listPhaseSuggestions,
-  listSourceDocuments,
-  metadataBinding,
-  type AssistId,
-  type AssistPhase,
-  type SuggestionView,
-} from "@/modules/assist";
+import { NOT_CONFIGURED_MESSAGE, assistAvailability, indexedTextHash, listCitySuggestions, listPhaseSuggestions, listSourceDocuments, metadataBinding, type AssistId, type StoredAssistId, type SuggestionView } from "@/modules/assist";
 import type { Actor } from "@/modules/accounts";
 import { formatTimestamp } from "@/modules/provenance";
-import type { Workflow } from "@/modules/workflow";
+import { contentSha256, type PhaseKey, type Workflow } from "@/modules/workflow";
 import type { ActionState } from "@/ui/action-state";
-import type { StepGroup } from "@/ui/phase/group-tones";
 import type { AssistBlock, AssistCardModel, AssistControlModel, AssistPanelModel } from "@/ui/phase/assist-types";
+import type { SectionChatModel } from "@/ui/phase/types";
+
+import { shownSectionContent } from "./workflow-labels";
 
 // App-layer glue between the assist module's views and the plain model the panel renders. Every date is
 // formatted here, in the city's time zone, and every sentence a person reads that UPlan (not the model) wrote
@@ -25,7 +14,66 @@ import type { AssistBlock, AssistCardModel, AssistControlModel, AssistPanelModel
 
 type Action = (previous: ActionState, formData: FormData) => Promise<ActionState>;
 
-const KIND_TITLE: Record<AssistId, string> = {
+// The strongest assists, offered as fillers above the chat's message box (research-phases.md R6). A filler
+// writes its text into the box and sets the hidden assist id; it never sends. Site and Footprint have none,
+// because a boundary is the planner's own act. The words ask for reading and quoting, never a verdict.
+export const PHASE_PROMPTS: Partial<Record<PhaseKey, { assistId: AssistId; label: string; text: string }[]>> = {
+  evidence: [
+    {
+      assistId: "EV1",
+      label: "Restate the evidence in plain language",
+      text: "Restate this section in plain language for a reader who is not a GIS analyst. Keep every figure exactly as written and quote the sources.",
+    },
+    {
+      assistId: "EV2",
+      label: "Explain why two sources may differ",
+      text: "Explain why the two sources may differ, using only their own metadata. Do not say which source is right.",
+    },
+  ],
+  screening: [
+    {
+      assistId: "SC1",
+      label: "Explain a screening row with its rule",
+      text: "Explain what this screening row and its rule mean together. Quote the rule exactly. Do not say whether the row is a concern.",
+    },
+    {
+      assistId: "SC3",
+      label: "Find where the code says this",
+      text: "Find the passage of the code that sets this screening row's buffer or trigger, and quote it exactly.",
+    },
+  ],
+  studies: [
+    {
+      assistId: "ST1",
+      label: "Find why this study is listed",
+      text: "Find the passage that names this study and explain why it is listed. Do not add or remove a study.",
+    },
+    {
+      assistId: "ST2",
+      label: "Turn a flag into a question",
+      text: "Turn this flagged resource into questions for a site visit. Ask what information would show whether it is on or near the site.",
+    },
+  ],
+  impact: [
+    {
+      assistId: "IM1",
+      label: "Put the impact table into words",
+      text: "Restate each impact row in plain language, copying every figure exactly and both ends of any range.",
+    },
+    {
+      assistId: "IM2",
+      label: "What would narrow this range",
+      text: "Ask what field-rated fact would decide which end of this range applies. Do not assume one.",
+    },
+    {
+      assistId: "IM3",
+      label: "Find where the code sets this width",
+      text: "Find the passage of the code that sets this width or measure, and quote it exactly.",
+    },
+  ],
+};
+
+const KIND_TITLE: Record<StoredAssistId, string> = {
   PR1: "Draft rule changes from code text",
   PR2: "Find in the code",
   EV1: "Explain this evidence",
@@ -40,6 +88,8 @@ const KIND_TITLE: Record<AssistId, string> = {
   IM1: "Explain this impact",
   IM2: "What would narrow this range",
   IM3: "Where the code sets this width",
+  "section-explain": "Explain this section",
+  "section-edit": "Change this section",
 };
 
 const STATUS_TEXT = {
@@ -57,7 +107,7 @@ const RESPONSE_TEXT: Record<string, string> = {
   rejected: "Rejected by staff",
 };
 
-const CHECK_TEXT: Record<"K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K7" | "K8", string> = {
+const CHECK_TEXT: Record<"K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K7" | "K8" | "K9", string> = {
   K1: "The answer was not in the required shape.",
   K2: "A quote is not in the text it was said to come from.",
   K3: "A number is not one that was given to the model.",
@@ -66,6 +116,7 @@ const CHECK_TEXT: Record<"K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K7" | "K8", 
   K6: "A question was not phrased as a question about information.",
   K7: "The answer was longer than allowed.",
   K8: "The drafted change is not one a rule may make.",
+  K9: "The change dropped a column the report needs, or used a table this section does not print.",
 };
 
 const REASON_LABEL: Record<"vintage" | "scale" | "definition" | "coverage" | "method" | "unknown", string> = {
@@ -101,7 +152,7 @@ export function blocksOf(view: SuggestionView): AssistBlock[] {
       heading: null,
       text: p.text,
       quotes: quotesOf(p.quotes),
-      note: `Restates: ${p.restates.map(label).join(", ")}`,
+      note: "restates" in p ? `Restates: ${p.restates.map(label).join(", ")}` : null,
     }));
   }
   if ("questions" in content) {
@@ -157,6 +208,21 @@ export function blocksOf(view: SuggestionView): AssistBlock[] {
       note: null,
     }));
   }
+  if ("headline" in content) {
+    const blocks: AssistBlock[] = [
+      { heading: "Headline", text: content.headline, quotes: [], note: null },
+      ...content.lines.map((line) => ({ heading: null, text: line, quotes: [], note: null })),
+    ];
+    for (const table of content.tables ?? []) {
+      blocks.push({
+        heading: `Table: ${table.key}`,
+        text: table.caption ? `Caption: ${table.caption} · Columns: ${table.columnOrder.join(" → ")}` : `Columns: ${table.columnOrder.join(" → ")}`,
+        quotes: [],
+        note: null,
+      });
+    }
+    return blocks;
+  }
   if (content.changes.length === 0) {
     return [{ heading: null, text: "The code text states no value that differs from the profile. Nothing is proposed.", quotes: [], note: null }];
   }
@@ -184,7 +250,7 @@ export function cardModel(
     problems.push("This answer failed UPlan's checks, so none of it is shown as an answer.");
     for (const f of view.checkFailures) problems.push(`${CHECK_TEXT[f.check]} ${f.message}`);
   }
-  if (view.status === "failed") problems.push(view.errorDetail === "rate-limited" ? "The free model service is at its limit. Try again later." : `The model service did not answer (${view.errorDetail ?? "no reason recorded"}). Try again.`);
+  if (view.status === "failed") problems.push(view.errorDetail === "rate-limited" ? "UPlan Assist is at its limit. Try again later." : `UPlan Assist did not answer (${view.errorDetail ?? "no reason recorded"}). Try again.`);
   if (view.status === "running") problems.push("This request is still running, or was interrupted. Ask again after a minute.");
 
   return {
@@ -193,7 +259,8 @@ export function cardModel(
     subject: opts.subject,
     status: view.status,
     statusText: STATUS_TEXT[view.status],
-    stamp: `AI-assisted · ${view.modelId} · ${at} · not part of the analysis`,
+    createdAt: (view.finishedAt ?? view.startedAt).toISOString(),
+    stamp: `UPlan Assist · ${view.modelId} · ${at} · not part of the analysis`,
     outOfDate: opts.outOfDate,
     blocks: blocksOf(view),
     problemLines: problems,
@@ -203,8 +270,6 @@ export function cardModel(
     confirm: opts.confirm,
   };
 }
-
-const PHASE_OUT_OF_DATE = "The phase's output changed after this was made.";
 
 /**
  * The assist panel of the city profile page (F24 PR1, PR2, EV3, ST3). Finding a passage is open to anyone signed
@@ -230,7 +295,7 @@ export async function cityAssistPanel(args: {
   ]);
   const codeDocs = documents.filter((d) => d.kind === "code").map((d) => ({ value: d.id, label: d.title }));
   const checklistDocs = documents.filter((d) => d.kind === "checklist").map((d) => ({ value: d.id, label: d.title }));
-  const noText = "Staff have not added any code text yet. Add it below, and AI assist can quote it.";
+  const noText = "Staff have not added any code text yet. Add it below, and UPlan Assist can quote it.";
 
   const controls: AssistControlModel[] = [
     {
@@ -341,8 +406,11 @@ export async function cityAssistPanel(args: {
   });
 
   return {
-    title: "AI assist for the city's rules (optional)",
+    title: "UPlan Assist for the city's rules (optional)",
     summary: "Finds the exact passage of the code behind a rule, and helps staff keep the profile current. Drafts take effect only when a second staff member confirms.",
+    featureTitle: "Find the rule behind the reading",
+    featureDescription:
+      "Ask UPlan Assist to quote the exact passage of the city's code that answers a question. Drafts for staff take effect only when a second staff member confirms them.",
     configured: availability.configured,
     notConfigured: NOT_CONFIGURED_MESSAGE,
     controls,
@@ -351,129 +419,88 @@ export async function cityAssistPanel(args: {
   };
 }
 
-type Subject = { value: string; label: string };
+const SECTION_OUTPUT_CHANGED = "The analysis changed after this was made.";
+const SECTION_CHANGED = "The section changed after this was made.";
 
-/** What a person can point at, per assist, from the current analysis. */
-function subjectsFor(workflow: Workflow): Partial<Record<AssistId, Subject[]>> {
-  const { run, rules, datasetTitles } = workflow.facts;
-  if (!run || !rules) return {};
-  const labelOf = (key: string) => rules.resourceTypes.find((r) => r.key === key)?.label ?? key;
-  const titleOf = (id: string) => datasetTitles.get(id) ?? "a dataset";
-  const rows = run.results.screening.map((r) => ({
-    value: `row:${r.resourceType}:${r.datasetVersionId}`,
-    label: `${labelOf(r.resourceType)} — ${titleOf(r.datasetVersionId)}`,
-  }));
-  const gaps = run.results.evidenceBase.gaps.map((g) => ({
-    value: `gap:${g.resourceType}:${g.reason}`,
-    label: `${labelOf(g.resourceType)} — no usable dataset`,
-  }));
-  const resourceTypesInImpact = [...new Set(run.results.impacts.map((i) => i.resourceType))];
-  return {
-    EV2: run.results.evidenceBase.disagreements.map((d) => ({
-      value: `${d.resourceType}:${d.mappedBy}:${d.notMappedBy}`,
-      label: `${labelOf(d.resourceType)}: ${titleOf(d.mappedBy)} and ${titleOf(d.notMappedBy)}`,
-    })),
-    SC1: [...rows, ...gaps],
-    SC3: rows,
-    ST1: [...new Set(rules.studyTriggers.map((t) => t.study))].sort().map((s) => ({ value: s, label: STUDY_LABEL[s] })),
-    IM2: run.results.impacts
-      .filter((i) => i.min !== i.max)
-      .map((i) => ({ value: `range:${i.impactKey}`, label: `${labelOf(i.resourceType)}: ${MEASURE_LABEL[i.measure].toLowerCase()}` })),
-    IM3: resourceTypesInImpact.map((rt) => ({ value: rt, label: labelOf(rt) })),
-  };
+function requestSubject(request: SuggestionView["request"]): string | null {
+  if (!request) return null;
+  return request.instruction ?? request.question;
 }
 
-const HINT: Record<AssistId, string> = {
-  PR1: "",
-  PR2: "",
-  EV1: "Restates the drafted lines in plain words. It adds no figure and never says a gap does not matter.",
-  EV2: "Lists reasons the two sources' own metadata supports. It never says which source is right.",
-  EV3: "",
-  SC1: "Says what a row and its rule mean together, with the rule quoted. It never says a row is or is not a concern.",
-  SC2: "Turns each recorded gap or limit into a question for a site visit. Questions only.",
-  SC3: "Finds the passage that sets the buffer or trigger, quoted exactly.",
-  ST1: "Finds the passage that names this study. It never adds or removes a study.",
-  ST2: "Asks what information would show whether a flagged resource is on or near the site. It never says what an applicant must do.",
-  ST3: "",
-  IM1: "Restates each impact row, copying its figures exactly, with both ends of any range.",
-  IM2: "Asks what field-rated fact would decide which end of a range applies. It never assumes one.",
-  IM3: "Finds the passage that sets a width, quoted exactly.",
-};
-
-const EMPTY_REASON: Partial<Record<AssistId, string>> = {
-  EV2: "No two sources disagree in this analysis.",
-  SC1: "The screening has no rows yet.",
-  SC3: "The screening has no rows yet.",
-  ST1: "The profile names no studies.",
-  IM2: "No impact in this analysis is a range.",
-  IM3: "No resource type has a measured impact.",
-};
-
-const SUBJECT_LABEL: Partial<Record<AssistId, string>> = {
-  EV2: "Which disagreement",
-  SC1: "Which row",
-  SC3: "Which row",
-  ST1: "Which study",
-  IM2: "Which range",
-  IM3: "Which resource",
-};
+/**
+ * The suggestion as plain text. The chat stores this beside the suggestion id so a restored message still
+ * reads if its card can no longer be rebuilt (and so the stored answer never depends on the client's copy).
+ */
+export function suggestionPlainText(view: SuggestionView): string {
+  const lines: string[] = [KIND_TITLE[view.assistId] ?? view.assistId];
+  const subject = requestSubject(view.request);
+  if (subject) lines.push(subject);
+  for (const block of blocksOf(view)) {
+    if (block.heading) lines.push(block.heading);
+    if (block.text) lines.push(block.text);
+    if (block.note) lines.push(block.note);
+    for (const quote of block.quotes) lines.push(`"${quote.text}" — from ${quote.source}`);
+  }
+  if (view.status === "rejected") {
+    lines.push("This answer failed UPlan's checks, so none of it is shown as an answer.");
+    for (const failure of view.checkFailures) lines.push(`${CHECK_TEXT[failure.check]} ${failure.message}`);
+  }
+  if (view.status === "failed") {
+    lines.push(
+      view.errorDetail === "rate-limited"
+        ? "UPlan Assist is at its limit. Try again later."
+        : `UPlan Assist did not answer (${view.errorDetail ?? "no reason recorded"}). Try again.`,
+    );
+  }
+  if (view.status === "running") lines.push("This request is still running, or was interrupted. Ask again after a minute.");
+  return lines.filter((line) => line.trim().length > 0).join("\n").slice(0, 10_000);
+}
 
 /**
- * The assist panel for one analysis phase of one project (F24 R18: Site and Footprint have none, so they never
- * call this). `requestAction` and `respondAction` are Server Functions the page bound to its project.
+ * The section chat's model: the phase's fillers, its messages, and the hashes the page carries (R7). The
+ * page's Server Actions are bound to its project, so this file passes them through and builds no request.
  */
-export async function phaseAssistPanel(args: {
+export async function sectionChatModel(args: {
   actor: Actor;
   workflow: Workflow;
-  phase: Extract<AssistPhase, "evidence" | "screening" | "studies" | "impact">;
-  group: StepGroup;
   decisionId: string;
-  requestAction: (assistId: AssistId) => Action;
+  phase: PhaseKey;
+  explainAction: Action;
+  changeAction: Action;
   respondAction: Action;
-}): Promise<AssistPanelModel> {
-  const { workflow, phase } = args;
+}): Promise<SectionChatModel> {
+  const view = args.workflow.phases.find((p) => p.phase === args.phase);
+  if (!view) throw new Error(`phase ${args.phase} is not in the workflow`);
   const availability = assistAvailability();
-  const suggestions = await listPhaseSuggestions(args.actor, args.decisionId, phase);
-  const subjects = subjectsFor(workflow);
-  const view = workflow.phases.find((p) => p.phase === phase);
-  const currentSha = view?.output?.contentSha256 ?? null;
-  const noOutput = view?.output ? null : "This phase has no output yet, so there is nothing to ask about.";
-
-  const controls: AssistControlModel[] = assistsByPhase(phase)
-    .filter((a) => !a.staff)
-    .map((a) => {
-      const options = subjects[a.id] ?? null;
-      const needsSubject = a.subject !== "phase";
-      return {
-        id: a.id,
-        label: a.label,
-        hint: HINT[a.id],
-        subjects: needsSubject ? (options ?? []) : null,
-        subjectLabel: SUBJECT_LABEL[a.id] ?? "Which one",
-        extra: null,
-        action: args.requestAction(a.id),
-        disabledReason: noOutput ?? (needsSubject && (options ?? []).length === 0 ? (EMPTY_REASON[a.id] ?? "There is nothing to ask about.") : null),
-      };
-    });
-
-  const subjectLabelOf = (v: SuggestionView): string | null =>
-    v.subjectKey === "" ? null : (Object.values(subjects).flat().find((s) => s?.value === v.subjectKey)?.label ?? null);
+  const suggestions = await listPhaseSuggestions(args.actor, args.decisionId, args.phase);
+  const shown = shownSectionContent(view.state);
+  const currentSha = shown ? contentSha256(shown) : "";
+  const outputSha = view.output?.contentSha256 ?? "";
 
   return {
-    title: "AI assist (optional)",
-    summary: "Reads and quotes the text on this page. Asked for, never automatic, and never part of the analysis.",
+    phase: args.phase,
     configured: availability.configured,
     notConfigured: NOT_CONFIGURED_MESSAGE,
-    controls,
-    group: args.group,
-    cards: suggestions.map((v) =>
+    prompts: PHASE_PROMPTS[args.phase] ?? [],
+    messages: suggestions.map((v) =>
       cardModel(v, {
-        timeZone: workflow.timeZone,
-        subject: subjectLabelOf(v),
-        outOfDate: currentSha !== null && v.outputSha256 !== currentSha ? PHASE_OUT_OF_DATE : null,
+        timeZone: args.workflow.timeZone,
+        subject: requestSubject(v.request),
+        outOfDate:
+          v.outputSha256 !== outputSha
+            ? SECTION_OUTPUT_CHANGED
+            : v.sectionSha256 !== null && v.sectionSha256 !== currentSha
+              ? SECTION_CHANGED
+              : null,
         respondAction: args.respondAction,
         confirm: null,
       }),
     ),
+    explainAction: args.explainAction,
+    changeAction: args.changeAction,
+    respondAction: args.respondAction,
+    contentSha256: currentSha,
+    outputSha256: outputSha,
+    timeZone: args.workflow.timeZone,
   };
 }

@@ -11,7 +11,6 @@ import { MapWorkspace, type EvidenceLayer } from "@/ui/map-workspace.client";
 import { Panel } from "@/ui/panel";
 import { PhasePage } from "@/ui/phase/phase-page";
 
-import { recordReviewAction } from "../actions";
 import { BASEMAP_URL, BoundaryPanel } from "../_components/boundary-panel";
 import { StepIntro } from "../_components/step-intro";
 
@@ -67,7 +66,6 @@ export default async function SitePage({
   return (
     <PhasePage
       model={phaseModel(w, projectId, "site")}
-      reviewAction={recordReviewAction.bind(null, projectId)}
       intro={<StepIntro projectId={projectId} step="site" />}
       editor={
         <BoundaryPanel

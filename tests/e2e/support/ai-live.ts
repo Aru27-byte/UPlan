@@ -26,6 +26,7 @@ const FAILURES = [
   "K6",
   "K7",
   "K8",
+  "K9",
   "accuracy",
   "not-configured",
   "rate-limited",

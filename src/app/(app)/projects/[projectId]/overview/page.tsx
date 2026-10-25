@@ -9,7 +9,7 @@ import {
   analysisStatusText,
   projectHref,
   publishedVersion,
-  reviewStateLabel,
+  sectionStateLabel,
 } from "@/app/_lib/workflow-labels";
 import { STUDY_LABEL, describeLimit, describeScreeningGap, matchResolutions } from "@/modules/analysis";
 import type { RuleSet } from "@/modules/profiles";
@@ -40,8 +40,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
   const analysis = analysisStatusText(status);
   const group = STEP_GROUP.overview;
 
-  // R18: the project's facts as recorded (null reads "Not yet recorded"), and every phase whose output is not
-  // reviewed — to do, updating, needs review, or a revision requested.
+  // R18: the project's facts as recorded (null reads "Not yet recorded"), and every phase whose section is not
+  // Ready — to do, updating, or out of date.
   const glance: [string, string | null][] = [
     ["Application type", applicationTypeLabel(d.applicationType)],
     ["Parcel or address", d.parcelOrAddress],
@@ -52,8 +52,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
     ["City", w.cityName],
   ];
   const pending = w.phases
-    .map((view) => ({ phase: view.phase, label: reviewStateLabel(view.state) }))
-    .filter(({ label }) => label.kind !== "reviewed");
+    .map((view) => ({ phase: view.phase, label: sectionStateLabel(view.state) }))
+    .filter(({ label }) => label.kind !== "ready");
 
   const labelOf = (key: string): string => {
     const found = rules?.resourceTypes.find((r) => r.key === key);
@@ -90,7 +90,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
 
       <Panel
         title="Project at a glance"
-        description="What this project is, and which phases still need work or review."
+        description="What this project is, and which phases are not ready."
       >
         <div className="grid gap-6 md:grid-cols-2">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
@@ -104,7 +104,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
           <div>
             <h3 className="text-sm font-semibold text-text">Phases that need you</h3>
             {pending.length === 0 ? (
-              <p className="mt-2 text-sm text-text">Every phase is reviewed at its current output.</p>
+              <p className="mt-2 text-sm text-text">Every phase is ready.</p>
             ) : (
               <ul className="mt-2 flex flex-col divide-y divide-line">
                 {pending.map(({ phase, label }) => (
@@ -188,7 +188,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
                 <li>
                   {unresolved} source {unresolved === 1 ? "disagreement has" : "disagreements have"} no recorded reasoning yet.{" "}
                   <Link href={projectHref(projectId, "evidence")} className="font-medium text-brand underline underline-offset-2">
-                    Review them
+                     Record your reasoning
                   </Link>
                   .
                 </li>
@@ -291,7 +291,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
         <Accordion
           group={group}
           title={`Research change from version ${w.change.baseVersion}`}
-          summary="What differs from the last published version. A phase whose output is unchanged keeps its review and needs none."
+          summary="What differs from the last published version. A phase whose output is unchanged keeps its section and needs no edit."
           status={
             w.change.hasChanges ? <StatusLabel tone="warn">Changed</StatusLabel> : <StatusLabel tone="neutral">Nothing changed yet</StatusLabel>
           }
@@ -305,11 +305,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
                 <span className="flex flex-wrap items-center gap-2">
                   {p.changed ? <StatusLabel tone="warn">Changed</StatusLabel> : <StatusLabel tone="neutral">Unchanged</StatusLabel>}
                   {p.changed ? (
-                    p.reviewedAtCurrentOutput ? (
-                      <StatusLabel tone="ok">Reviewed</StatusLabel>
-                    ) : (
-                      <StatusLabel tone="warn">Needs review</StatusLabel>
-                    )
+                    p.ready ? <StatusLabel tone="ok">Ready</StatusLabel> : <StatusLabel tone="warn">Not ready</StatusLabel>
                   ) : null}
                 </span>
               </li>

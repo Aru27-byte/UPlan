@@ -99,7 +99,7 @@ export function SettingsForm({ jurisdictionId, versionId, profile }: { jurisdict
         <p className="mb-3 text-xs text-muted">The formats a records export can be downloaded in. Keep at least one.</p>
         <div className="grid grid-cols-2 gap-2">
           {EXPORT_FORMATS.map((f) => (
-            <label key={f.value} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
+            <label key={f.value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium transition-colors duration-150 hover:border-line-strong hover:bg-raised/40 has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
               <input
                 type="checkbox"
                 name="exportFormats"

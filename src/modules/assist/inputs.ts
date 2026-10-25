@@ -1,11 +1,27 @@
 import { STUDY_LABEL, describeImpact, describeLimit, describeScreeningGap, describeScreeningRow, type AnalysisResults } from "@/modules/analysis";
 import type { BufferRule, InForceRules, StudyTrigger } from "@/modules/profiles";
-import { formatFeet, formatSqFt } from "@/modules/provenance";
-import type { PhaseFacts, PhaseKey, PhaseView } from "@/modules/workflow";
+import { formatAcres, formatFeet, formatSqFt } from "@/modules/provenance";
+import { sectionTableDefs } from "@/modules/reports";
+import { contentSha256, type PhaseFacts, type PhaseKey, type PhaseView, type SectionContent } from "@/modules/workflow";
 import { ValidationError } from "@/platform/errors";
 
-import { ASSISTS, type AssistId } from "./kinds";
-import { AssistRequestSchema, type AssistRequest, type Passage, type Ref, type RuleValue } from "./request";
+import {
+  ASSISTS,
+  SECTION_ASSISTS,
+  isSectionAssistKind,
+  type AssistId,
+  type SectionAssistKind,
+  type StoredAssistId,
+} from "./kinds";
+import {
+  AssistRequestSchema,
+  type AssistRequest,
+  type Passage,
+  type Ref,
+  type RuleValue,
+  type SectionText,
+  type TableFormat,
+} from "./request";
 
 // TechDesign/ai-assist.md, "What may be sent". This file is the only code that assembles a request, and it
 // can only read the narrow types below: the phase outputs and results (class C4), the profile's rules (C3),
@@ -52,6 +68,8 @@ export type BuiltRequest = {
   request: AssistRequest;
   /** The output this suggestion is bound to (F24 R10): a phase fingerprint, or a profile or text hash. */
   outputSha256: string;
+  /** Section chat only (F21 R7): the hash of the section content the request was made on. */
+  sectionSha256?: string | null;
   /** Part of the one-live-suggestion key (R13). '' for a whole phase. */
   subjectKey: string;
 };
@@ -152,8 +170,19 @@ function rowText(rules: InForceRules, row: AnalysisResults["screening"][number])
   return `${labelOf(rules, row.resourceType)}: ${describeScreeningRow(row)}`;
 }
 
-function request(assistId: AssistId, parts: { question?: string | null; passages: Passage[]; refs?: Ref[]; ruleValues?: RuleValue[] }): AssistRequest {
-  const def = ASSISTS[assistId];
+function request(
+  assistId: StoredAssistId,
+  parts: {
+    question?: string | null;
+    passages: Passage[];
+    refs?: Ref[];
+    ruleValues?: RuleValue[];
+    section?: SectionText | null;
+    instruction?: string | null;
+    tableFormats?: TableFormat[];
+  },
+): AssistRequest {
+  const def = isSectionAssistKind(assistId) ? SECTION_ASSISTS[assistId] : ASSISTS[assistId];
   return AssistRequestSchema.parse({
     assistId,
     kind: def.kind,
@@ -163,6 +192,9 @@ function request(assistId: AssistId, parts: { question?: string | null; passages
     passages: parts.passages,
     refs: parts.refs ?? [],
     ruleValues: parts.ruleValues ?? [],
+    section: parts.section ?? null,
+    instruction: parts.instruction ?? null,
+    tableFormats: parts.tableFormats ?? [],
   });
 }
 
@@ -191,6 +223,205 @@ export function describeDatasetMeta(meta: DatasetMeta): string {
     meta.limitation ? `Recorded limitation: ${meta.limitation}` : null,
   ];
   return lines.filter((l): l is string => l !== null).join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The section chat's input (F21 R6, R7; F24 R8).
+// ---------------------------------------------------------------------------------------------------------
+
+/** The project details an instruction must not carry: checked before the text leaves UPlan, never sent. */
+export type SectionIdentity = {
+  title: string;
+  parcelOrAddress: string | null;
+  applicant: string | null;
+  projectManager: string | null;
+};
+
+export type SectionChatInput = {
+  phase: PhaseKey;
+  section: SectionContent;
+  instruction: string;
+  sampleData: boolean;
+  identity: SectionIdentity;
+};
+
+const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * C6: the one free-text field the section chat adds. It is refused, with the reason, when it carries the
+ * project's identity or an email address; the model call is never made (TechDesign/ai-assist.md).
+ */
+export function identityProblem(instruction: string, identity: SectionIdentity): string | null {
+  if (EMAIL.test(instruction)) return "The message contains an email address. Remove it before sending.";
+  const terms: { value: string | null; label: string }[] = [
+    { value: identity.title, label: "title" },
+    { value: identity.parcelOrAddress, label: "parcel or address" },
+    { value: identity.applicant, label: "applicant" },
+    { value: identity.projectManager, label: "project manager" },
+  ];
+  for (const term of terms) {
+    const value = term.value?.trim() ?? "";
+    if (value.length === 0) continue;
+    // A one- or two-letter value would match almost any sentence; those are matched as whole words.
+    const hit =
+      value.length >= 3
+        ? instruction.toLowerCase().includes(value.toLowerCase())
+        : new RegExp(`\\b${escapeRegExp(value)}\\b`, "i").test(instruction);
+    if (hit) return `The message contains the project's ${term.label}. Remove it before sending.`;
+  }
+  return null;
+}
+
+function sectionTextOf(content: SectionContent): SectionText {
+  return {
+    headline: content.headline,
+    lines: content.lines,
+    tables: content.tables.map((t) => ({ key: t.key, caption: t.caption, columnOrder: t.columnOrder })),
+  };
+}
+
+/** The section's own words as quotable passages, so an Explain answer can cite the sentence it explains (K2). */
+function sectionLinePassages(content: SectionContent): Passage[] {
+  const passages: Passage[] = [{ id: "section:0", label: "The section's headline", text: content.headline }];
+  content.lines.forEach((line, i) => passages.push({ id: `section:${i + 1}`, label: "A line of the section", text: line }));
+  for (const table of content.tables) {
+    if (table.caption !== null) passages.push({ id: `section:caption:${table.key}`, label: "A table caption", text: table.caption });
+  }
+  return passages;
+}
+
+function tableFormatsOf(phase: PhaseKey): TableFormat[] {
+  return sectionTableDefs(phase).map((d) => ({ key: d.key, columns: [...d.columns] }));
+}
+
+/** C4: the geometry summary, with no coordinates and no identifier (F21 R8). */
+function geometryPassage(label: string, summary: NonNullable<PhaseFacts["studyArea"]>, sampleData: boolean): Passage {
+  return {
+    id: "geometry",
+    label,
+    text: `${label}: revision ${summary.revision}, ${formatAcres(summary.areaAcres)}. Source note: ${summary.sourceNote}.${
+      sampleData ? " This project was built from sample data." : ""
+    }`,
+  };
+}
+
+function flagPassage(rules: InForceRules, flag: AnalysisResults["studyFlags"][number]): Passage {
+  return {
+    id: `flag:${flag.triggerKey}`,
+    label: `Flag: ${STUDY_LABEL[flag.study]}`,
+    text: `${STUDY_LABEL[flag.study]} is flagged by ${labelOf(rules, flag.resourceType)}; ${
+      flag.nearestDistanceFt === 0
+        ? "a mapped feature is inside the study area."
+        : `the nearest mapped feature is ${formatFeet(flag.nearestDistanceFt)} away.`
+    }`,
+  };
+}
+
+/** C4: the measured facts the phase's section rests on, by phase. C3 rules join them where the phase uses rules. */
+function sectionPassages(phase: PhaseKey, wf: AssistWorkflow, sampleData: boolean): { passages: Passage[]; refs: Ref[] } {
+  const { facts } = wf;
+  if (phase === "site" || phase === "footprint") {
+    const summary = phase === "site" ? facts.studyArea : facts.footprint;
+    if (!summary) throw new ValidationError(`The ${phase} phase has no boundary yet.`);
+    return { passages: [geometryPassage(phase === "site" ? "The study area" : "The footprint", summary, sampleData)], refs: [] };
+  }
+
+  const { results, rules } = runOf(wf);
+  const output = outputOf(wf, phase);
+  const passages: Passage[] = [];
+  const refs: Ref[] = [];
+
+  if (phase === "evidence") {
+    const lines = linePassages(output.headline, output.lines);
+    passages.push(...lines.passages);
+    refs.push(...lines.refs);
+    for (const [versionId, text] of facts.datasetLimitations) {
+      passages.push({
+        id: `lim:${versionId}`,
+        label: `${facts.datasetTitles.get(versionId) ?? "A dataset"}: what it can't show`,
+        text,
+      });
+    }
+  } else if (phase === "screening") {
+    const gaps = gapPassages(results, rules);
+    const limits = limitPassages(results, rules, facts);
+    passages.push(...gaps.passages, ...limits.passages);
+    refs.push(...gaps.refs, ...limits.refs);
+    for (const row of results.screening) {
+      const id = `row:${row.resourceType}:${row.datasetVersionId}`;
+      passages.push({ id, label: "A screening row", text: rowText(rules, row) });
+      refs.push({ id, kind: "row" });
+    }
+  } else if (phase === "studies") {
+    const gaps = gapPassages(results, rules);
+    passages.push(...gaps.passages);
+    refs.push(...gaps.refs);
+    for (const flag of results.studyFlags) {
+      passages.push(flagPassage(rules, flag));
+      refs.push({ id: `flag:${flag.triggerKey}`, kind: "flag" });
+    }
+  } else {
+    const lines = linePassages(output.headline, output.lines);
+    const limits = limitPassages(results, rules, facts);
+    passages.push(...lines.passages, ...limits.passages);
+    refs.push(...lines.refs, ...limits.refs);
+    for (const impact of results.impacts) {
+      const id = `impact:${impact.impactKey}`;
+      passages.push({ id, label: "An impact row", text: describeImpact(impact, labelOf(rules, impact.resourceType)) });
+      refs.push({ id, kind: "range" });
+    }
+  }
+
+  // C3: the rules in force, so a quote about a buffer or a study trigger is checked against its own text.
+  passages.push(
+    ...rules.bufferRules.map((b) => bufferRulePassage(rules, b)),
+    ...rules.studyTriggers.map((t) => triggerPassage(rules, t)),
+  );
+  return { passages, refs };
+}
+
+/** The section chat's request: C5, C6, the canonical table formats, and the phase's measured facts (C3/C4). */
+export function buildSectionInput(kind: SectionAssistKind, input: SectionChatInput, ctx: BuildContext): BuiltRequest {
+  const wf = requireWorkflow(ctx);
+  const output = outputOf(wf, input.phase);
+  const problem = identityProblem(input.instruction, input.identity);
+  if (problem) throw new ValidationError(problem);
+
+  const { passages, refs } = sectionPassages(input.phase, wf, input.sampleData);
+  return {
+    request: request(kind, {
+      passages: [...passages, ...sectionLinePassages(input.section)],
+      refs,
+      section: sectionTextOf(input.section),
+      instruction: input.instruction,
+      tableFormats: tableFormatsOf(input.phase),
+    }),
+    outputSha256: output.contentSha256,
+    sectionSha256: contentSha256(input.section),
+    subjectKey: "",
+  };
+}
+
+/** A prompt filler's request with the section and the instruction added: the filler's kind runs (F24 R19). */
+export function attachSection(
+  built: BuiltRequest,
+  args: { phase: PhaseKey; section: SectionContent; instruction: string },
+): BuiltRequest {
+  return {
+    ...built,
+    request: AssistRequestSchema.parse({
+      ...built.request,
+      passages: [...built.request.passages, ...sectionLinePassages(args.section)],
+      section: sectionTextOf(args.section),
+      instruction: args.instruction,
+      tableFormats: tableFormatsOf(args.phase),
+    }),
+    sectionSha256: contentSha256(args.section),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------

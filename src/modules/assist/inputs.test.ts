@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AnalysisResults, EvidenceResolution } from "@/modules/analysis";
 import { buildSampleProfileDocument, resolveRulesInForce } from "@/modules/profiles";
-import { buildPhaseViews, type PhaseFacts, type PhaseReview } from "@/modules/workflow";
+import { buildSectionViews, type PhaseFacts, type SectionContent } from "@/modules/workflow";
 
-import { buildRequest, type BuildContext } from "./inputs";
+import { attachSection, buildRequest, buildSectionInput, identityProblem, type BuildContext } from "./inputs";
 import { ASSISTS, ASSIST_IDS, type AssistId } from "./kinds";
 
 // F24 R8: only the allow-listed classes leave UPlan. A project is built whose every identifying and
@@ -18,6 +18,10 @@ const SENTINELS = {
   rationale: "SENTINEL-RESOLUTION-RATIONALE-5c21",
   reviewNote: "SENTINEL-REVIEW-NOTE-0d4e",
   person: "SENTINEL-PERSON-NAME-b8a6",
+  title: "SENTINEL-PROJECT-TITLE-3f2a",
+  parcel: "SENTINEL-PARCEL-ADDRESS-8c1d",
+  applicant: "SENTINEL-APPLICANT-6e9b",
+  manager: "SENTINEL-MANAGER-2a7c",
 };
 
 const rules = resolveRulesInForce(buildSampleProfileDocument(), "2026-09-27", null).rules;
@@ -58,12 +62,7 @@ const facts: PhaseFacts = {
   resolutions: [resolution],
 };
 
-const review: PhaseReview = {
-  id: "r1", phase: "evidence", contentSha256: "x", verdict: "reviewed", note: SENTINELS.reviewNote,
-  summary: { templateVersion: 1, headline: "h", lines: [] }, reviewedByName: SENTINELS.person, reviewedAt: new Date("2026-09-04T00:00:00Z"),
-};
-
-const phases = buildPhaseViews(facts, [review]);
+const phases = buildSectionViews(facts, []);
 
 const ctx: BuildContext = {
   workflow: { facts, phases },
@@ -95,6 +94,19 @@ const SUBJECTS: Record<AssistId, string> = {
   IM3: "wetlands",
 };
 
+const IDENTITY = {
+  title: SENTINELS.title,
+  parcelOrAddress: SENTINELS.parcel,
+  applicant: SENTINELS.applicant,
+  projectManager: SENTINELS.manager,
+};
+
+const SECTION: SectionContent = {
+  headline: "Screening results",
+  lines: ["Wetlands are mapped in the study area.", "No dataset covers critical aquifer recharge areas."],
+  tables: [{ key: "screening", caption: null, columnOrder: ["resourceType", "finding", "source", "confidence"] }],
+};
+
 describe("R8: only allow-listed text leaves UPlan", () => {
   it.each(ASSIST_IDS)("R8: %s sends no sentinel from the project's identity, notes, or people", (id) => {
     const built = buildRequest(id, SUBJECTS[id], ctx);
@@ -105,9 +117,42 @@ describe("R8: only allow-listed text leaves UPlan", () => {
     expect(built.request.promptVersion).toBe(ASSISTS[id].promptVersion);
   });
 
+  it.each(["section-explain", "section-edit"] as const)("R8: %s sends the section and instruction, never the project's identity", (kind) => {
+    const built = buildSectionInput(kind, { phase: "screening", section: SECTION, instruction: "Make the second line plainer.", sampleData: false, identity: IDENTITY }, ctx);
+    const sent = JSON.stringify(built.request);
+    for (const sentinel of Object.values(SENTINELS)) expect(sent).not.toContain(sentinel);
+    expect(built.request.section).toEqual({
+      headline: SECTION.headline,
+      lines: SECTION.lines,
+      tables: [{ key: "screening", caption: null, columnOrder: SECTION.tables[0]?.columnOrder }],
+    });
+    expect(built.request.instruction).toBe("Make the second line plainer.");
+    expect(built.request.tableFormats).toEqual([{ key: "screening", columns: ["resourceType", "finding", "source", "confidence"] }]);
+  });
+
   it("R8: a request carries no key the schema doesn't name", () => {
     const built = buildRequest("EV1", "", ctx);
-    expect(Object.keys(built.request).sort()).toEqual(["assistId", "kind", "passages", "promptVersion", "question", "refs", "ruleValues", "task"]);
+    expect(Object.keys(built.request).sort()).toEqual([
+      "assistId",
+      "instruction",
+      "kind",
+      "passages",
+      "promptVersion",
+      "question",
+      "refs",
+      "ruleValues",
+      "section",
+      "tableFormats",
+      "task",
+    ]);
+  });
+
+  it("R8: a prompt filler's request gains only the section, the instruction, and the table formats", () => {
+    const built = attachSection(buildRequest("SC1", `row:wetlands:${A}`, ctx), { phase: "screening", section: SECTION, instruction: "Make the second line plainer." });
+    expect(built.request.assistId).toBe("SC1");
+    expect(built.request.section?.headline).toBe(SECTION.headline);
+    expect(built.request.instruction).toBe("Make the second line plainer.");
+    expect(built.sectionSha256).toHaveLength(64);
   });
 
   it("R10: a phase assist is bound to the phase output's fingerprint", () => {
@@ -127,7 +172,36 @@ describe("R8: only allow-listed text leaves UPlan", () => {
   });
 
   it("R11: a phase with no output is a stated refusal", () => {
-    const empty = buildPhaseViews({ ...facts, status: { kind: "out-of-date", changes: [] }, run: null, rules: null }, []);
+    const empty = buildSectionViews({ ...facts, status: { kind: "out-of-date", changes: [] }, run: null, rules: null }, []);
     expect(() => buildRequest("EV1", "", { ...ctx, workflow: { facts, phases: empty } })).toThrow(/no output yet/);
+  });
+});
+
+describe("F24 R8: the section chat refuses the project's identity before any model call", () => {
+  const instruction = (text: string) => identityProblem(text, IDENTITY);
+
+  it("R8: an email address is refused", () => {
+    expect(instruction("Email the applicant at planner@example.test about this.")).toBe(
+      "The message contains an email address. Remove it before sending.",
+    );
+  });
+
+  it.each([
+    ["title", `Use the title ${SENTINELS.title} in the headline.`],
+    ["parcel or address", `Mention ${SENTINELS.parcel.toLowerCase()} in the line.`],
+    ["applicant", `Say ${SENTINELS.applicant} agrees.`],
+    ["project manager", `Ask ${SENTINELS.manager} to review it.`],
+  ])("R8: the project's %s is refused", (label, text) => {
+    expect(instruction(text)).toBe(`The message contains the project's ${label}. Remove it before sending.`);
+  });
+
+  it("R8: a short identity value is matched as a whole word, never as a fragment", () => {
+    const short = { ...IDENTITY, title: "A" };
+    expect(identityProblem("Make the line plainer.", short)).toBeNull();
+    expect(identityProblem("Use A in the headline.", short)).toBe("The message contains the project's title. Remove it before sending.");
+  });
+
+  it("R8: an ordinary instruction is allowed", () => {
+    expect(instruction("Make the second line plainer and keep every figure.")).toBeNull();
   });
 });

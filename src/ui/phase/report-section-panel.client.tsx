@@ -2,99 +2,86 @@
 
 import type { ReactNode } from "react";
 
-import { ActionForm } from "../action-form.client";
-import type { ActionState } from "../action-state";
-import { inputClassName } from "../action-styles";
 import { Icon } from "../icons";
 import { panelClassName } from "../panel";
-import { SubmitButton } from "../submit-button.client";
+import { StatusLabel } from "../status-label";
 
-import { GROUP_TONE, type StepGroup } from "./group-tones";
+import { GROUP_TONE } from "./group-tones";
+import { SectionChat } from "./section-chat.client";
+import { SectionChanges, SectionHistory } from "./section-history";
+import type { ReportSectionModel, SectionChatModel } from "./types";
 
-// The top of every step page except Report (research-phases.md R15): the section of the final document this
-// step produces, shown as it will read in the document (`children`, rendered by the server from the same
-// section components the document is stitched from), beside a box for feedback on that section's format or
-// information. Feedback is a recorded note — the sentences are fixed templates, so nothing here rewrites the
-// section (R2). The two halves sit side by side when the block itself is 48rem wide or more and stack below
-// that: a container query, because the sidebar makes the viewport width a poor guide to the room the block
-// has. Plain props only: src/ui imports no runtime code from @/modules.
-export type ReportSectionModel = {
-  step: string;
-  group: StepGroup;
-  stepTitle: string;
-  feedback: { id: string; note: string; by: string; at: string }[];
-  readOnly: boolean;
-};
-
+// The top of every step page except Report (research-phases.md R1, R6, R15, R16): the section of the final
+// document this step produces, shown as it will read in the document (`children`, rendered by the server from
+// the same section components the document is stitched from), beside the section chat. The two halves sit side
+// by side when the block itself is 48rem wide or more and stack below that: a container query, because the
+// sidebar makes the viewport width a poor guide to the room the block has. Plain props only: src/ui imports no
+// runtime code from @/modules.
 export function ReportSectionPanel({
   model,
-  action,
+  chat,
   children,
+  projectId,
 }: {
   model: ReportSectionModel;
-  action: (previous: ActionState, formData: FormData) => Promise<ActionState>;
+  chat: SectionChatModel | null;
   children: ReactNode;
+  projectId: string;
 }) {
   const tone = GROUP_TONE[model.group];
-  const inputId = `feedback-${model.step}`;
+  const disabledReason = model.editable
+    ? null
+    : model.readOnly
+      ? model.readOnlyReason
+      : (model.emptyReason ?? "This section has no output yet, so there is nothing to ask about.");
+
   return (
-    <section
-      aria-label={`Report section produced by ${model.stepTitle}`}
-      className={`@container overflow-hidden ${panelClassName}`}
-    >
+    <section aria-label={`Report section from ${model.stepTitle}`} className={`@container overflow-hidden ${panelClassName}`}>
       <div className="grid @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className={`flex min-w-0 flex-col gap-3 border-b border-line px-5 py-4 text-text @3xl:border-r @3xl:border-b-0 ${tone.fill}`}>
-          <p className={`eyebrow flex items-center gap-1.5 font-bold ${tone.text}`}>
-            <Icon name="document" />
-            Report section · from {model.stepTitle}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className={`eyebrow flex items-center gap-1.5 font-bold ${tone.text}`}>
+              <Icon name="document" />
+              Report section · from {model.stepTitle}
+            </p>
+            {model.state ? <StatusLabel tone={model.state.tone}>{model.state.text}</StatusLabel> : null}
+          </div>
+
           {children}
+
+          {model.staleVersion ? (
+            <p className="rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-sm text-text">
+              <span className="font-semibold text-warn">Out of date. </span>
+              {model.state?.kind === "out-of-date"
+                ? "The analysis has moved on. This is the newest stored version; update it to the current analysis in the history."
+                : (model.emptyReason ?? "This stored version was built before the analysis changed.")}
+            </p>
+          ) : null}
+
+          <p className="text-xs text-muted">
+            Maps, tables, figures, and quoted text are locked. The narrative can change through UPlan Assist.
+          </p>
+
+          {model.changes ? (
+            <div className="rounded-lg border border-line bg-canvas/50 px-3 py-2 text-sm">
+              <p className="font-semibold text-text">What changed</p>
+              <SectionChanges changes={model.changes} />
+            </div>
+          ) : null}
         </div>
 
         <div className="flex min-w-0 flex-col gap-3 px-5 py-4">
-          {model.readOnly ? (
-            <p className="text-sm text-muted">
-              Feedback is closed while the document is completed or being generated. Start a research change to add more.
-            </p>
+          {chat ? (
+            <SectionChat model={chat} disabledReason={disabledReason} projectId={projectId} />
           ) : (
-            <ActionForm action={action} className="flex flex-col gap-3">
-              <input type="hidden" name="step" value={model.step} />
-              <label htmlFor={inputId} className="flex flex-col gap-1.5 text-sm font-semibold">
-                Feedback on this section
-                <textarea
-                  id={inputId}
-                  name="note"
-                  rows={6}
-                  required
-                  maxLength={2000}
-                  className={`${inputClassName} font-normal`}
-                  placeholder="Say what to change about its format or what it shows."
-                />
-              </label>
-              <p className="text-xs text-muted">Recorded with your name and the time. It doesn&apos;t change the section by itself.</p>
-              <div>
-                <SubmitButton pendingLabel="Saving…">Send feedback</SubmitButton>
-              </div>
-            </ActionForm>
+            <p className="text-sm text-muted">
+              The Overview is read-only. It shows the project&apos;s recorded details and is not part of the report.
+            </p>
           )}
-
-          {model.feedback.length > 0 ? (
-            <details className="border-t border-line pt-3 text-sm">
-              <summary className="cursor-pointer rounded font-medium text-brand">Earlier feedback ({model.feedback.length})</summary>
-              <ul className="mt-2 flex flex-col gap-2">
-                {model.feedback.map((entry) => (
-                  <li key={entry.id} className="rounded-lg bg-canvas px-3 py-2">
-                    <p className="text-text">“{entry.note}”</p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {entry.by} · {entry.at}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
         </div>
       </div>
+
+      <SectionHistory model={model} />
     </section>
   );
 }

@@ -17,7 +17,7 @@ export function RegisterForm() {
 
   if (state.confirmEmail !== undefined) {
     return (
-      <div role="status" className="rounded-2xl border border-ok/45 bg-ok-soft px-6 py-5">
+      <div role="status" className="message-in rounded-2xl border border-ok/45 bg-ok-soft px-6 py-5">
         <h2 className="font-display text-xl font-bold text-heading">Check your email</h2>
         <p className="mt-2 text-sm text-text">
           We sent a confirmation link to <strong>{state.confirmEmail}</strong>. Open it, then{" "}
@@ -33,7 +33,7 @@ export function RegisterForm() {
   return (
     <Form action={formAction} validationErrors={state.fieldErrors} className="flex flex-col gap-5">
       {state.error === undefined ? null : (
-        <p role="alert" className="rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
+        <p role="alert" className="message-in rounded-xl border border-danger/45 bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
           {state.error}
         </p>
       )}

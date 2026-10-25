@@ -71,7 +71,7 @@ export async function listDocumentVersionsInternal(decisionId: string): Promise<
       releasedAt: r.releasedAt,
       publishedByName: r.publishedByName,
       changeNote: r.changeNote,
-      changedPhases: snapshot.phases.filter((p) => p.changed).map((p) => p.phase),
+      changedPhases: snapshot.sections.filter((s) => s.changed).map((s) => s.phase),
       detailsChanged: snapshot.detailsChanged,
       previousVersion: snapshot.previousVersion,
       usesSampleData: snapshot.details.usesSampleData,

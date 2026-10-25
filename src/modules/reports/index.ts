@@ -7,8 +7,17 @@ export {
   getLatestReleasedSnapshot,
 } from "./versions";
 export type { DocumentVersion, DocumentAttempt } from "./versions";
-export { ReportSnapshotSchema, ReportDetailsSchema, PHASE_KEYS } from "./snapshot";
-export type { ReportSnapshot, ReportDetails, ReportPhase, PhaseKey } from "./snapshot";
+export {
+  ReportSnapshotSchema,
+  ReportDetailsSchema,
+  ReportSectionSchema,
+  SectionContentSchema,
+  SectionTableFormatSchema,
+  PHASE_KEYS,
+} from "./snapshot";
+export type { ReportSnapshot, ReportDetails, ReportSection, SectionContent, SectionTableFormat, PhaseKey } from "./snapshot";
+export { SECTION_TABLES, sectionTableDefs, isPermutation } from "./section-tables";
+export type { SectionTableDef } from "./section-tables";
 export { CURRENT_TEMPLATE_VERSION } from "./constants";
 
 // The per-step sections of the document and the live loader behind each step page's preview. These are
@@ -24,7 +33,7 @@ export {
   ImpactSection,
   REPORT_CONTENT_STYLES,
 } from "./sections";
-export type { SectionSummary, RunContent, ReportResolution } from "./sections";
+export type { RunContent, ReportResolution } from "./sections";
 export { loadLiveReportContent } from "./live";
 export type { LiveReportContent } from "./live";
 

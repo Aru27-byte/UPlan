@@ -9,7 +9,6 @@ import {
 import type { GeometrySummary } from "@/modules/decisions";
 import type { InForceRules } from "@/modules/profiles";
 
-import { diffLines, type LineDiff } from "./diff";
 import {
   draftEvidence,
   draftFootprint,
@@ -24,14 +23,15 @@ import {
 // TechDesign/research-phases.md. A phase's output is not stored: it is a pure function of records that
 // are already immutable — a geometry revision, a finished analysis run, and the append-only resolution
 // notes. This file derives all six outputs from those facts and fingerprints each; what IS stored is the
-// planner's response, one append-only phase_review row per review, bound to the fingerprint it was made on.
+// planner's adopted narrative, one append-only report_section_version row per change, bound to the
+// fingerprint it was built on.
 
 export const PHASES = ["site", "evidence", "screening", "studies", "footprint", "impact"] as const;
 export type PhaseKey = (typeof PHASES)[number];
 
 export type PhaseOutput = {
   phase: PhaseKey;
-  contentSha256: string; // R7: the fingerprint a review is bound to
+  contentSha256: string; // R7: the engine fingerprint a section version is bound to
   headline: string;
   lines: string[];
   inputs: { label: string; value: string }[]; // R1: what this was drafted from
@@ -96,7 +96,7 @@ export function applicableResolutionsOf(results: AnalysisResults, latest: Eviden
 /**
  * Every phase that has an output, drafted and fingerprinted. The fingerprint hashes what the output
  * STATES — ids, revisions, and measured numbers — not the sentence text, so a wording fix doesn't
- * invalidate every review, and a measurement change always does (research-phases.md, "Risks").
+ * invalidate every section version, and a measurement change always does (research-phases.md, "Risks").
  */
 export function derivePhaseOutputs(facts: PhaseFacts): Partial<Record<PhaseKey, PhaseOutput>> {
   const outputs: Partial<Record<PhaseKey, PhaseOutput>> = {};
@@ -178,88 +178,6 @@ export function derivePhaseOutputs(facts: PhaseFacts): Partial<Record<PhaseKey, 
     }
   }
   return outputs;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Reviews and their derived state (R5, R6, R8, R10).
-// ---------------------------------------------------------------------------------------------
-
-export type PhaseReview = {
-  id: string;
-  phase: PhaseKey;
-  contentSha256: string;
-  verdict: "reviewed" | "revision_requested";
-  note: string | null;
-  summary: { templateVersion: number; headline: string; lines: string[] };
-  reviewedByName: string;
-  reviewedAt: Date;
-};
-
-export type ReviewState =
-  | { kind: "to-do"; reason: "no-study-area" | "no-footprint" }
-  | { kind: "updating"; status: AnalysisStatus } // the inputs exist and the analysis isn't current
-  | { kind: "needs-review"; changedSince: PhaseReview | null } // changedSince: the newest earlier review, if any
-  | { kind: "reviewed"; review: PhaseReview }
-  | { kind: "revision-requested"; review: PhaseReview };
-
-export type PhaseView = {
-  phase: PhaseKey;
-  output: PhaseOutput | null;
-  state: ReviewState;
-  history: PhaseReview[]; // R8: newest first
-  changes: LineDiff | null; // R10: present when changedSince is
-};
-
-/**
- * R5: each phase is in exactly one review state, derived from records and never from a flag. The newest
- * review whose fingerprint equals the output's decides between reviewed and revision-requested; with
- * none, the phase needs review, and `changedSince` is the newest review at any other fingerprint.
- * `reviews` may be in any order.
- */
-export function buildPhaseViews(facts: PhaseFacts, reviews: PhaseReview[]): PhaseView[] {
-  const outputs = derivePhaseOutputs(facts);
-  const newestFirst = (a: PhaseReview, b: PhaseReview) =>
-    b.reviewedAt.getTime() - a.reviewedAt.getTime() || (a.id < b.id ? 1 : -1);
-
-  return PHASES.map((phase): PhaseView => {
-    const history = reviews.filter((r) => r.phase === phase).sort(newestFirst);
-    const output = outputs[phase] ?? null;
-    if (!output) {
-      const reason = missingReason(phase, facts);
-      if (reason === null) throw new Error(`phase ${phase} has neither an output nor a missing reason`);
-      return {
-        phase,
-        output: null,
-        state: reason === "analysis-not-current" ? { kind: "updating", status: facts.status } : { kind: "to-do", reason },
-        history,
-        changes: null,
-      };
-    }
-    const atThisOutput = history.find((r) => r.contentSha256 === output.contentSha256);
-    if (atThisOutput) {
-      return {
-        phase,
-        output,
-        state:
-          atThisOutput.verdict === "reviewed"
-            ? { kind: "reviewed", review: atThisOutput }
-            : { kind: "revision-requested", review: atThisOutput },
-        history,
-        changes: null,
-      };
-    }
-    const changedSince = history[0] ?? null;
-    return {
-      phase,
-      output,
-      state: { kind: "needs-review", changedSince },
-      history,
-      // R10: the headline is part of what was said, so a changed area or count shows in the comparison.
-      changes: changedSince
-        ? diffLines([changedSince.summary.headline, ...changedSince.summary.lines], [output.headline, ...output.lines])
-        : null,
-    };
-  });
 }
 
 /** F19 R9: the disagreements in the run that have no recorded resolution, for the Overview's "not known" list. */

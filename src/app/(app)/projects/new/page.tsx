@@ -10,7 +10,7 @@ import { PageHeader } from "@/ui/page-header";
 import { Panel } from "@/ui/panel";
 import { SubmitButton } from "@/ui/submit-button.client";
 
-import { createProjectAction, createSampleProjectAction } from "../actions";
+import { createProjectAction, createSampleProjectAction, scanDocumentAction } from "../actions";
 
 // TechDesign/project-dashboard.md R9: one short form. It asks for a title and an application type, and
 // optionally the rest, none of which is required to begin. It names the city whose rules will apply, and
@@ -28,6 +28,18 @@ export default async function NewProjectPage() {
         breadcrumb={[{ href: "/dashboard", label: "Dashboard" }]}
         meta={`The rules of ${city.name}, ${city.stateCode} apply to this project.`}
       />
+
+      <Panel title="Project details" description="Only the title and the application type are required. Record the rest whenever you know it.">
+        <ActionForm action={scanDocumentAction} className="grid max-w-3xl gap-4 sm:grid-cols-2" encType="multipart/form-data">
+          <Field label="Upload document (optional)" hint="PDF, DOCX, or TXT. UPlan Assist will extract project details and fill the form.">
+            <input type="file" name="document" accept=".pdf,.docx,.txt" className={inputClassName} />
+          </Field>
+          <div className="sm:col-span-2 flex gap-2">
+            <SubmitButton variant="secondary" pendingLabel="Scanning…">Scan & fill</SubmitButton>
+            <span className="self-center text-sm text-muted">or fill manually below</span>
+          </div>
+        </ActionForm>
+      </Panel>
 
       <Panel title="Project details" description="Only the title and the application type are required. Record the rest whenever you know it.">
         <ActionForm action={createProjectAction} className="grid max-w-3xl gap-4 sm:grid-cols-2">

@@ -1,7 +1,7 @@
 # Requirements — Decision Overview and Stage Rail
 
 **Feature:** F18 · `workflow` + the Overview page and the stage rail
-**Status:** Draft — revised 2026-09-27: the rail now shows F21's review states, and routes say "project"
+**Status:** Draft — revised 2026-09-27: the rail now shows F21's section states, and routes say "project"
 **Serves:** every intent · **Release:** 1
 **Derived from:** [charter.md](charter.md) (_Spine_, _Posture_, P1–P3), [features.md](features.md) (F18), [intents.md](intents.md) (_Across all intents_)
 **Related design doc:** [TechDesign/decision-overview.md](../TechDesign/decision-overview.md)
@@ -17,7 +17,7 @@ It structures the work. It never decides anything: no score, no verdict, and no 
 
 **R1. Every decision page shows a stage rail: Overview, Site, Evidence, Screening, Studies, Footprint, Impact, Report, grouped as Set up, Assemble, Analyze, Report.** The rail marks the page the planner is on.
 
-**R2. Each stage shows a state, derived only from the decision's own records.** For the six phases (F21 R5) it is _To do_, _Updating_, _Needs review_, _Reviewed_, or _Revision requested_. For Overview it is _Needs attention_ (a filing date that a vesting rule set needs is missing) or _Recorded_. For Report it is _Not ready_, _Ready to finish_, _Generating_, or _Version N published_ (F22). A phase whose analysis failed shows _Needs attention_ with the error's presence stated. None of these words means approved, verified, or clear, and a review is the planner's own record, not sign-off (F21 R6). The state is words plus a shape, never color alone (R12).
+**R2. Each stage shows a state, derived only from the decision's own records.** For the six phases (F21 R5) it is _To do_, _Updating_, _Ready_, or _Out of date_. For Overview it is _Needs attention_ (a filing date that a vesting rule set needs is missing) or _Recorded_. For Report it is _Not ready_, _Ready to finish_, _Generating_, or _Version N published_ (F22). A phase whose analysis failed shows _Needs attention_ with the error's presence stated. None of these words means approved, verified, or clear, and a section version is the planner's own record, not sign-off (F21 R5). The state is words plus a shape, never color alone (R12).
 
 **R3. The rail orders the work but doesn't block it.** A planner can open any stage at any time. The one gate that exists stays: the Footprint stage needs a study area first (F8), and it says so.
 
@@ -31,7 +31,7 @@ It structures the work. It never decides anything: no score, no verdict, and no 
 
 **R5. The Overview shows counts and lists, never a percentage, completeness score, risk rating, or ranking of issues.** A composite number would be an invented judgment, and it would read as one when quoted.
 
-**R6. Next actions come from a fixed, ordered rule table over the decision's records and name a workflow step, never a judgment.** Examples: draw the study area, record the filing date, review the failed analysis, review N source disagreements, review N flagged studies, trace the footprint, review the impact, release the report. Each links to its stage. No action proposes approving, denying, conditioning, or clearing land, and none is generated text.
+**R6. Next actions come from a fixed, ordered rule table over the decision's records and name a workflow step, never a judgment.** Examples: draw the study area, record the filing date, read a failed analysis's error, record reasoning where sources disagree, update a section that is out of date, trace the footprint, finish the research, release the report. Each links to its stage. No action proposes approving, denying, conditioning, or clearing land, and none is generated text.
 
 **R7. The Overview and the rail show the analysis status: current, running, out of date, failed, or none.** When it is out of date, it says what changed since the last run: the study area, the footprint, the profile version, the set of rules in force (a rule took effect or was repealed), or a dataset version. A failed run shows its error. The passing of a day alone never makes an analysis out of date.
 

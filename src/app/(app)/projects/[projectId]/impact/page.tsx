@@ -6,8 +6,6 @@ import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel } from "@/ui/status-label";
 
-import { recordReviewAction } from "../actions";
-import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
 
 // A Server Function on this page may make one model call (TechDesign/ai-assist.md, "Hosting"). The route's
@@ -20,15 +18,14 @@ export const maxDuration = 60;
 // (R6). Where a rule depends on an attribute the evidence lacks, the quantity is a range, never a guess.
 export default async function ImpactPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { actor, workflow: w } = await loadProject(projectId);
+  const { workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "impact");
   const { run, rules } = w.facts;
-  const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="impact" />;
-  const assist = <PhaseAssist projectId={projectId} phase="impact" actor={actor} workflow={w} group={model.group} />;
+  const view = w.phases.find((p) => p.phase === "impact");
 
   // The impact needs a footprint as well as a current run: the phase says which is missing.
-  if (!run || !rules || model.output === null) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
+  if (!run || !rules || !view?.output) return <PhasePage model={model} intro={intro} />;
 
   const labelOf = (key: string): string => {
     const found = rules.resourceTypes.find((r) => r.key === key);
@@ -57,7 +54,7 @@ export default async function ImpactPage({ params }: { params: Promise<{ project
   }));
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
+    <PhasePage model={model} intro={intro}>
       <Accordion
         group={model.group}
         title="Measured impact"

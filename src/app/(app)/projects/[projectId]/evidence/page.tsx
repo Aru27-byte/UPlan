@@ -32,9 +32,7 @@ import { Accordion } from "@/ui/accordion";
 import { PhasePage } from "@/ui/phase/phase-page";
 import { StatusLabel, type StatusTone } from "@/ui/status-label";
 
-import { recordReviewAction } from "../actions";
 import { ResolutionForm } from "../_components/resolution-form";
-import { PhaseAssist } from "../_components/phase-assist";
 import { StepIntro } from "../_components/step-intro";
 
 const CONFIDENCE_TONE: Record<ConfidenceLevel, StatusTone> = { high: "ok", moderate: "info", low: "warn" };
@@ -61,12 +59,10 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   const { actor, workflow: w } = await loadProject(projectId);
   const model = phaseModel(w, projectId, "evidence");
   const { run, rules } = w.facts;
-  const reviewAction = recordReviewAction.bind(null, projectId);
   const intro = <StepIntro projectId={projectId} step="evidence" />;
-  const assist = <PhaseAssist projectId={projectId} phase="evidence" actor={actor} workflow={w} group={model.group} />;
 
-  // Without a run for the current inputs there is no evidence base to show: the drafted output says why.
-  if (!run || !rules) return <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist} />;
+  // Without a run for the current inputs there is no evidence base to show: the section says why.
+  if (!run || !rules) return <PhasePage model={model} intro={intro} />;
 
   const today = todayInZone(w.timeZone, () => new Date());
   const [mappings, allResolutions] = await Promise.all([
@@ -119,7 +115,7 @@ export default async function EvidencePage({ params }: { params: Promise<{ proje
   };
 
   return (
-    <PhasePage model={model} reviewAction={reviewAction} intro={intro} assist={assist}>
+    <PhasePage model={model} intro={intro}>
       <div className="flex flex-col gap-4">
         {cards.map(({ resourceType, gap, sources, disagreements }) => (
           <Accordion

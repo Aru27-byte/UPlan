@@ -25,6 +25,8 @@ const SHAPES = {
   "compare-checklist": '{"differences":[{"study":"...","inEngine":true,"inChecklist":false,"quote":{"sourceId":"checklist","text":"exact words"}}]}',
   "metadata-draft": '{"fields":[{"key":"limitation|vintage|scale|method","value":"...","quote":{"sourceId":"meta:1","text":"exact words"}}]}',
   "rule-draft": '{"changes":[{"path":"a path from RULE VALUES","from":100,"to":150,"sectionPath":"the passage label","quote":{"sourceId":"passage id","text":"exact words that state the new value"}}]}',
+  "section-explain": '{"paragraphs":[{"text":"...","quotes":[{"sourceId":"an id from REFERENCES","text":"exact words from that passage"}]}]}',
+  "section-edit": '{"headline":"...","lines":["..."],"tables":[{"key":"a table key from TABLE FORMATS","caption":null,"columnOrder":["a column from that table"]}]}',
 } as const;
 
 function shapeFor(kind: AssistKind, assistId: string): string {
@@ -39,6 +41,16 @@ export function buildMessages(request: AssistRequest): { role: "system" | "user"
   if (request.question !== null) parts.push(`QUESTION: ${request.question}`);
   if (request.refs.length > 0) parts.push(`REFERENCES:\n${request.refs.map((r) => `${r.id} (${r.kind})`).join("\n")}`);
   if (request.ruleValues.length > 0) parts.push(`RULE VALUES:\n${request.ruleValues.map((v) => `${v.path} = ${v.value}`).join("\n")}`);
+  if (request.section !== null) {
+    const tables = request.section.tables.map(
+      (t) => `${t.key}${t.caption === null ? "" : ` (caption: ${t.caption})`}: columns ${t.columnOrder.join(", ")}`,
+    );
+    parts.push(`SECTION:\n${request.section.headline}\n${request.section.lines.join("\n")}${tables.length > 0 ? `\nTABLES:\n${tables.join("\n")}` : ""}`);
+  }
+  if (request.tableFormats.length > 0) {
+    parts.push(`TABLE FORMATS:\n${request.tableFormats.map((t) => `${t.key}: ${t.columns.join(", ")}`).join("\n")}`);
+  }
+  if (request.instruction !== null) parts.push(`INSTRUCTION: ${request.instruction}`);
   parts.push(
     `<data>\n${request.passages.map((p) => `[${p.id}] ${p.label}\n${p.text}`).join("\n\n")}\n</data>`,
   );

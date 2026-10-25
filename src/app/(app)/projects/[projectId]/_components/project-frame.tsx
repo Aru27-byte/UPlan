@@ -87,7 +87,7 @@ export async function ProjectFrame({ projectId }: { projectId: string }) {
           <p className="max-w-prose text-text">
             <span className="font-semibold">This research is completed.</span> Version {publishedVersion(w.latestVersion)} of its
             document is published and can&apos;t change. You can still update the research: change what needs
-            changing, review what it affects, and publish the next version.
+            changing, update what it affects, and publish the next version.
           </p>
           <ConfirmDialog
             triggerLabel="Start a research change"
@@ -99,7 +99,7 @@ export async function ProjectFrame({ projectId }: { projectId: string }) {
             fields={{ projectId, rowVersion: String(d.rowVersion), next: "overview" }}
           >
             Version {publishedVersion(w.latestVersion)} stays available and unchanged. Nothing new is published until you finish
-            the change and review each phase it affects.
+            the change and update each section it affects.
           </ConfirmDialog>
         </div>
       ) : null}

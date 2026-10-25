@@ -29,16 +29,16 @@ export function Accordion({
   return (
     <details
       id={id}
-      className={`group overflow-hidden ${panelClassName} open:border-line-strong`}
+      className={`group overflow-hidden ${panelClassName} transition-[border-color,box-shadow] duration-200 open:border-line-strong open:shadow-[0_22px_60px_rgb(0_0_0/0.45)]`}
     >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 hover:bg-raised [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className={`h-9 w-1.5 shrink-0 rounded-full ${GROUP_TONE[group].bar}`} />
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-raised group-open:bg-raised/40 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className={`h-9 w-1.5 shrink-0 rounded-full transition-transform duration-200 group-hover:scale-y-110 ${GROUP_TONE[group].bar}`} />
         <span className="min-w-0 flex-1">
           <Heading className="font-display text-base font-bold text-heading">{title}</Heading>
           {summary ? <span className="mt-0.5 block text-sm text-muted">{summary}</span> : null}
         </span>
         {status ? <span className="shrink-0">{status}</span> : null}
-        <Icon name="chevron-down" className="transition-transform group-open:rotate-180" />
+        <Icon name="chevron-down" className="transition-transform duration-300 group-open:rotate-180" />
       </summary>
       <div className="border-t border-line px-5 py-4">{children}</div>
     </details>
