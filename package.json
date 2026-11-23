@@ -37,6 +37,7 @@
     "@protomaps/basemaps": "^5.7.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.45.0",
     "framer-motion": "^14.6.0",
     "graphile-worker": "^0.18.0",
