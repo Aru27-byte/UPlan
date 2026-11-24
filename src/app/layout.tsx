@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
@@ -42,7 +43,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${publicSans.variable} ${bricolage.variable} ${spaceMono.variable} ${chewy.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Page views and Web Vitals in the Vercel dashboard (D30). Only Vercel serves the insights
+            script from this origin; elsewhere the request 404s, which `npm run test:perf` counts as a
+            failed request. It sets no cookie, so no consent banner is needed. */}
+        <Analytics />
+      </body>
     </html>
   );
 }
